@@ -1,0 +1,2519 @@
+#ifndef __MACHAPI_H_INCLUDED__
+#define __MACHAPI_H_INCLUDED__
+#ifdef _MSC_VER
+#pragma once
+#endif 
+
+// Check for Windows.  We can make the move to Linux and Mac easier if we do this.
+#ifdef _WIN32 // Always defined for a WIN32 and WIN64 application
+
+// We use a macro to define __stdcall so that other platforms can simply not define it.
+#define STDCALL __stdcall
+#define MCP_API __declspec(dllexport)
+#define MCP_APIENTRY	STDCALL
+
+// The following ifdef block controls the way the application is linked to the MachAPI.
+// To link against the static "MachAPI.lib" library, define MACH_STATIC.
+// To link against "Mach4Core.dll" with the "Mach4Core.lib" stub library, don't define anything special.
+#ifdef MACH_STATIC
+#define MACHAPI  
+#define MACH_APIENTRY	STDCALL 
+#else
+#ifdef MACH_EXPORTS
+#define MACHAPI __declspec(dllexport)
+#define MACH_APIENTRY	STDCALL
+#else
+#define MACHAPI __declspec(dllimport)
+#define MACH_APIENTRY	STDCALL
+#endif
+
+#endif
+#else // UNIX/Linux/Mac
+#define MACHAPI
+#define MACH_APIENTRY
+#define MCP_API
+#define MCP_APIENTRY
+#endif
+
+#ifndef BOOL
+typedef int BOOL;
+#endif
+
+#define MACHAPI_NSCV MACHAPI // No Script, C#, or VB bindings.
+#define MACHAPI_NCV MACHAPI  // No C#, and VB bindings.
+#define MACHAPI_NC MACHAPI   // No C# bindings.
+#define MACHAPI_NV MACHAPI   // No VB bindings.
+#define MACHAPI_NS MACHAPI   // No script bindings.
+
+#ifdef MACHLITE
+#define MC_MAX_CONTROLLERS  1
+#define MC_MAX_AXES         4
+#define MC_MAX_COORD_AXES   3
+#define MC_MAX_MOTORS       4
+#define MC_MAX_AXIS_MOTORS  2
+#define MC_MAX_MPGS         1
+#define MC_MAX_TOOLS        20
+#else
+#define MC_MAX_CONTROLLERS  6
+#define MC_MAX_AXES	        12
+#define MC_MAX_COORD_AXES   6
+#define MC_MAX_MOTORS       32
+#define MC_MAX_AXIS_MOTORS  6
+#define MC_MAX_MPGS         MC_MAX_AXES
+#define MC_MAX_TOOLS        999
+#endif
+#define MC_SHUTTLE_PLANNER  MC_MAX_AXES + 1
+#define MC_MAX_GROUPS		25 // The number of modal groups.
+
+// Controller modes
+#define MC_MODE_MILL		0
+#define MC_MODE_LATHE_DIA	1
+#define MC_MODE_LATHE_RAD	2
+#define MC_MODE_TANGENTIAL	3
+#define MC_MODE_3D_PRINTER  4
+
+#define MC_MAX_BLOCKDELETE  10
+#define MC_MAX_TESTREGS		10
+
+#define MACHINIT_CONTROLLER_INUSE	-1
+#define MACHINIT_INVALID_INSTANCE	-1
+#define MACHINIT_INVALID_ARG		-2
+
+#define MERROR_NOERROR				0
+#define MERROR_INVALID_INSTANCE		-1
+#define MERROR_INVALID_ARG			-2
+#define MERROR_INVALID_DIR			-3
+#define MERROR_INVALID_PROFILE		-4
+#define MERROR_FILE_EXCEPTION		-5
+#define MERROR_FILE_EMPTY			-6
+#define MERROR_FILE_SHARING			-7
+#define MERROR_FILE_INVALID			-8
+#define MERROR_FILE_BADSIZE			-9
+#define MERROR_REGEN_DONE			-10
+#define MERROR_NODATA				-11
+#define MERROR_GRID_ACTIVE			-12
+#define MERROR_NOT_IMPLEMENTED		-13
+#define MERROR_MOTOR_NOT_FOUND		-14
+#define MERROR_INVALID_PARAM		MERROR_INVALID_ARG
+#define MERROR_AXIS_NOT_FOUND		-16
+#define MERROR_API_INIT				-17
+#define MERROR_NOT_NOW				-18
+#define MERROR_NOT_CREATED			-19
+#define MERROR_SIGNAL_NOT_FOUND		-20
+#define MERROR_IO_NOT_FOUND			-21
+#define MERROR_SPIN_RANGE_NOT_FOUND -22
+#define MERROR_PLUGIN_NOT_FOUND		-23
+#define MERROR_DEVICE_NOT_FOUND     -24
+#define MERROR_INVALID_STATE        -25
+#define MERROR_AXIS_NOT_ENABLED     -26
+#define MERROR_REG_NOT_FOUND        -27
+#define MERROR_IPC_NOT_READY        -28
+#define MERROR_NO_ROOM_AVALABLE     -29
+#define MERROR_NOT_COMPILED         -30
+#define MERROR_NOT_ENABLED          -31
+#define MERROR_SCRIPT_KILLED        -32
+#define MERROR_FILE_NOT_FOUND       -33
+#define MERROR_LIC_FEATURE_NOT_FOUND -34
+#define MERROR_LIC_REQUIREMENT_NOT_FOUND -35
+#define MERROR_LIC_EXPIRED          -36
+#define MERROR_LIC_BAD_ID           -37
+#define MERROR_LIC_BAD_KEY          -38
+#define MERROR_TOOLPATH_NOT_FOUND   -39
+#define MERROR_TIMED_OUT            -40
+#define MERROR_SOFTLIMITS           -41
+#define MERROR_FILE_BADFORMAT       -42
+#define MERROR_INVALID_TYPE         -43
+#define MERROR_TLM_ALLOC_FAILED     -44
+#define MERROR_TLM_TOOL_UNMANAGED   -45
+#define MERROR_TLM_GROUP_EXPIRED    -46
+#define MERROR_TLM_GROUP_NOT_FOUND  -47
+#define MERROR_TLM_GROUP_ADDED      -48
+#define MERROR_TLM_GROUP_CHANGED    -49
+#define MERROR_TLM_TOOL_NOT_FOUND   -50
+#define MERROR_TLM_TOOL_ADDED       -51
+#define MERROR_TLM_TOOL_CHANGED     -52
+#define MERROR_TLM_TOOL_EXPIRED     -53
+#define MERROR_WIN_NOT_FOUND        -54
+
+// Defines the software licensing.
+#define MC_LIC_POUNDVARS			(1<<0)
+#define MC_LIC_TOOL_LENGTH_OFFSET	(1<<1)
+#define MC_LIC_CUTTER_COMP			(1<<2)
+#define MC_LIC_FIXTURE_OFFSET		(1<<4)
+#define MC_LIC_SCRIPTING			(1<<5)
+#define MC_LIC_SUB_PROGRAMS			(1<<6)
+#define MC_LIC_3_AXIS			    (1<<7)
+#define MC_LIC_6_AXIS				(1<<8)
+#define MC_LIC_VARIABLE_SPINDLE	    (1<<9)
+#define MC_LIC_LATHE			    (1<<10)
+#define MC_LIC_MILL					(1<<11)
+#define MC_LIC_INSTANCE1            (1<<12)
+#define MC_LIC_INSTANCE2            (1<<13)
+#define MC_LIC_INSTANCE3            (1<<14)
+#define MC_LIC_INSTANCE4            (1<<15)
+#define MC_LIC_INSTANCE5            (1<<16)
+#define MC_LIC_INSTANCE6            (1<<17)
+#define MC_LIC_M4HOBBY              (1<<18)
+#define MC_LIC_M4LITE               (1<<19)
+#define MC_LIC_M4EXPERT             (1<<20)
+#define MC_LIC_M4INDUSTRIAL         (1<<21)
+#define MC_LIC_MACROB               (1<<22)
+#define MC_LIC_M4EDUCATIONAL        (1<<23)
+#define MC_LIC_M4HMI                (1<<24)
+#define MC_LIC_SIM_ONLY             (1<<25)
+#define MC_LIC_MULTITOOL			(1<<26)
+
+#define AXIS0	0
+#define AXIS1	(AXIS0 + 1)
+#define AXIS2	(AXIS0 + 2)
+#define AXIS3	(AXIS0 + 3)
+#define AXIS4	(AXIS0 + 4)
+#define AXIS5	(AXIS0 + 5)
+#define AXIS6	(AXIS0 + 6)
+#define AXIS7	(AXIS0 + 7)
+#define AXIS8	(AXIS0 + 8)
+#define AXIS9	(AXIS0 + 9)
+#define AXIS10	(AXIS0 + 10)
+#define AXIS11	(AXIS0 + 11)
+#define X_AXIS	AXIS0
+#define Y_AXIS	AXIS1
+#define Z_AXIS	AXIS2
+#define A_AXIS	AXIS3
+#define B_AXIS	AXIS4
+#define C_AXIS	AXIS5
+#define S_AXIS	AXIS6
+
+#define MOTOR0	0
+#define MOTOR1	(MOTOR0 + 1)
+#define MOTOR2	(MOTOR0 + 2)
+#define MOTOR3	(MOTOR0 + 3)
+#define MOTOR4	(MOTOR0 + 4)
+#define MOTOR5	(MOTOR0 + 5)
+#define MOTOR6	(MOTOR0 + 6)
+#define MOTOR7	(MOTOR0 + 7)
+#define MOTOR8	(MOTOR0 + 8)
+#define MOTOR9	(MOTOR0 + 9)
+#define MOTOR10	(MOTOR0 + 10)
+#define MOTOR11	(MOTOR0 + 11)
+#define MOTOR12	(MOTOR0 + 12)
+#define MOTOR13	(MOTOR0 + 13)
+#define MOTOR14	(MOTOR0 + 14)
+#define MOTOR15	(MOTOR0 + 15)
+#define MOTOR16	(MOTOR0 + 16)
+#define MOTOR17	(MOTOR0 + 17)
+#define MOTOR18	(MOTOR0 + 18)
+#define MOTOR19	(MOTOR0 + 19)
+#define MOTOR20	(MOTOR0 + 20)
+#define MOTOR21	(MOTOR0 + 21)
+#define MOTOR22	(MOTOR0 + 22)
+#define MOTOR23	(MOTOR0 + 23)
+#define MOTOR24	(MOTOR0 + 24)
+#define MOTOR25	(MOTOR0 + 25)
+#define MOTOR26	(MOTOR0 + 26)
+#define MOTOR27	(MOTOR0 + 27)
+#define MOTOR28	(MOTOR0 + 28)
+#define MOTOR29	(MOTOR0 + 29)
+#define MOTOR30	(MOTOR0 + 30)
+#define MOTOR31	(MOTOR0 + 31)
+
+/*!**************************************************
+ * Def's for the  Do Command and get Value commands *
+ ****************************************************/
+#define AXIS0_BIT   (1 << 0)
+#define AXIS1_BIT   (1 << 1)
+#define AXIS2_BIT   (1 << 2)
+#define AXIS3_BIT   (1 << 3)
+#define AXIS4_BIT   (1 << 4)
+#define AXIS5_BIT   (1 << 5)
+#define AXIS6_BIT   (1 << 6)
+#define AXIS7_BIT   (1 << 7)
+#define AXIS8_BIT   (1 << 8)
+#define AXIS9_BIT   (1 << 9)
+#define AXIS10_BIT  (1 << 10)
+#define AXIS11_BIT  (1 << 11)
+
+#define X_AXIS_BIT  AXIS0_BIT
+#define Y_AXIS_BIT  AXIS1_BIT
+#define Z_AXIS_BIT  AXIS2_BIT
+#define A_AXIS_BIT  AXIS3_BIT
+#define B_AXIS_BIT  AXIS4_BIT
+#define C_AXIS_BIT  AXIS5_BIT
+
+#define MOT0R0_BIT  (1<<0)
+#define MOT0R1_BIT  (1<<1)
+#define MOT0R2_BIT  (1<<2)
+#define MOT0R3_BIT  (1<<3)
+#define MOT0R4_BIT  (1<<4)
+#define MOT0R5_BIT  (1<<5)
+#define MOT0R6_BIT  (1<<6)
+#define MOT0R7_BIT  (1<<7)
+#define MOT0R8_BIT  (1<<8)
+#define MOT0R9_BIT  (1<<9)
+#define MOT0R10_BIT (1<<10)
+#define MOT0R11_BIT (1<<11)
+#define MOT0R12_BIT (1<<12)
+#define MOT0R13_BIT (1<<13)
+#define MOT0R14_BIT (1<<14)
+#define MOT0R15_BIT (1<<15)
+#define MOT0R16_BIT (1<<16)
+#define MOT0R17_BIT (1<<17)
+#define MOT0R18_BIT (1<<18)
+#define MOT0R19_BIT (1<<19)
+#define MOT0R20_BIT (1<<20)
+#define MOT0R21_BIT (1<<21)
+#define MOT0R22_BIT (1<<22)
+#define MOT0R23_BIT (1<<23)
+#define MOT0R24_BIT (1<<24)
+#define MOT0R25_BIT (1<<25)
+#define MOT0R26_BIT (1<<26)
+#define MOT0R27_BIT (1<<27)
+#define MOT0R28_BIT (1<<28)
+#define MOT0R29_BIT (1<<29)
+#define MOT0R30_BIT (1<<30)
+#define MOT0R31_BIT (1<<31)
+
+#define BIT(num)	(1 << num)
+
+#define MC_OFF     0
+#define MC_ON      1
+#define MC_TOGGLE  2
+#define MC_FALSE   0
+#define MC_TRUE    1
+
+#define MC_SPINDLE_OFF         0
+#define MC_SPINDLE_FWD         1
+#define MC_SPINDLE_REV         -1
+
+#define MC_SPINDLE_RPM         0
+#define MC_SPINDLE_CSS		   1
+
+#define MC_UNITS_INCH            20
+#define MC_UNITS_METRIC          21
+
+/*********************************************************************
+*Bits to send in for getting the current offset values for each axis *
+*The value returned is the amount of offset of the current move that *
+*being done. This will not show where the lookahead buffer is working*
+*********************************************************************/
+#define MC_OFFSET_FIXTURE   (1 << 0)
+#define MC_OFFSET_AXIS		(1 << 1)
+#define MC_OFFSET_TOOL		(1 << 2)
+#define MC_OFFSET_WORK		(1 << 3)
+#define MC_OFFSET_HEAD		(1 << 4)
+#define MC_OFFSET_ALL		(1 << 5)
+
+// Event messages
+#define MSG_CHANGE_TOOL         1000
+#define MSG_CHANGE_TOOL_DONE    1001
+#define MSG_CYCLE_STOP          1002
+#define MSG_CONFIG_END          1003
+#define MSG_CONFIG_START        1004
+#define MSG_CYCLE_START         1005
+#define MSG_DREF_AXIS           1006
+#define MSG_DRYRUN_DONE         1007
+#define MSG_ENABLE              1008
+#define MSG_GCODE_LINE          1009
+#define MSG_HOME_AXIS           1010
+#define MSG_HOME_AXIS_DONE      1011
+#define MSG_IO_CHANGED          1012
+#define MSG_JOG                 1013
+#define MSG_PROBE_DONE          1014
+#define MSG_PROBE_START         1015
+#define MSG_RESET_CNTL          1016
+#define MSG_REWIND_FILE         1017
+#define MSG_SIG_CHANGED         1018
+#define MSG_START_MOTION_DEV    1019
+#define MSG_STOP_EXECUTION      1020
+#define MSG_STOP_MOTION_DEV     1021
+#define MSG_REG_CHANGED         1022
+#define MSG_SPINDLE_CHANGED     1023
+#define MSG_RESERVED1           1024
+#define MSG_GCODE_LOADED        1025
+#define MSG_GCODE_MESSAGE       1026
+#define MSG_SET_MOTOR_ZERO      1027
+#define MSG_GCODE_VAR_CHANGED   1028
+#define MSG_GCODE_FILE_CHANGED  1029
+#define MSG_GUI_FOCUS           1030
+#define MSG_THREAD_START        1031
+#define MSG_PLUGIN_ENABLE	    1032
+#define MSG_PACKAGE             1033
+#define MSG_REG_COMMAND         1034
+#define MSG_VERIFY_AXIS         1035
+#define MSG_GUI_ENABLE_TIMERS   1036 // param1 == TRUE : FALSE
+#define MSG_TOOL_OFFSET_CHANGED 1037
+#define MSG_WORK_OFFSET_CHANGED 1038
+#define MSG_TIMEOUT             1039
+
+// System values.
+#define VAL_ACTIVE_TOOL        2000
+#define VAL_AXIS_MACHINE_POS   2001
+#define VAL_AXIS_POS           2003
+#define VAL_AXIS_VEL           2004
+#define VAL_BLOCK_DELETE       2005
+#define VAL_CONTROLLER_MODE    2006
+#define VAL_CYCLE_TIME         2007
+#define VAL_DIA_REG            2008
+#define VAL_DIST_TO_GO         2009
+#define VAL_ENCODER_POS        2010
+#define VAL_EXECUTION_NUM      2011
+#define VAL_FIXTURE_POS        2012
+#define VAL_FRO                2013
+#define VAL_G_INTERPRETER_POS  2014
+#define VAL_GCODE_LINE         2015
+#define VAL_GCODE_LINE_COUNT   2016
+#define VAL_GCODE_VAR          2017
+#define VAL_TOOLPATH_PERCENT   2018
+#define VAL_HEIGHT_REG         2019
+#define VAL_MACHINE_POS        2020
+#define VAL_MOTOR_PLAN_ABS     2021
+#define VAL_MOTOR_PLAN_INC     2022
+#define VAL_MOTOR_POS          2023
+#define VAL_MOTOR_VEL          2024
+#define VAL_NEXT_TOOL          2025
+#define VAL_OPTIONAL_STOP      2026
+#define VAL_PATHGENERATE       2028
+#define VAL_REGISTER           2029
+#define VAL_RRO                2030
+#define VAL_SINGLE_BLOCK       2031
+#define VAL_SLOW_JOG_RATE      2032
+#define VAL_SOFTLIMIT          2033
+#define VAL_SOFTLIMIT_MAX      2034
+#define VAL_SOFTLIMIT_MIN      2035
+#define VAL_SPINDLE_SPEED      2036
+#define VAL_TOOLPATH_JOGFOLLOW 2037
+#define VAL_VELOCITY           2038
+#define VAL_TOOLOFFSETDIST     2039
+#define VAL_SOFTLIMIT_USED     2040
+#define VAL_SLOW_JOG_ACCEL     2041
+#define VAL_JOG_INC            2042
+#define VAL_AXIS_PROBE_POS     2043
+#define VAL_AXIS_MACHINE_PROBE_POS     2044
+#define VAL_JOG_TYPE           2045
+#define VAL_AXIS_SCALE         2046
+#define VAL_GCODE_FILE         2047
+#define VAL_SCC                2048
+#define VAL_IPHC               2049
+#define VAL_NGLC               2050
+#define VAL_FIXTURE_GP         2051
+#define VAL_FEED_MODE          2052
+#define VAL_UNITS_MODE         2053
+#define VAL_G68_AXISPOS	       2054
+#define VAL_DWELL_TIME_TARGET  2055
+#define VAL_DWELL_TIME_CURRENT 2056
+#define VAL_MAX_TOOLS          2057
+#define VAL_ORIGIN_INDEX       2058
+#define VAL_AXIS_ACCEL_PERCENT 2059
+#define VAL_DRYRUN_RATE		   2060
+#define VAL_DRYRUN_ENABLE	   2061
+#define VAL_MOTOR_AUX_POS      2062
+#define VAL_AXIS_MACHINE_AUX_POS 2063
+#define VAL_AXIS_AUX_POS       2064
+
+//	MC_STATE_HOLD =            1,
+
+enum mcStateEnum {
+	MC_STATE_IDLE =                   0,
+	MC_STATE_HOLD =                   1,
+	MC_STATE_FRUN_SUB =               2,
+	MC_STATE_MRUN_SUB =               3,
+	MC_STATE_JOG =                    4,
+	MC_STATE_DRYRUN =                 5,
+	MC_STATE_HOME =                   6,
+	MC_STATE_CONFIG =                 7,
+	MC_STATE_FRUN =                   100,
+	MC_STATE_FRUN_FH =                101,
+	MC_STATE_FRUN_PROBE =             102,
+	MC_STATE_FRUN_PROBE_FH =          103,
+	MC_STATE_FRUN_THREAD =            104,
+	MC_STATE_FRUN_THREAD_FH =         105,
+	MC_STATE_FRUN_FH_JOG =            106,
+	MC_STATE_FRUN_TAP =               107,
+	MC_STATE_FRUN_MACROH =            108,
+	MC_STATE_FRUN_MACROH_JOG =        109,
+	MC_STATE_FRUN_SINGLE_BLOCK =      110,
+	MC_STATE_FRUN_RETRACT =           111,
+	MC_STATE_FRUN_HOMING =            112,
+	MC_STATE_FRUN_SINGLE_BLOCK_HOLD = 113,
+	MC_STATE_FRUN_END =               199,
+	MC_STATE_MRUN =                   200,
+	MC_STATE_MRUN_FH =                201,
+	MC_STATE_MRUN_PROBE =             202,
+	MC_STATE_MRUN_PROBE_FH =          203,
+	MC_STATE_MRUN_THREAD =            204,
+	MC_STATE_MRUN_THREAD_FH =         205,
+	MC_STATE_MRUN_TAP =               206,
+	MC_STATE_MRUN_MACROH =            207,
+	MC_STATE_MRUN_MACROH_JOG =        208,
+	MC_STATE_MRUN_RETRACT =           209,
+	MC_STATE_MRUN_HOMING =            210,
+	MC_STATE_MRUN_END =               299,
+};
+
+typedef enum mcStateEnum mcState;
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+typedef int MINSTANCE;
+typedef int HMINSTANCE;
+
+/*!********************************************
+ * Type definitions.                          *
+ **********************************************/
+typedef unsigned long HMCPLUG;
+typedef unsigned long HMCDEV;
+typedef unsigned long HMCSIG;
+typedef unsigned long HMCIO;
+typedef unsigned long HMCREG;
+typedef unsigned long HMCVARS;
+typedef unsigned long HMCHANDLE;
+typedef unsigned long HMCWIN;
+
+/*!********************************************
+ * Spindle API definitions and functions.     *
+ **********************************************/
+#define MC_SPINDLE_OFF         0
+#define MC_SPINDLE_FWD         1
+#define MC_SPINDLE_REV         -1
+
+#define MC_SPINDLE_SPEED_CHECK_SPIN_OFF -1
+#define MC_SPINDLE_SPEED_CHECK_FAIL 0
+#define MC_SPINDLE_SPEED_CHECK_PASS 1
+
+#define MC_SRANGE0	0
+#define MC_SRANGE1	(MC_SRANGE0 + 1)
+#define MC_SRANGE2	(MC_SRANGE0 + 2)
+#define MC_SRANGE3	(MC_SRANGE0 + 3)
+#define MC_SRANGE4	(MC_SRANGE0 + 4)
+#define MC_SRANGE5	(MC_SRANGE0 + 5)
+#define MC_SRANGE6	(MC_SRANGE0 + 6)
+#define MC_SRANGE7	(MC_SRANGE0 + 7)
+#define MC_SRANGE8	(MC_SRANGE0 + 8)
+#define MC_SRANGE9	(MC_SRANGE0 + 9)
+#define MC_SRANGE10	(MC_SRANGE0 + 10)
+#define MC_SRANGE11	(MC_SRANGE0 + 11)
+#define MC_SRANGE12	(MC_SRANGE0 + 12)
+#define MC_SRANGE13	(MC_SRANGE0 + 13)
+#define MC_SRANGE14	(MC_SRANGE0 + 14)
+#define MC_SRANGE15	(MC_SRANGE0 + 15)
+#define MC_SRANGE16	(MC_SRANGE0 + 16)
+#define MC_SRANGE17	(MC_SRANGE0 + 17)
+#define MC_SRANGE18	(MC_SRANGE0 + 18)
+#define MC_SRANGE19	(MC_SRANGE0 + 19)
+#define MC_MAX_SRANGES 20
+
+#define MC_PLANE_XY 0
+#define MC_PLANE_YZ 1
+#define MC_PLANE_XZ 2
+
+MACHAPI int MACH_APIENTRY mcSpindleCalcCSSToRPM(MINSTANCE mInst, double DiaOfCut, BOOL Inch);
+MACHAPI int MACH_APIENTRY mcSpindleGetAccelTime(MINSTANCE mInst, int Range, double *Sec);
+MACHAPI int MACH_APIENTRY mcSpindleGetCommandRPM(MINSTANCE mInst, double *RPM);
+MACHAPI int MACH_APIENTRY mcSpindleGetCurrentRange(MINSTANCE mInst, int *Range);
+MACHAPI int MACH_APIENTRY mcSpindleGetDecelTime(MINSTANCE mInst, int Range, double *Sec);
+MACHAPI int MACH_APIENTRY mcSpindleGetDirection(MINSTANCE mInst, int *dir);
+MACHAPI int MACH_APIENTRY mcSpindleGetFeedbackRatio(MINSTANCE mInst, int Range, double *Ratio);
+MACHAPI int MACH_APIENTRY mcSpindleGetMaxRPM(MINSTANCE mInst, int Range, double *MaxRPM);
+MACHAPI int MACH_APIENTRY mcSpindleGetMinRPM(MINSTANCE mInst, int Range, double *MinRPM);
+MACHAPI int MACH_APIENTRY mcSpindleGetMotorAccel(MINSTANCE mInst, int Range, double *Accel);
+MACHAPI int MACH_APIENTRY mcSpindleGetMotorMaxRPM(MINSTANCE mInst, double *RPM);
+MACHAPI int MACH_APIENTRY mcSpindleGetMotorRPM(MINSTANCE mInst, double *RPM);
+MACHAPI int MACH_APIENTRY mcSpindleGetOverride(MINSTANCE mInst, double *percent);
+MACHAPI int MACH_APIENTRY mcSpindleGetOverrideEnable(MINSTANCE mInst, BOOL *enable);
+MACHAPI int MACH_APIENTRY mcSpindleGetReverse(MINSTANCE mInst, int Range, BOOL *Reversed);
+MACHAPI int MACH_APIENTRY mcSpindleGetSensorRPM(MINSTANCE mInst, double *RPM);
+MACHAPI int MACH_APIENTRY mcSpindleGetSpeedCheckEnable(MINSTANCE mInst, BOOL *enabled);
+MACHAPI int MACH_APIENTRY mcSpindleGetSpeedCheckPercent(MINSTANCE mInst, double *percent);
+MACHAPI int MACH_APIENTRY mcSpindleGetTrueRPM(MINSTANCE mInst, double *RPM);  // Sensor RPM x feedback ratio.
+MACHAPI int MACH_APIENTRY mcSpindleSetAccelTime(MINSTANCE mInst, int Range, double Sec);
+MACHAPI int MACH_APIENTRY mcSpindleSetCommandRPM(MINSTANCE mInst, double RPM);
+MACHAPI int MACH_APIENTRY mcSpindleSetDecelTime(MINSTANCE mInst, int Range, double Sec);
+MACHAPI int MACH_APIENTRY mcSpindleSetDirection(MINSTANCE mInst, int dir);
+MACHAPI int MACH_APIENTRY mcSpindleSetDirectionWait(MINSTANCE mInst, int dir);
+MACHAPI int MACH_APIENTRY mcSpindleSetFeedbackRatio(MINSTANCE mInst, int Range, double Ratio);
+MACHAPI int MACH_APIENTRY mcSpindleSetMaxRPM(MINSTANCE mInst, int Range, double RPM);
+MACHAPI int MACH_APIENTRY mcSpindleSetMinRPM(MINSTANCE mInst, int Range, double RPM);
+MACHAPI int MACH_APIENTRY mcSpindleSetMotorAccel(MINSTANCE mInst, int Range, double Accel);
+MACHAPI int MACH_APIENTRY mcSpindleSetMotorMaxRPM(MINSTANCE mInst, double RPM);
+MACHAPI int MACH_APIENTRY mcSpindleSetOverride(MINSTANCE mInst, double percent);
+MACHAPI int MACH_APIENTRY mcSpindleSetOverrideEnable(MINSTANCE mInst, BOOL enable);
+MACHAPI int MACH_APIENTRY mcSpindleSetRange(MINSTANCE mInst, int Range);
+MACHAPI int MACH_APIENTRY mcSpindleSetReverse(MINSTANCE mInst, int Range, BOOL Reversed);
+MACHAPI int MACH_APIENTRY mcSpindleSetSensorRPM(MINSTANCE mInst, double RPM); // Plugins that control the spindle use this to set the feedback RPM.
+MACHAPI int MACH_APIENTRY mcSpindleSetSpeedCheckPercent(MINSTANCE mInst, double percent);
+MACHAPI int MACH_APIENTRY mcSpindleSetSpeedCheckEnable(MINSTANCE mInst, BOOL enabled);
+MACHAPI int MACH_APIENTRY mcSpindleSpeedCheck(MINSTANCE mInst, int *SpeedOk);
+MACHAPI int MACH_APIENTRY mcSpindleWaitForSpeed(MINSTANCE mInst);
+MACHAPI int MACH_APIENTRY mcSpindleWaitForStop(MINSTANCE mInst);
+
+#define DEV_TYPE_NONE        0x00000000 
+#define DEV_TYPE_MOTION      0x00000001 // Defined if the plugin device is a motion device.
+#define DEV_TYPE_IO          0x00000002 // Defined if the plugin device is an I/O device.
+#define DEV_TYPE_SCRIPT      0x00000004 // Defined if the plugin device is a script engine.
+#define DEV_TYPE_CONFIG      0x00000008 // Defined if the plugin provides a configuration dialog for the device.
+#define DEV_TYPE_DIAG        0x00000010 // Defined if the plugin provides a diagnostics dialog for the device.
+#define DEV_TYPE_REG         0x00000020 // Defined if the plugin device provides registers.
+#define DEV_TYPE_RESERVED    0x00000040 // Reserved
+#define DEV_TYPE_PROBE2		 0x00000080 // Defined if the motion plugin device handles ALL of the probe movement. (Currently not implemented).
+#define DEV_TYPE_THREAD2     0x00000100 // Defined if the motion plugin device handles ALL of the threading moves.
+#define DEV_TYPE_RTAP        0x00000200 // Defined if the motion plugin device can do rigid tapping with Core directed moves.
+#define DEV_TYPE_RTAP2       0x00000400 // Defined if the motion plugin device can do rigid tapping AND handles ALL of the rigid tapping moves.
+#define DEV_TYPE_PROBE		 0x00000800 // Defined if the motion plugin device can do Core directed probing. (default)
+#define DEV_TYPE_THREAD      0x00001000 // Defined if the motion plugin device can do Core directed threading. (default)
+#define DEV_TYPE_CORE_LIMITS 0x00002000 // Defined if the motion plugin device if it wishes the core to handle limits.
+#define DEV_TYPE_ALL         0xFFFFFFFF
+
+/*!********************************************
+ * Plugin API definitions and functions.      *
+ **********************************************/
+#define PLUG_TYPE_NONE      DEV_TYPE_NONE
+#define PLUG_TYPE_MOTION    DEV_TYPE_MOTION   // Defined if the plugin provides a motion device.
+#define PLUG_TYPE_IO        DEV_TYPE_IO       // Defined if the plugin provides an I/O device.
+#define PLUG_TYPE_SCRIPT    DEV_TYPE_SCRIPT   // Defined if the plugin provides a script engine.
+#define PLUG_TYPE_CONFIG    DEV_TYPE_CONFIG   // Defined if the plugin provides a configuration dialog.
+#define PLUG_TYPE_DIAG      DEV_TYPE_DIAG     // Defined if the plugin provides a diagnostic dialog.
+#define PLUG_TYPE_REG       DEV_TYPE_REG      // Defined if the plugin provides registers.
+#define PLUG_TYPE_JOG       DEV_TYPE_RESERVED
+#define PLUG_TYPE_ALL       0xFFFFFFFF
+
+struct pluginfo {
+	char plugFilename[256];
+	char plugName[80];
+	char plugVersion[80];
+	char plugDesc[80];
+	int  plugType;
+	int  plugId;
+	BOOL plugEnabled;
+};
+
+typedef struct pluginfo pluginfo_t;
+
+MACHAPI_NS int MACH_APIENTRY mcPluginInstall(const char *m4plug);
+MACHAPI_NS int MACH_APIENTRY mcPluginRemove(const char *shortName);
+MACHAPI_NS int MACH_APIENTRY mcPluginCoreLoad(const char *shortName);
+MACHAPI_NS int MACH_APIENTRY mcPluginCoreUnload(const char *shortName);
+MACHAPI_NS int MACH_APIENTRY mcPluginEnable(HMCPLUG hPlug, BOOL enable);
+MACHAPI_NS int MACH_APIENTRY mcPluginGetEnabled(HMCPLUG hPlug, BOOL *enabled);
+MACHAPI_NS int MACH_APIENTRY mcPluginGetValid(HMCPLUG hPlug, BOOL *valid);
+MACHAPI_NS int MACH_APIENTRY mcPluginRegister(HMCPLUG hPlug, const char *DeveloperId, const char *Desc, const char *Version, int Type);
+MACHAPI_NS int MACH_APIENTRY mcPluginGetNextHandle(int plugType, HMCPLUG startPlug, HMCPLUG *hPlug);
+MACHAPI_NS int MACH_APIENTRY mcPluginGetInfoStruct(HMCPLUG hPlug, pluginfo_t *pluginf);
+MACHAPI_NS int MACH_APIENTRY mcPluginGetLicenseFeature(HMCPLUG hPlug, int index, char *buf, int bufSize, BOOL *status);
+MACHAPI_NS int MACH_APIENTRY mcPluginSendMsg(HMCPLUG hPlug, MINSTANCE inst, long msg, long param1, long param2);
+MACHAPI_NS int MACH_APIENTRY mcPluginSendMsgAsync(HMCPLUG hPlug, MINSTANCE inst, long msg, long param1, long param2);
+MACHAPI    int MACH_APIENTRY mcPluginConfigure(MINSTANCE mInst, int devid);
+MACHAPI    int MACH_APIENTRY mcPluginDiagnostic(MINSTANCE mInst, int devid);
+
+/*!********************************************
+ * Signal API functions and definitions.      *
+ **********************************************/
+#define MC_MAX_ISIGS 1000
+#define MC_ISIGS_START 0
+#define MC_ISIGS_FIRST MC_ISIGS_START
+
+#define ISIG_INPUT_START  (MC_ISIGS_START + 1)
+#define ISIG_INPUT0       (ISIG_INPUT_START + 0)
+#define ISIG_INPUT1       (ISIG_INPUT_START + 1)
+#define ISIG_INPUT2       (ISIG_INPUT_START + 2)
+#define ISIG_INPUT3       (ISIG_INPUT_START + 3)
+#define ISIG_INPUT4       (ISIG_INPUT_START + 4)
+#define ISIG_INPUT5       (ISIG_INPUT_START + 5)
+#define ISIG_INPUT6       (ISIG_INPUT_START + 6)
+#define ISIG_INPUT7       (ISIG_INPUT_START + 7)
+#define ISIG_INPUT8       (ISIG_INPUT_START + 8)
+#define ISIG_INPUT9       (ISIG_INPUT_START + 9)
+#define ISIG_INPUT10      (ISIG_INPUT_START + 10)
+#define ISIG_INPUT11      (ISIG_INPUT_START + 11)
+#define ISIG_INPUT12      (ISIG_INPUT_START + 12)
+#define ISIG_INPUT13      (ISIG_INPUT_START + 13)
+#define ISIG_INPUT14      (ISIG_INPUT_START + 14)
+#define ISIG_INPUT15      (ISIG_INPUT_START + 15)
+#define ISIG_INPUT16      (ISIG_INPUT_START + 16)
+#define ISIG_INPUT17      (ISIG_INPUT_START + 17)
+#define ISIG_INPUT18      (ISIG_INPUT_START + 18)
+#define ISIG_INPUT19      (ISIG_INPUT_START + 19)
+#define ISIG_INPUT20      (ISIG_INPUT_START + 20)
+#define ISIG_INPUT21      (ISIG_INPUT_START + 21)
+#define ISIG_INPUT22      (ISIG_INPUT_START + 22)
+#define ISIG_INPUT23      (ISIG_INPUT_START + 23)
+#define ISIG_INPUT24      (ISIG_INPUT_START + 24)
+#define ISIG_INPUT25      (ISIG_INPUT_START + 25)
+#define ISIG_INPUT26      (ISIG_INPUT_START + 26)
+#define ISIG_INPUT27      (ISIG_INPUT_START + 27)
+#define ISIG_INPUT28      (ISIG_INPUT_START + 28)
+#define ISIG_INPUT29      (ISIG_INPUT_START + 29)
+#define ISIG_INPUT30      (ISIG_INPUT_START + 30)
+#define ISIG_INPUT31      (ISIG_INPUT_START + 31)
+#define ISIG_INPUT32      (ISIG_INPUT_START + 32)
+#define ISIG_INPUT33      (ISIG_INPUT_START + 33)
+#define ISIG_INPUT34      (ISIG_INPUT_START + 34)
+#define ISIG_INPUT35      (ISIG_INPUT_START + 35)
+#define ISIG_INPUT36      (ISIG_INPUT_START + 36)
+#define ISIG_INPUT37      (ISIG_INPUT_START + 37)
+#define ISIG_INPUT38      (ISIG_INPUT_START + 38)
+#define ISIG_INPUT39      (ISIG_INPUT_START + 39)
+#define ISIG_INPUT40      (ISIG_INPUT_START + 40)
+#define ISIG_INPUT41      (ISIG_INPUT_START + 41)
+#define ISIG_INPUT42      (ISIG_INPUT_START + 42)
+#define ISIG_INPUT43      (ISIG_INPUT_START + 43)
+#define ISIG_INPUT44      (ISIG_INPUT_START + 44)
+#define ISIG_INPUT45      (ISIG_INPUT_START + 45)
+#define ISIG_INPUT46      (ISIG_INPUT_START + 46)
+#define ISIG_INPUT47      (ISIG_INPUT_START + 47)
+#define ISIG_INPUT48      (ISIG_INPUT_START + 48)
+#define ISIG_INPUT49      (ISIG_INPUT_START + 49)
+#define ISIG_INPUT50      (ISIG_INPUT_START + 50)
+#define ISIG_INPUT51      (ISIG_INPUT_START + 51)
+#define ISIG_INPUT52      (ISIG_INPUT_START + 52)
+#define ISIG_INPUT53      (ISIG_INPUT_START + 53)
+#define ISIG_INPUT54      (ISIG_INPUT_START + 54)
+#define ISIG_INPUT55      (ISIG_INPUT_START + 55)
+#define ISIG_INPUT56      (ISIG_INPUT_START + 56)
+#define ISIG_INPUT57      (ISIG_INPUT_START + 57)
+#define ISIG_INPUT58      (ISIG_INPUT_START + 58)
+#define ISIG_INPUT59      (ISIG_INPUT_START + 59)
+#define ISIG_INPUT60      (ISIG_INPUT_START + 60)
+#define ISIG_INPUT61      (ISIG_INPUT_START + 61)
+#define ISIG_INPUT62      (ISIG_INPUT_START + 62)
+#define ISIG_INPUT63      (ISIG_INPUT_START + 63)
+#define ISIG_INPUT_FINISH (ISIG_INPUT63)
+
+#define ISIG_MOTOR_START  (ISIG_INPUT_FINISH + 1)
+#define ISIG_MOTOR_HOME_START  (ISIG_MOTOR_START)
+#define ISIG_MOTOR0_HOME  (ISIG_MOTOR_HOME_START + 0)
+#define ISIG_MOTOR1_HOME  (ISIG_MOTOR_HOME_START + 1)
+#define ISIG_MOTOR2_HOME  (ISIG_MOTOR_HOME_START + 2)
+#define ISIG_MOTOR3_HOME  (ISIG_MOTOR_HOME_START + 3)
+#define ISIG_MOTOR4_HOME  (ISIG_MOTOR_HOME_START + 4)
+#define ISIG_MOTOR5_HOME  (ISIG_MOTOR_HOME_START + 5)
+#define ISIG_MOTOR6_HOME  (ISIG_MOTOR_HOME_START + 6)
+#define ISIG_MOTOR7_HOME  (ISIG_MOTOR_HOME_START + 7)
+#define ISIG_MOTOR8_HOME  (ISIG_MOTOR_HOME_START + 8)
+#define ISIG_MOTOR9_HOME  (ISIG_MOTOR_HOME_START + 9)
+#define ISIG_MOTOR10_HOME  (ISIG_MOTOR_HOME_START + 10)
+#define ISIG_MOTOR11_HOME  (ISIG_MOTOR_HOME_START + 11)
+#define ISIG_MOTOR12_HOME  (ISIG_MOTOR_HOME_START + 12)
+#define ISIG_MOTOR13_HOME  (ISIG_MOTOR_HOME_START + 13)
+#define ISIG_MOTOR14_HOME  (ISIG_MOTOR_HOME_START + 14)
+#define ISIG_MOTOR15_HOME  (ISIG_MOTOR_HOME_START + 15)
+#define ISIG_MOTOR16_HOME  (ISIG_MOTOR_HOME_START + 16)
+#define ISIG_MOTOR17_HOME  (ISIG_MOTOR_HOME_START + 17)
+#define ISIG_MOTOR18_HOME  (ISIG_MOTOR_HOME_START + 18)
+#define ISIG_MOTOR19_HOME  (ISIG_MOTOR_HOME_START + 19)
+#define ISIG_MOTOR20_HOME  (ISIG_MOTOR_HOME_START + 20)
+#define ISIG_MOTOR21_HOME  (ISIG_MOTOR_HOME_START + 21)
+#define ISIG_MOTOR22_HOME  (ISIG_MOTOR_HOME_START + 22)
+#define ISIG_MOTOR23_HOME  (ISIG_MOTOR_HOME_START + 23)
+#define ISIG_MOTOR24_HOME  (ISIG_MOTOR_HOME_START + 24)
+#define ISIG_MOTOR25_HOME  (ISIG_MOTOR_HOME_START + 25)
+#define ISIG_MOTOR26_HOME  (ISIG_MOTOR_HOME_START + 26)
+#define ISIG_MOTOR27_HOME  (ISIG_MOTOR_HOME_START + 27)
+#define ISIG_MOTOR28_HOME  (ISIG_MOTOR_HOME_START + 28)
+#define ISIG_MOTOR29_HOME  (ISIG_MOTOR_HOME_START + 29)
+#define ISIG_MOTOR30_HOME  (ISIG_MOTOR_HOME_START + 30)
+#define ISIG_MOTOR31_HOME  (ISIG_MOTOR_HOME_START + 31)
+#define ISIG_MOTOR_HOME_FINISH (ISIG_MOTOR31_HOME)
+
+#define ISIG_MOTOR_PLUS_START (ISIG_MOTOR_HOME_FINISH + 1)
+#define ISIG_MOTOR0_PLUS  (ISIG_MOTOR_PLUS_START + 0)
+#define ISIG_MOTOR1_PLUS  (ISIG_MOTOR_PLUS_START + 1)
+#define ISIG_MOTOR2_PLUS  (ISIG_MOTOR_PLUS_START + 2)
+#define ISIG_MOTOR3_PLUS  (ISIG_MOTOR_PLUS_START + 3)
+#define ISIG_MOTOR4_PLUS  (ISIG_MOTOR_PLUS_START + 4)
+#define ISIG_MOTOR5_PLUS  (ISIG_MOTOR_PLUS_START + 5)
+#define ISIG_MOTOR6_PLUS  (ISIG_MOTOR_PLUS_START + 6)
+#define ISIG_MOTOR7_PLUS  (ISIG_MOTOR_PLUS_START + 7)
+#define ISIG_MOTOR8_PLUS  (ISIG_MOTOR_PLUS_START + 8)
+#define ISIG_MOTOR9_PLUS  (ISIG_MOTOR_PLUS_START + 9)
+#define ISIG_MOTOR10_PLUS  (ISIG_MOTOR_PLUS_START + 10)
+#define ISIG_MOTOR11_PLUS  (ISIG_MOTOR_PLUS_START + 11)
+#define ISIG_MOTOR12_PLUS  (ISIG_MOTOR_PLUS_START + 12)
+#define ISIG_MOTOR13_PLUS  (ISIG_MOTOR_PLUS_START + 13)
+#define ISIG_MOTOR14_PLUS  (ISIG_MOTOR_PLUS_START + 14)
+#define ISIG_MOTOR15_PLUS  (ISIG_MOTOR_PLUS_START + 15)
+#define ISIG_MOTOR16_PLUS  (ISIG_MOTOR_PLUS_START + 16)
+#define ISIG_MOTOR17_PLUS  (ISIG_MOTOR_PLUS_START + 17)
+#define ISIG_MOTOR18_PLUS  (ISIG_MOTOR_PLUS_START + 18)
+#define ISIG_MOTOR19_PLUS  (ISIG_MOTOR_PLUS_START + 19)
+#define ISIG_MOTOR20_PLUS  (ISIG_MOTOR_PLUS_START + 20)
+#define ISIG_MOTOR21_PLUS  (ISIG_MOTOR_PLUS_START + 21)
+#define ISIG_MOTOR22_PLUS  (ISIG_MOTOR_PLUS_START + 22)
+#define ISIG_MOTOR23_PLUS  (ISIG_MOTOR_PLUS_START + 23)
+#define ISIG_MOTOR24_PLUS  (ISIG_MOTOR_PLUS_START + 24)
+#define ISIG_MOTOR25_PLUS  (ISIG_MOTOR_PLUS_START + 25)
+#define ISIG_MOTOR26_PLUS  (ISIG_MOTOR_PLUS_START + 26)
+#define ISIG_MOTOR27_PLUS  (ISIG_MOTOR_PLUS_START + 27)
+#define ISIG_MOTOR28_PLUS  (ISIG_MOTOR_PLUS_START + 28)
+#define ISIG_MOTOR29_PLUS  (ISIG_MOTOR_PLUS_START + 29)
+#define ISIG_MOTOR30_PLUS  (ISIG_MOTOR_PLUS_START + 30)
+#define ISIG_MOTOR31_PLUS  (ISIG_MOTOR_PLUS_START + 31)
+#define ISIG_MOTOR_PLUS_FINISH (ISIG_MOTOR31_PLUS)
+
+#define ISIG_MOTOR_MINUS_START (ISIG_MOTOR_PLUS_FINISH + 1)
+#define ISIG_MOTOR0_MINUS (ISIG_MOTOR_MINUS_START)
+#define ISIG_MOTOR1_MINUS (ISIG_MOTOR_MINUS_START + 1)
+#define ISIG_MOTOR2_MINUS (ISIG_MOTOR_MINUS_START + 2)
+#define ISIG_MOTOR3_MINUS (ISIG_MOTOR_MINUS_START + 3)
+#define ISIG_MOTOR4_MINUS (ISIG_MOTOR_MINUS_START + 4)
+#define ISIG_MOTOR5_MINUS (ISIG_MOTOR_MINUS_START + 5)
+#define ISIG_MOTOR6_MINUS (ISIG_MOTOR_MINUS_START + 6)
+#define ISIG_MOTOR7_MINUS (ISIG_MOTOR_MINUS_START + 7)
+#define ISIG_MOTOR8_MINUS (ISIG_MOTOR_MINUS_START + 8)
+#define ISIG_MOTOR9_MINUS (ISIG_MOTOR_MINUS_START + 9)
+#define ISIG_MOTOR10_MINUS (ISIG_MOTOR_MINUS_START + 10)
+#define ISIG_MOTOR11_MINUS (ISIG_MOTOR_MINUS_START + 11)
+#define ISIG_MOTOR12_MINUS (ISIG_MOTOR_MINUS_START + 12)
+#define ISIG_MOTOR13_MINUS (ISIG_MOTOR_MINUS_START + 13)
+#define ISIG_MOTOR14_MINUS (ISIG_MOTOR_MINUS_START + 14)
+#define ISIG_MOTOR15_MINUS (ISIG_MOTOR_MINUS_START + 15)
+#define ISIG_MOTOR16_MINUS (ISIG_MOTOR_MINUS_START + 16)
+#define ISIG_MOTOR17_MINUS (ISIG_MOTOR_MINUS_START + 17)
+#define ISIG_MOTOR18_MINUS (ISIG_MOTOR_MINUS_START + 18)
+#define ISIG_MOTOR19_MINUS (ISIG_MOTOR_MINUS_START + 19)
+#define ISIG_MOTOR20_MINUS (ISIG_MOTOR_MINUS_START + 20)
+#define ISIG_MOTOR21_MINUS (ISIG_MOTOR_MINUS_START + 21)
+#define ISIG_MOTOR22_MINUS (ISIG_MOTOR_MINUS_START + 22)
+#define ISIG_MOTOR23_MINUS (ISIG_MOTOR_MINUS_START + 23)
+#define ISIG_MOTOR24_MINUS (ISIG_MOTOR_MINUS_START + 24)
+#define ISIG_MOTOR25_MINUS (ISIG_MOTOR_MINUS_START + 25)
+#define ISIG_MOTOR26_MINUS (ISIG_MOTOR_MINUS_START + 26)
+#define ISIG_MOTOR27_MINUS (ISIG_MOTOR_MINUS_START + 27)
+#define ISIG_MOTOR28_MINUS (ISIG_MOTOR_MINUS_START + 28)
+#define ISIG_MOTOR29_MINUS (ISIG_MOTOR_MINUS_START + 29)
+#define ISIG_MOTOR30_MINUS (ISIG_MOTOR_MINUS_START + 30)
+#define ISIG_MOTOR31_MINUS (ISIG_MOTOR_MINUS_START + 31)
+#define ISIG_MOTOR_MINUS_FINISH (ISIG_MOTOR31_MINUS)
+
+#define ISIG_SPECIAL_START (ISIG_MOTOR_MINUS_FINISH + 1)
+#define ISIG_PROBE        (ISIG_SPECIAL_START + 0)
+#define ISIG_INDEX        (ISIG_SPECIAL_START + 1)
+#define ISIG_LIMITOVER    (ISIG_SPECIAL_START + 2)
+#define ISIG_EMERGENCY    (ISIG_SPECIAL_START + 3)
+#define ISIG_THCON        (ISIG_SPECIAL_START + 4)
+#define ISIG_THCUP        (ISIG_SPECIAL_START + 5)
+#define ISIG_THCDOWN      (ISIG_SPECIAL_START + 6)
+#define ISIG_TIMING       (ISIG_SPECIAL_START + 7)
+#define ISIG_JOGXP        (ISIG_SPECIAL_START + 8)
+#define ISIG_JOGXN        (ISIG_SPECIAL_START + 9)
+#define ISIG_JOGYP        (ISIG_SPECIAL_START + 10)
+#define ISIG_JOGYN        (ISIG_SPECIAL_START + 11)
+#define ISIG_JOGZP        (ISIG_SPECIAL_START + 12)
+#define ISIG_JOGZN        (ISIG_SPECIAL_START + 13)
+#define ISIG_JOGAP        (ISIG_SPECIAL_START + 14)
+#define ISIG_JOGAN        (ISIG_SPECIAL_START + 15)
+#define ISIG_JOGBP        (ISIG_SPECIAL_START + 16)
+#define ISIG_JOGBN        (ISIG_SPECIAL_START + 17)
+#define ISIG_JOGCP        (ISIG_SPECIAL_START + 18)
+#define ISIG_JOGCN        (ISIG_SPECIAL_START + 19)
+#define ISIG_SPINDLE_AT_SPEED (ISIG_SPECIAL_START + 20)
+#define ISIG_SPINDLE_AT_ZERO  (ISIG_SPECIAL_START + 21)
+#define ISIG_PROBE1       (ISIG_SPECIAL_START + 22)
+#define ISIG_PROBE2       (ISIG_SPECIAL_START + 23)
+#define ISIG_PROBE3       (ISIG_SPECIAL_START + 24)
+#define ISIG_MOTION_INHIBIT (ISIG_SPECIAL_START + 25)
+#define ISIG_JOG_INHIBIT  (ISIG_SPECIAL_START + 26)
+#define ISIG_MPG_INHIBIT  (ISIG_SPECIAL_START + 27)
+#define ISIG_TLSKP        (ISIG_SPECIAL_START + 28) // Tool Skip
+#define ISIG_TLOVR        (ISIG_SPECIAL_START + 29) // Tool Life Override
+#define ISIG_TLRST        (ISIG_SPECIAL_START + 30) // Tool Group Reset
+#define ISIG_UINT         (ISIG_SPECIAL_START + 31) // User Interrupt
+#define ISIG_RTRCT        (ISIG_SPECIAL_START + 32) // Tool Retract
+#define ISIG_HEAD         (ISIG_SPECIAL_START + 33) // Path Selection
+#define ISIG_NOWT         (ISIG_SPECIAL_START + 34) // No Wait
+#define ISIG_JOGOB1P      (ISIG_SPECIAL_START + 35)
+#define ISIG_JOGOB1N      (ISIG_SPECIAL_START + 36)
+#define ISIG_JOGOB2P      (ISIG_SPECIAL_START + 37)
+#define ISIG_JOGOB2N      (ISIG_SPECIAL_START + 38)
+#define ISIG_JOGOB3P      (ISIG_SPECIAL_START + 39)
+#define ISIG_JOGOB3N      (ISIG_SPECIAL_START + 40)
+#define ISIG_JOGOB4P      (ISIG_SPECIAL_START + 41)
+#define ISIG_JOGOB4N      (ISIG_SPECIAL_START + 42)
+#define ISIG_JOGOB5P      (ISIG_SPECIAL_START + 43)
+#define ISIG_JOGOB5N      (ISIG_SPECIAL_START + 44)
+#define ISIG_JOGOB6P      (ISIG_SPECIAL_START + 45)
+#define ISIG_JOGOB6N      (ISIG_SPECIAL_START + 46)
+#define ISIG_SPECIAL_FINISH (ISIG_JOGOB6N)
+#define MC_ISIGS_LAST     (ISIG_SPECIAL_FINISH)
+#define MC_ISIGS_FINISH   (MC_ISIGS_LAST)
+
+#define MC_MAX_OSIGS 1000
+#define MC_OSIGS_START 1000
+#define MC_OSIGS_FIRST MC_OSIGS_START
+
+#define OSIG_AXIS_SWITCH_START (MC_OSIGS_START)
+#define OSIG_XLIMITPLUS   (OSIG_AXIS_SWITCH_START + 0)
+#define OSIG_XLIMITMINUS  (OSIG_AXIS_SWITCH_START + 1)
+#define OSIG_XHOME        (OSIG_AXIS_SWITCH_START + 2)
+#define OSIG_YLIMITPLUS   (OSIG_AXIS_SWITCH_START + 3)
+#define OSIG_YLIMITMINUS  (OSIG_AXIS_SWITCH_START + 4)
+#define OSIG_YHOME        (OSIG_AXIS_SWITCH_START + 5)
+#define OSIG_ZLIMITPLUS   (OSIG_AXIS_SWITCH_START + 6)
+#define OSIG_ZLIMITMINUS  (OSIG_AXIS_SWITCH_START + 7)
+#define OSIG_ZHOME        (OSIG_AXIS_SWITCH_START + 8)
+#define OSIG_ALIMITPLUS   (OSIG_AXIS_SWITCH_START + 9)
+#define OSIG_ALIMITMINUS  (OSIG_AXIS_SWITCH_START + 10)
+#define OSIG_AHOME        (OSIG_AXIS_SWITCH_START + 11)
+#define OSIG_BLIMITPLUS   (OSIG_AXIS_SWITCH_START + 12)
+#define OSIG_BLIMITMINUS  (OSIG_AXIS_SWITCH_START + 13)
+#define OSIG_BHOME        (OSIG_AXIS_SWITCH_START + 14)
+#define OSIG_CLIMITPLUS   (OSIG_AXIS_SWITCH_START + 15)
+#define OSIG_CLIMITMINUS  (OSIG_AXIS_SWITCH_START + 16)
+#define OSIG_CHOME        (OSIG_AXIS_SWITCH_START + 17)
+#define OSIG_AXIS_SWITCH_FINISH (OSIG_CHOME)
+
+#define OSIG_ENABLE_START (OSIG_AXIS_SWITCH_FINISH + 1)
+#define OSIG_ENABLE0     (OSIG_ENABLE_START + 0)
+#define OSIG_ENABLE1     (OSIG_ENABLE_START + 1)
+#define OSIG_ENABLE2     (OSIG_ENABLE_START + 2)
+#define OSIG_ENABLE3     (OSIG_ENABLE_START + 3)
+#define OSIG_ENABLE4     (OSIG_ENABLE_START + 4)
+#define OSIG_ENABLE5     (OSIG_ENABLE_START + 5)
+#define OSIG_ENABLE6     (OSIG_ENABLE_START + 6)
+#define OSIG_ENABLE7     (OSIG_ENABLE_START + 7)
+#define OSIG_ENABLE8     (OSIG_ENABLE_START + 8)
+#define OSIG_ENABLE9     (OSIG_ENABLE_START + 9)
+#define OSIG_ENABLE10    (OSIG_ENABLE_START + 10)
+#define OSIG_ENABLE11    (OSIG_ENABLE_START + 11)
+#define OSIG_ENABLE12    (OSIG_ENABLE_START + 12)
+#define OSIG_ENABLE13    (OSIG_ENABLE_START + 13)
+#define OSIG_ENABLE14    (OSIG_ENABLE_START + 14)
+#define OSIG_ENABLE15    (OSIG_ENABLE_START + 15)
+#define OSIG_ENABLE16    (OSIG_ENABLE_START + 16)
+#define OSIG_ENABLE17    (OSIG_ENABLE_START + 17)
+#define OSIG_ENABLE18    (OSIG_ENABLE_START + 18)
+#define OSIG_ENABLE19    (OSIG_ENABLE_START + 19)
+#define OSIG_ENABLE20    (OSIG_ENABLE_START + 20)
+#define OSIG_ENABLE21    (OSIG_ENABLE_START + 21)
+#define OSIG_ENABLE22    (OSIG_ENABLE_START + 22)
+#define OSIG_ENABLE23    (OSIG_ENABLE_START + 23)
+#define OSIG_ENABLE24    (OSIG_ENABLE_START + 24)
+#define OSIG_ENABLE25    (OSIG_ENABLE_START + 25)
+#define OSIG_ENABLE26    (OSIG_ENABLE_START + 26)
+#define OSIG_ENABLE27    (OSIG_ENABLE_START + 27)
+#define OSIG_ENABLE28    (OSIG_ENABLE_START + 28)
+#define OSIG_ENABLE29    (OSIG_ENABLE_START + 29)
+#define OSIG_ENABLE30    (OSIG_ENABLE_START + 30)
+#define OSIG_ENABLE31    (OSIG_ENABLE_START + 31)
+#define OSIG_ENABLE_FINISH (OSIG_ENABLE31)
+
+#define OSIG_OUTPUT_START (OSIG_ENABLE_FINISH + 1)
+#define OSIG_OUTPUT0     (OSIG_OUTPUT_START + 0)
+#define OSIG_OUTPUT1     (OSIG_OUTPUT0 + 1)
+#define OSIG_OUTPUT2     (OSIG_OUTPUT0 + 2)
+#define OSIG_OUTPUT3     (OSIG_OUTPUT0 + 3)
+#define OSIG_OUTPUT4     (OSIG_OUTPUT0 + 4)
+#define OSIG_OUTPUT5     (OSIG_OUTPUT0 + 5)
+#define OSIG_OUTPUT6     (OSIG_OUTPUT0 + 6)
+#define OSIG_OUTPUT7     (OSIG_OUTPUT0 + 7)
+#define OSIG_OUTPUT8     (OSIG_OUTPUT0 + 8)
+#define OSIG_OUTPUT9     (OSIG_OUTPUT0 + 9)
+#define OSIG_OUTPUT10    (OSIG_OUTPUT0 + 10)
+#define OSIG_OUTPUT11    (OSIG_OUTPUT0 + 11)
+#define OSIG_OUTPUT12    (OSIG_OUTPUT0 + 12)
+#define OSIG_OUTPUT13    (OSIG_OUTPUT0 + 13)
+#define OSIG_OUTPUT14    (OSIG_OUTPUT0 + 14)
+#define OSIG_OUTPUT15    (OSIG_OUTPUT0 + 15)
+#define OSIG_OUTPUT16    (OSIG_OUTPUT0 + 16)
+#define OSIG_OUTPUT17    (OSIG_OUTPUT0 + 17)
+#define OSIG_OUTPUT18    (OSIG_OUTPUT0 + 18)
+#define OSIG_OUTPUT19    (OSIG_OUTPUT0 + 19)
+#define OSIG_OUTPUT20    (OSIG_OUTPUT0 + 20)
+#define OSIG_OUTPUT21    (OSIG_OUTPUT0 + 21)
+#define OSIG_OUTPUT22    (OSIG_OUTPUT0 + 22)
+#define OSIG_OUTPUT23    (OSIG_OUTPUT0 + 23)
+#define OSIG_OUTPUT24    (OSIG_OUTPUT0 + 24)
+#define OSIG_OUTPUT25    (OSIG_OUTPUT0 + 25)
+#define OSIG_OUTPUT26    (OSIG_OUTPUT0 + 26)
+#define OSIG_OUTPUT27    (OSIG_OUTPUT0 + 27)
+#define OSIG_OUTPUT28    (OSIG_OUTPUT0 + 28)
+#define OSIG_OUTPUT29    (OSIG_OUTPUT0 + 29)
+#define OSIG_OUTPUT30    (OSIG_OUTPUT0 + 30)
+#define OSIG_OUTPUT31    (OSIG_OUTPUT0 + 31)
+#define OSIG_OUTPUT32    (OSIG_OUTPUT0 + 32)
+#define OSIG_OUTPUT33    (OSIG_OUTPUT0 + 33)
+#define OSIG_OUTPUT34    (OSIG_OUTPUT0 + 34)
+#define OSIG_OUTPUT35    (OSIG_OUTPUT0 + 35)
+#define OSIG_OUTPUT36    (OSIG_OUTPUT0 + 36)
+#define OSIG_OUTPUT37    (OSIG_OUTPUT0 + 37)
+#define OSIG_OUTPUT38    (OSIG_OUTPUT0 + 38)
+#define OSIG_OUTPUT39    (OSIG_OUTPUT0 + 39)
+#define OSIG_OUTPUT40    (OSIG_OUTPUT0 + 40)
+#define OSIG_OUTPUT41    (OSIG_OUTPUT0 + 41)
+#define OSIG_OUTPUT42    (OSIG_OUTPUT0 + 42)
+#define OSIG_OUTPUT43    (OSIG_OUTPUT0 + 43)
+#define OSIG_OUTPUT44    (OSIG_OUTPUT0 + 44)
+#define OSIG_OUTPUT45    (OSIG_OUTPUT0 + 45)
+#define OSIG_OUTPUT46    (OSIG_OUTPUT0 + 46)
+#define OSIG_OUTPUT47    (OSIG_OUTPUT0 + 47)
+#define OSIG_OUTPUT48    (OSIG_OUTPUT0 + 48)
+#define OSIG_OUTPUT49    (OSIG_OUTPUT0 + 49)
+#define OSIG_OUTPUT50    (OSIG_OUTPUT0 + 50)
+#define OSIG_OUTPUT51    (OSIG_OUTPUT0 + 51)
+#define OSIG_OUTPUT52    (OSIG_OUTPUT0 + 52)
+#define OSIG_OUTPUT53    (OSIG_OUTPUT0 + 53)
+#define OSIG_OUTPUT54    (OSIG_OUTPUT0 + 54)
+#define OSIG_OUTPUT55    (OSIG_OUTPUT0 + 55)
+#define OSIG_OUTPUT56    (OSIG_OUTPUT0 + 56)
+#define OSIG_OUTPUT57    (OSIG_OUTPUT0 + 57)
+#define OSIG_OUTPUT58    (OSIG_OUTPUT0 + 58)
+#define OSIG_OUTPUT59    (OSIG_OUTPUT0 + 59)
+#define OSIG_OUTPUT60    (OSIG_OUTPUT0 + 60)
+#define OSIG_OUTPUT61    (OSIG_OUTPUT0 + 61)
+#define OSIG_OUTPUT62    (OSIG_OUTPUT0 + 62)
+#define OSIG_OUTPUT63    (OSIG_OUTPUT0 + 63)
+#define OSIG_OUTPUT_FINISH  OSIG_OUTPUT63
+// First MISC group
+#define OSIG_MISC_START  (OSIG_OUTPUT_FINISH + 1)  
+#define OSIG_RUNNING_GCODE   (OSIG_MISC_START + 0)
+#define OSIG_FEEDHOLD        (OSIG_MISC_START + 1)
+#define OSIG_BLOCK_DELETE    (OSIG_MISC_START + 2)
+#define OSIG_SINGLE_BLOCK    (OSIG_MISC_START + 3)
+#define OSIG_REVERSE_RUN     (OSIG_MISC_START + 4)
+#define OSIG_OPT_STOP        (OSIG_MISC_START + 5)
+#define OSIG_MACHINE_ENABLED (OSIG_MISC_START + 6)
+#define OSIG_TOOL_CHANGE     (OSIG_MISC_START + 7)
+#define OSIG_DIST_TOGO       (OSIG_MISC_START + 8)
+#define OSIG_MACHINE_CORD    (OSIG_MISC_START + 9)
+#define OSIG_SOFTLIMITS_ON   (OSIG_MISC_START + 10)
+#define OSIG_JOG_INC         (OSIG_MISC_START + 11)
+#define OSIG_JOG_CONT        (OSIG_MISC_START + 12)
+#define OSIG_JOG_ENABLED     (OSIG_MISC_START + 13)
+#define OSIG_JOG_MPG         (OSIG_MISC_START + 14)
+#define OSIG_HOMED_X         (OSIG_MISC_START + 15)
+#define OSIG_HOMED_Y         (OSIG_MISC_START + 16)
+#define OSIG_HOMED_Z         (OSIG_MISC_START + 17)
+#define OSIG_HOMED_A         (OSIG_MISC_START + 18)
+#define OSIG_HOMED_B         (OSIG_MISC_START + 19)
+#define OSIG_HOMED_C         (OSIG_MISC_START + 20)
+#define OSIG_DWELL           (OSIG_MISC_START + 21)
+#define OSIG_TP_MOUSE_DN	 (OSIG_MISC_START + 22)
+#define OSIG_LIMITOVER       (OSIG_MISC_START + 23)
+#define OSIG_CHARGE          (OSIG_MISC_START + 24)
+#define OSIG_CHARGE2         (OSIG_MISC_START + 25)
+#define OSIG_CURRENTHILOW    (OSIG_MISC_START + 26)
+#define OSIG_SPINDLEON       (OSIG_MISC_START + 27)
+#define OSIG_SPINDLEFWD      (OSIG_MISC_START + 28)
+#define OSIG_SPINDLEREV      (OSIG_MISC_START + 29)
+#define OSIG_COOLANTON       (OSIG_MISC_START + 30)
+#define OSIG_MISTON          (OSIG_MISC_START + 31)
+#define OSIG_DIGTRIGGER      (OSIG_MISC_START + 32)
+#define OSIG_ALARM           (OSIG_MISC_START + 33)
+#define OSIG_PRTSF           (OSIG_MISC_START + 34)
+#define OSIG_TLCHB           (OSIG_MISC_START + 35) // Tool Change B
+#define OSIG_WATO            (OSIG_MISC_START + 36) // Waiting on Tool Signal
+#define OSIG_RETRACT         (OSIG_MISC_START + 37) // Retract Signal
+#define OSIG_MISC_FINISH     (OSIG_RETRACT)
+// Second switch group.
+#define OSIG_AXIS_SWITCH2_START (OSIG_MISC_FINISH + 1)
+#define OSIG_OB1LIMITPLUS   (OSIG_AXIS_SWITCH2_START + 0)
+#define OSIG_OB1LIMITMINUS  (OSIG_AXIS_SWITCH2_START + 1)
+#define OSIG_OB1HOME        (OSIG_AXIS_SWITCH2_START + 2)
+#define OSIG_OB2LIMITPLUS   (OSIG_AXIS_SWITCH2_START + 3)
+#define OSIG_OB2LIMITMINUS  (OSIG_AXIS_SWITCH2_START + 4)
+#define OSIG_OB2HOME        (OSIG_AXIS_SWITCH2_START + 5)
+#define OSIG_OB3LIMITPLUS   (OSIG_AXIS_SWITCH2_START + 6)
+#define OSIG_OB3LIMITMINUS  (OSIG_AXIS_SWITCH2_START + 7)
+#define OSIG_OB3HOME        (OSIG_AXIS_SWITCH2_START + 8)
+#define OSIG_OB4LIMITPLUS   (OSIG_AXIS_SWITCH2_START + 9)
+#define OSIG_OB4LIMITMINUS  (OSIG_AXIS_SWITCH2_START + 10)
+#define OSIG_OB4HOME        (OSIG_AXIS_SWITCH2_START + 11)
+#define OSIG_OB5LIMITPLUS   (OSIG_AXIS_SWITCH2_START + 12)
+#define OSIG_OB5LIMITMINUS  (OSIG_AXIS_SWITCH2_START + 13)
+#define OSIG_OB5HOME        (OSIG_AXIS_SWITCH2_START + 14)
+#define OSIG_OB6LIMITPLUS   (OSIG_AXIS_SWITCH2_START + 15)
+#define OSIG_OB6LIMITMINUS  (OSIG_AXIS_SWITCH2_START + 16)
+#define OSIG_OB6HOME        (OSIG_AXIS_SWITCH2_START + 17)
+#define OSIG_AXIS_SWITCH2_FINISH (OSIG_OB6HOME)
+// Second MISC group
+#define OSIG_MISC2_START     (OSIG_AXIS_SWITCH2_FINISH)  
+// start with OSIG_AXIS_SWITCH2_FINISH + 1
+#define OSIG_CUT_RECOVERY    (OSIG_MISC2_START + 1) // Cut Recovery Signal
+#define OSIG_MISC2_FINISH    (OSIG_CUT_RECOVERY)
+
+#define MC_OSIGS_LAST        (OSIG_MISC2_FINISH)
+#define MC_OSIGS_FINISH      (MC_OSIGS_LAST)
+
+struct signalinfo {
+	char sigName[80];
+	char sigDesc[80];
+	int  sigEnabled;
+	int  sigActiveLow;
+	HMCIO sigMappedIoHandle;
+	int  sigId;
+};
+typedef struct signalinfo signalinfo_t;
+
+#define WAIT_MODE_NONE 0
+#define WAIT_MODE_RISE 1
+#define WAIT_MODE_FALL 2
+#define WAIT_MODE_HIGH 3
+#define WAIT_MODE_LOW  4
+
+MACHAPI    int MACH_APIENTRY mcSignalMap(HMCSIG hSig, HMCIO hIo);
+MACHAPI    int MACH_APIENTRY mcSignalEnable(HMCSIG hSig, int enabled);
+MACHAPI    int MACH_APIENTRY mcSignalGetHandle(MINSTANCE mInst, int sigId, HMCSIG *hSig);
+MACHAPI    int MACH_APIENTRY mcSignalGetNextHandle(MINSTANCE mInst, int sigtype, HMCSIG startSig, HMCSIG *hSig);
+MACHAPI    int MACH_APIENTRY mcSignalGetInfo(HMCSIG hSig, BOOL *enabled, char *name, size_t namelen, char *desc, size_t desclen, BOOL *activelow);
+MACHAPI_NS int MACH_APIENTRY mcSignalGetInfoStruct(HMCSIG hSig, signalinfo_t *siginf);
+MACHAPI    int MACH_APIENTRY mcSignalGetState(HMCSIG hSig, BOOL *enabled);
+MACHAPI    int MACH_APIENTRY mcSignalSetState(HMCSIG hSig, BOOL enabled);
+MACHAPI    int MACH_APIENTRY mcSignalSetActiveLow(HMCSIG hSig, int activelow);
+MACHAPI    int MACH_APIENTRY mcSignalWait(MINSTANCE mInst, int sigId, int waitMode, double timeoutSecs);
+MACHAPI    int MACH_APIENTRY mcSignalUnmap(HMCSIG hSig);
+
+/*!********************************************
+ * Device API functions and definitions.      *
+ **********************************************/
+
+struct devinfo {
+	char devName[80];
+	char devDesc[80];
+	int  devType;
+	int  devId;
+};
+typedef struct devinfo devinfo_t;
+
+MACHAPI_NS int MACH_APIENTRY mcDeviceRegister(MINSTANCE mInst, HMCPLUG plugid, const char *DeviceName, const char *DeviceDesc, int Type, HMCDEV *hDev);
+MACHAPI_NS int MACH_APIENTRY mcDeviceGetHandle(MINSTANCE mInst, int devid, HMCDEV *hDev);
+MACHAPI    int MACH_APIENTRY mcDeviceGetNextHandle(MINSTANCE mInst, int devtype, HMCDEV startDev, HMCDEV *hDev);
+MACHAPI_NS int MACH_APIENTRY mcDeviceGetInfoStruct(HMCDEV hDev, devinfo_t *devinf);
+MACHAPI    int MACH_APIENTRY mcDeviceGetInfo(HMCDEV hDev, char *nameBuf, size_t nameBuflen, char *descBuf, size_t descBuflen, int *type, int *id);
+MACHAPI_NS int MACH_APIENTRY mcDeviceGetPlugin(HMCDEV hDev, HMCPLUG *plugid);
+
+/*!********************************************
+ * I/O API functions and definitions.         *
+ **********************************************/
+#define IO_TYPE_NONE        0x00
+#define IO_TYPE_INPUT       0x01
+#define IO_TYPE_OUTPUT      0x02
+#define IO_TYPE_REG_INPUT   0x04
+#define IO_TYPE_REG_OUTPUT  0x08
+#define IO_TYPE_REG_HOLDING 0x10
+#define IO_TYPE_REG_COMMAND 0x20
+#define IO_TYPE_REG_ENCODER 0x40
+
+#define REG_TYPE_NONE       IO_TYPE_NONE
+#define REG_TYPE_INPUT      IO_TYPE_REG_INPUT
+#define REG_TYPE_OUTPUT     IO_TYPE_REG_OUTPUT
+#define REG_TYPE_HOLDING    IO_TYPE_REG_HOLDING
+#define REG_TYPE_COMMAND    IO_TYPE_REG_COMMAND
+#define REG_TYPE_ENCODER    IO_TYPE_REG_ENCODER
+#define REG_TYPE_GENERAL    REG_TYPE_HOLDING
+
+#define SIG_TYPE_NONE       IO_TYPE_NONE
+#define SIG_TYPE_INPUT      IO_TYPE_INPUT
+#define SIG_TYPE_OUTPUT     IO_TYPE_OUTPUT
+
+#define MAX_MAPPED_IO         12
+#define MAX_MAPPED_SIGNAL     12
+
+struct ioinfo {
+	char ioName[80];
+	char ioDesc[80];
+	int  ioType;
+	HMCDEV ioDev;
+	HMCSIG ioMappedSignals[MAX_MAPPED_SIGNAL];
+	void *ioUserData;
+	int ioInput;
+};
+typedef struct ioinfo ioinfo_t;
+
+MACHAPI_NS int MACH_APIENTRY mcIoRegister(HMCDEV hDev, const char *IoName, const char *IoDesc, int Type, HMCIO *hIo);
+MACHAPI    int MACH_APIENTRY mcIoGetHandle(MINSTANCE mInst, const char *path, HMCIO *hIo);
+MACHAPI    int MACH_APIENTRY mcIoGetNextHandle(HMCDEV hDev, HMCIO startIo, HMCIO *hIo);
+MACHAPI    int MACH_APIENTRY mcIoGetState(HMCIO hIo, BOOL *state);
+MACHAPI    int MACH_APIENTRY mcIoGetType(HMCIO hIo, int *type);
+MACHAPI_NS int MACH_APIENTRY mcIoGetUserData(HMCIO hIo, void **data);
+MACHAPI_NS int MACH_APIENTRY mcIoGetInfoStruct(HMCIO hIo, ioinfo_t *ioinf);
+MACHAPI    int MACH_APIENTRY mcIoGetInfo(HMCIO hIo, char *nameBuf, size_t nameBuflen, char *descBuf, size_t descBuflen, int *type, HMCDEV *hDev);
+MACHAPI    int MACH_APIENTRY mcIoSetDesc(HMCIO hIo, const char *desc);
+MACHAPI    int MACH_APIENTRY mcIoSetName(HMCIO hIo, const char *name);
+MACHAPI    int MACH_APIENTRY mcIoSetType(HMCIO hIo, int type);
+MACHAPI    int MACH_APIENTRY mcIoSetState(HMCIO hIo, BOOL state);
+MACHAPI    int MACH_APIENTRY mcIoSyncSignal(HMCIO hIo, BOOL state);
+MACHAPI_NS int MACH_APIENTRY mcIoSetUserData(HMCIO hIo, void *data);
+MACHAPI_NS int MACH_APIENTRY mcIoUnregister(HMCDEV hDev, HMCIO hIo);
+MACHAPI	   int MACH_APIENTRY mcIoIsEnabled (HMCIO hIo, BOOL *enabled);
+
+/*!********************************************
+ * Register API functions and definitions.    *
+ **********************************************/
+
+struct reginfo {
+	char regName[80];
+	char regDesc[80];
+	int  regType;
+	HMCDEV regDev;
+	void *regUserData;
+	int regInput;
+};
+typedef struct reginfo reginfo_t;
+
+MACHAPI_NS int MACH_APIENTRY mcRegRegister(HMCDEV hDev, const char *regName, const char *regDesc, int regType, HMCREG *hReg);
+MACHAPI_NS int MACH_APIENTRY mcRegGetCommand(HMCREG hReg, char *cmd, size_t cmdLen);
+MACHAPI    int MACH_APIENTRY mcRegGetHandle(MINSTANCE mInst, const char *path, HMCREG *hReg);
+MACHAPI    int MACH_APIENTRY mcRegGetNextHandle(HMCDEV hDev, HMCREG startReg, HMCREG *hReg);
+MACHAPI    int MACH_APIENTRY mcRegGetValue(HMCREG hReg, double *value);
+MACHAPI    int MACH_APIENTRY mcRegGetValueLong(HMCREG hReg, long *value);
+MACHAPI    int MACH_APIENTRY mcRegGetValueString(HMCREG hReg, char *buf, size_t bufsize);
+MACHAPI    int MACH_APIENTRY mcRegGetValueStringClear(HMCREG hReg, char *buf, size_t bufsize);
+MACHAPI_NS int MACH_APIENTRY mcRegGetUserData(HMCREG hReg, void **data);
+MACHAPI    int MACH_APIENTRY mcRegGetInfo(HMCREG hReg, char *nameBuf, size_t nameBuflen, char *descBuf, size_t descBuflen, int *type, HMCDEV *hDev);
+MACHAPI_NS int MACH_APIENTRY mcRegGetInfoStruct(HMCREG hReg, reginfo_t *reginf);
+MACHAPI    int MACH_APIENTRY mcRegSendCommand(HMCREG hReg, const char *command, char *response, size_t responseLen);
+MACHAPI    int MACH_APIENTRY mcRegSetDesc(HMCREG hReg, const char *desc);
+MACHAPI    int MACH_APIENTRY mcRegSetName(HMCREG hReg, const char *name);
+MACHAPI_NS int MACH_APIENTRY mcRegSetResponse(HMCREG hReg, const char *response);
+MACHAPI    int MACH_APIENTRY mcRegSetType(HMCREG hReg, int regType);
+MACHAPI    int MACH_APIENTRY mcRegSetValue(HMCREG hReg, double value);
+MACHAPI    int MACH_APIENTRY mcRegSetValueLong(HMCREG hReg, long value);
+MACHAPI    int MACH_APIENTRY mcRegSetValueString(HMCREG hReg, const char *value);
+MACHAPI_NS int MACH_APIENTRY mcRegSetUserData(HMCREG hReg, void *data);
+MACHAPI_NS int MACH_APIENTRY mcRegUnregister(HMCDEV hDev, HMCREG hReg);
+
+/*!********************************************
+ * Statistical Information functions.         *
+ **********************************************/
+struct mstats {
+	int cannon_buf_depth;
+	int la_cannon_buf_depth;
+	double totalTime;
+	double sessionTime;
+	double spindleTime;
+	long m3count;
+	long m4count;
+	long m6count;
+	double xDistance;
+	double yDistance;
+	double zDistance;
+	double aDistance;
+	double bDistance;
+	double cDistance;
+};
+
+/*!********************************************
+* Windows API functions and definitions.    *
+**********************************************/
+#define MCWIN_TYPE_NONE        0x00
+#define MCWIN_TYPE_PANEL       0x01
+#define MCWIN_TYPE_DIALOG      0x02
+#define MCWIN_TYPE_FRAME       0x04
+#define MCWIN_TYPE_CONFIG      0x10
+#define MCWIN_TYPE_DIAG        0x20
+
+
+#define MCWIN_MSG_NONE         0x00
+#define MCWIN_MSG_SIZE         0x01
+#define MCWIN_MSG_REFRESH      0x02
+#define MCWIN_MSG_DESTROY      0x04
+
+struct wininfo {
+	char winName[80];
+	char winDesc[80];
+	long  winType;
+	long  winMessages;
+	HMCDEV winDev;
+};
+typedef struct wininfo wininfo_t;
+
+// These are used by plugins.
+MACHAPI_NS int MACH_APIENTRY mcWinRegister(HMCDEV hDev, const char *WindowName, const char *WindowDesc, long winType, long msgFlags, HMCWIN *hWin);
+MACHAPI_NS int MACH_APIENTRY mcWinUnregister(HMCDEV hDev, HMCREG hReg);
+// These are used by GUIs.
+MACHAPI_NS int MACH_APIENTRY mcWinCreate(HMCWIN hWin, unsigned long parentNativeHandle, unsigned long *natvieHandle);
+MACHAPI_NS int MACH_APIENTRY mcWinGetHandle(MINSTANCE mInst, const char *path, HMCWIN *hWin);
+MACHAPI_NS int MACH_APIENTRY mcWinGetInfoStruct(HMCWIN hWin, wininfo_t *wininf);
+MACHAPI_NS int MACH_APIENTRY mcWinGetNextHandle(HMCDEV hDev, HMCWIN startWin, HMCWIN *hWin);
+MACHAPI_NS int MACH_APIENTRY mcWinMessage(HMCWIN hWin, unsigned long natvieHandle, long msg, long param1, long param2);
+
+typedef struct mstats mstats_t;
+
+MACHAPI_NS int MACH_APIENTRY mcCntlGetStats(MINSTANCE mInst, mstats_t *stats);
+MACHAPI_NS int MACH_APIENTRY mcCntlSetStats(MINSTANCE mInst, mstats_t *stats);
+
+/*!********************************************
+ * Tool data API definitions and functions.   *
+ *********************************************/
+#define MTOOL_MILL_X          15000  /* X offset */
+#define MTOOL_MILL_X_W        14000  /* X Wear offset */
+#define MTOOL_MILL_Y          19000  /* Y offset*/
+#define MTOOL_MILL_Y_W        17000  /* Y Wear offset */
+#define MTOOL_MILL_HEIGHT     11000  /* Tool height offset */
+#define MTOOL_MILL_HEIGHT_W   10000  /* Height wear Offset */
+#define MTOOL_MILL_DIA        13000  /* Dia for comp */
+#define MTOOL_MILL_DIA_W      12000  /* Dia wear offset for comp */
+#define MTOOL_MILL_RAD        -13000  /* Rad for comp */
+#define MTOOL_MILL_RAD_W      -12000  /* Dia wear offset for comp */
+#define MTOOL_MILL_POCKET     18000  /* Tool changer pocket */
+
+#define MTOOL_LATHE_X         15000 /* X offset */
+#define MTOOL_LATHE_X_W       10000 /* X Wear offset */
+#define MTOOL_LATHE_Y         19000 /* Y offset */
+#define MTOOL_LATHE_Y_W       14000 /* Y Wear offset*/
+#define MTOOL_LATHE_Z         11000 /* Z offset */
+#define MTOOL_LATHE_Z_W       16000 /* Z wear offset */
+#define MTOOL_LATHE_TIPRAD    17000 /* Tip Rad for comp */
+#define MTOOL_LATHE_TIPDIR    12000 /* Tool tip DIR */
+#define MTOOL_LATHE_TOOLSLIDE 18000 /* AxisSlide number  and - for reversed */
+#define MTOOL_LATHE_IMAG_POS  13000 /* Imaginay Position */
+
+/* Tool table data functions.  These functions modify the in-memory values. */
+MACHAPI int MACH_APIENTRY mcToolGetData(MINSTANCE mInst, int Type, int toolnum, double *value);
+MACHAPI int MACH_APIENTRY mcToolSetData(MINSTANCE mInst, int Type, int toolnum, double val);
+MACHAPI int MACH_APIENTRY mcToolGetDesc(MINSTANCE mInst, int toolnum, char *buff, size_t bufsize);
+MACHAPI int MACH_APIENTRY mcToolSetDesc(MINSTANCE mInst, int toolnum, const char *tdsc);
+
+/* Tool table property functions. */
+MACHAPI int MACH_APIENTRY mcToolSetPropertyStr(MINSTANCE mInst, const char *fieldName, const char *value);
+MACHAPI int MACH_APIENTRY mcToolGetPropertyStr(MINSTANCE mInst, const char *fieldName, char *value, size_t valueLen);
+MACHAPI int MACH_APIENTRY mcToolSetPropertyDbl(MINSTANCE mInst, const char *fieldName, double value);
+MACHAPI int MACH_APIENTRY mcToolGetPropertyDbl(MINSTANCE mInst, const char *fieldName, double *value);
+MACHAPI int MACH_APIENTRY mcToolSetPropertyInt(MINSTANCE mInst, const char *fieldName, int value);
+MACHAPI int MACH_APIENTRY mcToolGetPropertyInt(MINSTANCE mInst, const char *fieldName, int *value);
+
+/* These functions extend the tool table to allow custom data to be assigned to tools. */
+/* They only modify the tool table file entries, not the in-memory values. User extensions only reside in the file. */
+MACHAPI int MACH_APIENTRY mcToolSetDataExStr(MINSTANCE mInst, int toolnum, const char *fieldName, const char *value);
+MACHAPI int MACH_APIENTRY mcToolGetDataExStr(MINSTANCE mInst, int toolnum, const char *fieldName, char *value, size_t valueLen);
+MACHAPI int MACH_APIENTRY mcToolSetDataExDbl(MINSTANCE mInst, int toolnum, const char *fieldName, double value);
+MACHAPI int MACH_APIENTRY mcToolGetDataExDbl(MINSTANCE mInst, int toolnum, const char *fieldName, double *value);
+MACHAPI int MACH_APIENTRY mcToolSetDataExInt(MINSTANCE mInst, int toolnum, const char *fieldName, int value);
+MACHAPI int MACH_APIENTRY mcToolGetDataExInt(MINSTANCE mInst, int toolnum, const char *fieldName, int *value);
+
+MACHAPI int MACH_APIENTRY mcToolLoadFile(MINSTANCE mInst, const char *FileToLoad);
+MACHAPI int MACH_APIENTRY mcToolSaveFile(MINSTANCE mInst);
+
+MACHAPI int MACH_APIENTRY mcToolGetSelected(MINSTANCE mInst, int *toolnum);
+MACHAPI int MACH_APIENTRY mcToolGetCurrent(MINSTANCE mInst, int *toolnum);
+MACHAPI int MACH_APIENTRY mcToolSetCurrent(MINSTANCE mInst, int toolnum);
+
+/*!********************************************
+* Fixture offset loading functions.           *
+**********************************************/
+MACHAPI int MACH_APIENTRY mcFixtureSaveFile(MINSTANCE mInst);
+MACHAPI int MACH_APIENTRY mcFixtureLoadFile(MINSTANCE mInst, const char *FileToLoad);
+
+/*!********************************************
+ * Motor API functions and definitions.       *
+ **********************************************/
+struct motorinfo {
+	double CountsPerUnit;    // Number of encoder counts or steps per unit.
+	double MaxVelocity;      // Max velocity of the axis.
+	double MaxAcceleration;  // Max rate to accelerate.
+	BOOL   Reverse;          // Is the axis reversed?
+	double BacklashAmount;   // The amount of backlash in counts.
+	double CurrentVelocity;  // The speed the axis is moving, This could be reported by the motion deivce.
+	int    CurrentPosition;  // The Current Position (From the motion device).
+	BOOL   Homed;            // True if the axis has been homed.
+	long   SoftMaxLimit;     // Count for the max travel.
+	long   SoftMinLimit;     // Count for the min travel.
+	BOOL   CanHome;          // Can this motor home?
+	BOOL   Enabled;          // Is this motor enabled?
+	long   EnableDelay;      // ms to delay the enable signal for this motor.
+	int    AxisId;           // -1 if no axis has mapped this motor.
+};
+typedef struct motorinfo motorinfo_t;
+
+MACHAPI_NS int MACH_APIENTRY mcMotorGetInfoStruct(MINSTANCE mInst, int motorId, motorinfo_t *minf);
+MACHAPI    int MACH_APIENTRY mcMotorGetMaxAccel(MINSTANCE mInst, int motorId, double *maxAccel);
+MACHAPI    int MACH_APIENTRY mcMotorGetMaxVel(MINSTANCE mInst, int motorId, double *maxVel);
+MACHAPI    int MACH_APIENTRY mcMotorGetPos(MINSTANCE mInst, int motorId, double *val);
+MACHAPI    int MACH_APIENTRY mcMotorGetVel(MINSTANCE mInst, int motorId, double *velocity);
+MACHAPI    int MACH_APIENTRY mcMotorGetAxis(MINSTANCE mInst, int motorId, int *axisId);
+MACHAPI    int MACH_APIENTRY mcMotorIsStill(MINSTANCE mInst, int motorId, BOOL *still);
+MACHAPI_NS int MACH_APIENTRY mcMotorRegister(MINSTANCE mInst, int motorId);
+MACHAPI    int MACH_APIENTRY mcMotorSetHomePos(MINSTANCE mInst, int motorId, int count);
+MACHAPI_NS int MACH_APIENTRY mcMotorSetInfoStruct(MINSTANCE mInst, int motorId, motorinfo_t *minf);
+MACHAPI    int MACH_APIENTRY mcMotorSetMaxAccel(MINSTANCE mInst, int motorId, double maxAccel);
+MACHAPI    int MACH_APIENTRY mcMotorSetMaxVel(MINSTANCE mInst, int motorId, double maxVel);
+MACHAPI    int MACH_APIENTRY mcMotorUnregister(MINSTANCE mInst, int motorId);
+MACHAPI    int MACH_APIENTRY mcMotorIsHomed(MINSTANCE mInst, int motorId, BOOL *homed);
+MACHAPI    int MACH_APIENTRY mcMotorMapSetDefinition(MINSTANCE mInst, int motorId, long lengthCounts, long numPoints);
+MACHAPI    int MACH_APIENTRY mcMotorMapSetNPoints(MINSTANCE mInst, int motorId, int points); // Use mcMotorMapSetPointCount() instead.
+MACHAPI    int MACH_APIENTRY mcMotorMapSetPointCount(MINSTANCE mInst, int motorId, int points);
+MACHAPI    int MACH_APIENTRY mcMotorMapSetStart(MINSTANCE mInst, int motorId, int start);
+MACHAPI    int MACH_APIENTRY mcMotorMapSetLength(MINSTANCE mInst, int motorId, int length);
+MACHAPI    int MACH_APIENTRY mcMotorMapSetPoint(MINSTANCE mInst, int motorId, int point, int errorCounts);
+MACHAPI    int MACH_APIENTRY mcMotorMapGetDefinition(MINSTANCE mInst, int motorId, long *lengthCounts, long *numPoints);
+MACHAPI    int MACH_APIENTRY mcMotorMapGetNPoints(MINSTANCE mInst, int motorId, int *points); // Use mcMotorMapGetPointCount() instead.
+MACHAPI    int MACH_APIENTRY mcMotorMapGetPointCount(MINSTANCE mInst, int motorId, int *points);
+MACHAPI    int MACH_APIENTRY mcMotorMapGetStart(MINSTANCE mInst, int motorId, int *startPoint);
+MACHAPI    int MACH_APIENTRY mcMotorMapGetLength(MINSTANCE mInst, int motorId, int *length);
+MACHAPI    int MACH_APIENTRY mcMotorMapGetPoint(MINSTANCE mInst, int motorId, int point, int *errorCounts);
+MACHAPI    int MACH_APIENTRY mcMotorMapGetEnable(MINSTANCE mInst, int motorId, BOOL *enable);
+MACHAPI    int MACH_APIENTRY mcMotorMapSetEnable(MINSTANCE mInst, int motorId, BOOL enable);
+
+/*!********************************************
+ * Axis API functions and definitions         *
+ **********************************************/
+
+typedef unsigned long HMCAXIS;
+
+struct axisinfo {
+	BOOL OutOfBandAxis;     // Is this an out of band axis?
+	BOOL IsStill;           // Set high when the axis is not moving
+	BOOL  Jogging;          // Used to tell to jog...
+	BOOL  Homing;           // Used to tell the state of the home operation.
+	int  Id;                // Axis Id
+	BOOL IsSpindle;         // Does this axis control a spindle?
+	BOOL Enabled;           // Is axis enabled?
+	BOOL SoftlimitEnabled;  // Softlimits enabled?
+	double SoftMaxLimit;    // Count for the max travel.
+	double SoftMinLimit;    // Count for the m.
+	BOOL VelocityMode;      // Used to make the axis move at a fixed speed.
+	BOOL BufferJog;         // Buffer all jogs?
+	double Pos;             // Position in user units.
+	double Mpos;            // Machine position in user units.
+	int HomeOrder;          // The order in which to home the axis.
+	int HomeDir;            // The direction the axis homes.
+	double HomeOffset;      // The offset from the the limits switch.
+	double HomeSpeedPercent;// The percentage of the max velocity at which to home.
+	BOOL SoftlimitUsed;     // Use Softlimits?
+	BOOL HomeInPlace;       // Zero the axis in place when Refed?
+	int MotorId[MC_MAX_AXIS_MOTORS];  // Child motor ID array.
+};
+typedef struct axisinfo axisinfo_t;
+
+struct Interperter_info {
+	double ModalGroups[MC_MAX_GROUPS];
+	double FeedRate;
+	double SpindleSpeed;
+	int SpindleDirection;
+	BOOL Mist;
+	BOOL Flood;
+	int ToolNumber;
+	int HeightRegister;
+	int DiaRegister;
+};
+
+typedef struct Interperter_info interperter_t;
+
+MACHAPI    int MACH_APIENTRY mcAxisDeref(MINSTANCE mInst, int axis);
+MACHAPI    int MACH_APIENTRY mcAxisDerefAll(MINSTANCE mInst);
+MACHAPI    int MACH_APIENTRY mcAxisEnable(MINSTANCE mInst, int axis_id, int enabled);
+MACHAPI    int MACH_APIENTRY mcAxisGetAuxPos(MINSTANCE mInst, int axis, double *val);
+MACHAPI    int MACH_APIENTRY mcAxisGetHomeDir(MINSTANCE mInst, int axis_id, int *dir);
+MACHAPI    int MACH_APIENTRY mcAxisGetHomeInPlace(MINSTANCE mInst, int axis_id, BOOL *homeInPlace);
+MACHAPI    int MACH_APIENTRY mcAxisGetHomeOrder(MINSTANCE mInst, int axis_id, int *order);
+MACHAPI    int MACH_APIENTRY mcAxisGetHomeOffset(MINSTANCE mInst, int axis_id, double *offset);
+MACHAPI    int MACH_APIENTRY mcAxisGetHomeSpeed(MINSTANCE mInst, int axis_id, double *percent);
+MACHAPI_NS int MACH_APIENTRY mcAxisGetInfoStruct(MINSTANCE mInst, int axis_id, axisinfo_t *ainf);
+MACHAPI    int MACH_APIENTRY mcAxisGetMachineAuxPos(MINSTANCE mInst, int axis, double *val);
+MACHAPI    int MACH_APIENTRY mcAxisGetMachinePos(MINSTANCE mInst, int axis, double *val);
+MACHAPI    int MACH_APIENTRY mcAxisGetProbePos(MINSTANCE mInst, int axis, BOOL machinePos, double *val);
+MACHAPI    int MACH_APIENTRY mcAxisGetProbePosAll(MINSTANCE mInst, BOOL machinePos, double *x, double *y, double *z, double *a, double *b, double *c);
+MACHAPI    int MACH_APIENTRY mcAxisGetMotorId(MINSTANCE mInst, int axis_id, int child_id, int *motor_id);
+MACHAPI    int MACH_APIENTRY mcAxisGetPos(MINSTANCE mInst, int axis, double *val);
+MACHAPI    int MACH_APIENTRY mcAxisGetScale(MINSTANCE mInst, int axis, double *scaleVal);
+MACHAPI    int MACH_APIENTRY mcAxisGetSoftlimitEnable(MINSTANCE mInst, int axis, BOOL *enabel);
+MACHAPI    int MACH_APIENTRY mcAxisGetSoftlimitMax(MINSTANCE mInst, int axis, double *max);
+MACHAPI    int MACH_APIENTRY mcAxisGetSoftlimitMin(MINSTANCE mInst, int axis, double *min);
+MACHAPI    int MACH_APIENTRY mcAxisGetSpindle(MINSTANCE mInst, int axis, int *isSpindle);
+MACHAPI    int MACH_APIENTRY mcAxisGetVel(MINSTANCE mInst, int axis, double *velocity);
+MACHAPI    int MACH_APIENTRY mcAxisHome(MINSTANCE mInst, int axis_id);
+MACHAPI    int MACH_APIENTRY mcAxisHomeAll(MINSTANCE mInst);
+MACHAPI    int MACH_APIENTRY mcAxisHomeComplete(MINSTANCE mInst, int axis_id);
+MACHAPI    int MACH_APIENTRY mcAxisHomeCompleteWithStatus(MINSTANCE mInst, int axis_id, BOOL success);
+MACHAPI    int MACH_APIENTRY mcAxisIsEnabled(MINSTANCE mInst, int axis_id, BOOL *enabled);
+MACHAPI    int MACH_APIENTRY mcAxisIsHomed(MINSTANCE mInst, int axis_id, BOOL *homed);
+MACHAPI    int MACH_APIENTRY mcAxisIsHoming(MINSTANCE mInst, int axis_id, BOOL *homing);
+MACHAPI    int MACH_APIENTRY mcAxisIsStill(MINSTANCE mInst, int axis_id, int *still);
+MACHAPI    int MACH_APIENTRY mcAxisMapMotor(MINSTANCE mInst, int axis_id, int motor_id);
+MACHAPI    int MACH_APIENTRY mcAxisRegister(MINSTANCE mInst, int axis_id);
+MACHAPI    int MACH_APIENTRY mcAxisSetHomeDir(MINSTANCE mInst, int axis_id, int dir);
+MACHAPI    int MACH_APIENTRY mcAxisSetHomeInPlace(MINSTANCE mInst, int axis_id, BOOL homeInPlace);
+MACHAPI    int MACH_APIENTRY mcAxisSetHomeOrder(MINSTANCE mInst, int axis_id, int order);
+MACHAPI    int MACH_APIENTRY mcAxisSetHomeOffset(MINSTANCE mInst, int axis_id, double offset);
+MACHAPI    int MACH_APIENTRY mcAxisSetHomeSpeed(MINSTANCE mInst, int axis_id, double percent);
+MACHAPI_NS int MACH_APIENTRY mcAxisSetInfoStruct(MINSTANCE mInst, int axis_id, axisinfo_t *ainf);
+MACHAPI    int MACH_APIENTRY mcAxisSetMachinePos(MINSTANCE mInst, int axis, double val);
+MACHAPI    int MACH_APIENTRY mcAxisSetPos(MINSTANCE mInst, int axis, double val);
+MACHAPI    int MACH_APIENTRY mcAxisSetScale(MINSTANCE mInst, int axis, double scaleVal);
+MACHAPI    int MACH_APIENTRY mcAxisSetSoftlimitEnable(MINSTANCE mInst, int axis, BOOL enabel);
+MACHAPI    int MACH_APIENTRY mcAxisSetSoftlimitMax(MINSTANCE mInst, int axis, double max);
+MACHAPI    int MACH_APIENTRY mcAxisSetSoftlimitMin(MINSTANCE mInst, int axis, double min);
+MACHAPI    int MACH_APIENTRY mcAxisSetSpindle(MINSTANCE mInst, int axis, int spindle);
+MACHAPI    int MACH_APIENTRY mcAxisSetVel(MINSTANCE mInst, int axis, double velocity);
+MACHAPI    int MACH_APIENTRY mcAxisUnmapMotor(MINSTANCE mInst, int axis_id, int motor_id);
+MACHAPI    int MACH_APIENTRY mcAxisUnmapMotors(MINSTANCE mInst, int axis_id);
+MACHAPI    int MACH_APIENTRY mcAxisUnregister(MINSTANCE mInst, int axis_id);
+// THC, axis offset test code
+MACHAPI    int MACH_APIENTRY mcAxisSetOverrideAxis(MINSTANCE mInst, int axis_id, int override_axis_id);
+MACHAPI    int MACH_APIENTRY mcAxisGetOverrideAxis(MINSTANCE mInst, int axis_id, int *override_axis_id1, int *override_axis_id2, int *override_axis_id3, int *override_axis_id4);
+MACHAPI    int MACH_APIENTRY mcAxisRemoveOverrideAxis(MINSTANCE mInst, int axis_id, int overridID);
+MACHAPI    int MACH_APIENTRY mcAxisRemoveOverrideAxisSync(MINSTANCE mInst, int axis_id, int overridID);
+
+/*!********************************************
+ * Control functions                          *
+ **********************************************/
+MACHAPI    int MACH_APIENTRY mcCntlCleanup(MINSTANCE mInst);
+MACHAPI    int MACH_APIENTRY mcCntlCloseGCodeFile(MINSTANCE mInst);
+MACHAPI    int MACH_APIENTRY mcCntlCompileScripts(MINSTANCE mInst);
+MACHAPI    int MACH_APIENTRY mcCntlConfigStart(MINSTANCE mInst);
+MACHAPI    int MACH_APIENTRY mcCntlConfigStop(MINSTANCE mInst);
+MACHAPI    int MACH_APIENTRY mcCntlConfigStopEx(MINSTANCE mInst, BOOL reload);
+MACHAPI    int MACH_APIENTRY mcCntlCutRecovery(MINSTANCE mInst, int plane, double x, double y, double z, double a, double b, double c);
+MACHAPI    int MACH_APIENTRY mcCntlCutRecoveryCancel(MINSTANCE mInst);
+MACHAPI    int MACH_APIENTRY mcCntlCycleStart(MINSTANCE mInst);
+MACHAPI    int MACH_APIENTRY mcCntlCycleStop(MINSTANCE mInst);
+MACHAPI    int MACH_APIENTRY mcCntlDroGetUseAuxPos(MINSTANCE mInst, BOOL *enabled);
+MACHAPI    int MACH_APIENTRY mcCntlDroGetUseAuxPosAxis(MINSTANCE mInst, int axis, BOOL *enabled);
+MACHAPI    int MACH_APIENTRY mcCntlDroSetUseAuxPos(MINSTANCE mInst, BOOL enable);
+MACHAPI    int MACH_APIENTRY mcCntlDroSetUseAuxPosAxis(MINSTANCE mInst, int axis, BOOL enable);
+MACHAPI    int MACH_APIENTRY mcCntlDryRunToLine(MINSTANCE mInst, long line);
+MACHAPI    int MACH_APIENTRY mcCntlEnable(MINSTANCE mInst, int state);
+
+MACHAPI    int MACH_APIENTRY mcCntlEStop(MINSTANCE mInst);
+MACHAPI    int MACH_APIENTRY mcCntlFeedHold(MINSTANCE mInst);
+MACHAPI    int MACH_APIENTRY mcCntlFeedHoldState(MINSTANCE mInst, BOOL *InFeedHold);
+MACHAPI    int MACH_APIENTRY mcCntlToolChangeManual(MINSTANCE mInst);
+/*! Executes a line of G code. Must be in a cycle*/
+MACHAPI    int MACH_APIENTRY mcCntlGcodeExecute(MINSTANCE mInst, const char *commands);
+MACHAPI    int MACH_APIENTRY mcCntlGcodeExecuteWait(MINSTANCE mInst, const char *commands);
+MACHAPI    int MACH_APIENTRY mcCntlGcodeInterpGetPos(MINSTANCE mInst, int axis, double *pos);
+MACHAPI_NS int MACH_APIENTRY mcCntlGcodeInterpGetData(MINSTANCE mInst, interperter_t *data);
+MACHAPI    int MACH_APIENTRY mcCntlGetBlockDelete(MINSTANCE mInst, int deleteID, BOOL *val);
+MACHAPI    int MACH_APIENTRY mcCntlGetBuild(MINSTANCE mInst, char *buff, size_t bufsize);
+MACHAPI    int MACH_APIENTRY mcCntlGetCoolantDelay(MINSTANCE mInst, double *secs);
+MACHAPI	   int MACH_APIENTRY mcCntlGetCutRecoveryPoint(MINSTANCE mInst, int plane, double *x, double *y, double *z, double *a, double *b, double *c);
+MACHAPI_NS int MACH_APIENTRY mcCntlGetDongleId(MINSTANCE mInst, int index, char *vendorBuf, size_t vendorBufSize, char *dongleIdBuf, size_t dongleIdBufSize);
+MACHAPI_NS int MACH_APIENTRY mcCntlGetDonglePcId(MINSTANCE mInst, const char *vendor, const char *dongleId, char *donglePcIdBuf, size_t donglePcIdBufSize);
+MACHAPI    int MACH_APIENTRY mcCntlGetEnableFRO(MINSTANCE mInst, BOOL *enable);
+MACHAPI    int MACH_APIENTRY mcCntlGetCwd(MINSTANCE mInst, char *buff, size_t bufsize);
+MACHAPI    int MACH_APIENTRY mcCntlGetGcodeFileName(MINSTANCE mInst, char *buff, size_t bufsize);
+MACHAPI    int MACH_APIENTRY mcCntlGetHdId(MINSTANCE mInst, size_t driveIndex, char *buff, size_t bufsize);
+MACHAPI    int MACH_APIENTRY mcCntlGetInstanceHandle(MINSTANCE mInst, const char *owner, HMINSTANCE *hInst);
+MACHAPI    int MACH_APIENTRY mcCntlGetLocalVar(MINSTANCE mInst, HMCVARS hVars, int varNumber, double *retval);
+MACHAPI    int MACH_APIENTRY mcCntlGetLocalComment(MINSTANCE mInst, HMCVARS hVars, char *buf, int bufSize);
+MACHAPI    int MACH_APIENTRY mcCntlGetLocalVarFlag(MINSTANCE mInst, HMCVARS hVars, int varNumber, int *retval);
+MACHAPI    int MACH_APIENTRY mcCntlGetMachDir(MINSTANCE mInst, char *buff, size_t bufsize);
+MACHAPI    int MACH_APIENTRY mcCntlGetModalGroup(MINSTANCE mInst, int group, double *val);
+MACHAPI    int MACH_APIENTRY mcCntlGetDiaMode(MINSTANCE mInst, BOOL *Dia);
+MACHAPI    int MACH_APIENTRY mcCntlGetDistToGo(MINSTANCE mInst, int axis, double *togo);
+MACHAPI    int MACH_APIENTRY mcCntlGetFRO(MINSTANCE mInst, double *percent);
+MACHAPI    int MACH_APIENTRY mcCntlGetGcodeLine(MINSTANCE mInst, long LineNumber, char *buff, long buffsize);
+MACHAPI    int MACH_APIENTRY mcCntlGetGcodeLineCount(MINSTANCE mInst, long *count);
+MACHAPI    int MACH_APIENTRY mcCntlGetGcodeLineNbr(MINSTANCE mInst, long *val);
+MACHAPI    int MACH_APIENTRY mcCntlGetVersion(MINSTANCE mInst, char *buff, size_t bufsize);
+
+/*! Gets the last error message */
+MACHAPI    int MACH_APIENTRY mcCntlGetLastError(MINSTANCE mInst, char *buff, size_t bufsize);
+MACHAPI    int MACH_APIENTRY mcCntlGetLastLogMsg(MINSTANCE mInst, char *buff, size_t bufsize);
+MACHAPI    int MACH_APIENTRY mcCntlGetLogging(MINSTANCE mInst, BOOL *enable);
+MACHAPI    int MACH_APIENTRY mcCntlGetMistDelay(MINSTANCE mInst, double *secs);
+MACHAPI    int MACH_APIENTRY mcCntlGetMode(MINSTANCE mInst, int *mode);
+MACHAPI    int MACH_APIENTRY mcCntlGetOptionalStop(MINSTANCE mInst, BOOL *stop);
+MACHAPI    int MACH_APIENTRY mcCntlGetPoundVar(MINSTANCE mInst, int param, double *value);
+MACHAPI    int MACH_APIENTRY mcCntlGetRRO(MINSTANCE mInst, double *percent);
+MACHAPI    int MACH_APIENTRY mcCntlGetSingleBlock(MINSTANCE mInst, BOOL *IsSingleBlock);
+MACHAPI    int MACH_APIENTRY mcCntlGetState(MINSTANCE mInst, mcState *state);
+MACHAPI    int MACH_APIENTRY mcCntlGetStateName(MINSTANCE mInst, mcState state, char *buff, size_t bufsize);
+MACHAPI	   int MACH_APIENTRY mcCtrlGetRunTime(MINSTANCE mInst, double *time); // Needs to be removed but will break the API!!
+MACHAPI	   int MACH_APIENTRY mcCntlGetRunTime(MINSTANCE mInst, double *time);
+MACHAPI    int MACH_APIENTRY mcCntlGetToolOffset(MINSTANCE mInst, int axis, double *offset);
+MACHAPI    int MACH_APIENTRY mcCntlGetUnitsCurrent(MINSTANCE mInst, int *Units);
+MACHAPI    int MACH_APIENTRY mcCntlGetUnitsDefault(MINSTANCE mInst, int *Units);
+MACHAPI    int MACH_APIENTRY mcCntlGotoZero(MINSTANCE mInst);
+MACHAPI_NS MINSTANCE MACH_APIENTRY mcCntlInit(const char *ProfileName, int ControllerID);
+MACHAPI    int MACH_APIENTRY mcCntlIsStill(MINSTANCE mInst, BOOL *still);
+MACHAPI    int MACH_APIENTRY mcCntlIsInCycle(MINSTANCE mInst, BOOL *cycle);
+/*! Laods a G code file from disk. */
+MACHAPI    int MACH_APIENTRY mcCntlLoadGcodeFile(MINSTANCE mInst, const char *FileToLoad);
+/*! Laods a G code from a string.  */
+MACHAPI    int MACH_APIENTRY mcCntlLoadGcodeString(MINSTANCE mInst, const char *Gcode);
+MACHAPI    int MACH_APIENTRY mcCntlLog(MINSTANCE mInst, const char *message, const char *file, int line);
+/*! Executes multiple lines of G code. Must not be in a cycle.*/
+MACHAPI    int MACH_APIENTRY mcCntlMdiExecute(MINSTANCE mInst, const char *commands);
+MACHAPI    int MACH_APIENTRY mcCntlMachineStateClear(MINSTANCE mInst);
+MACHAPI    int MACH_APIENTRY mcCntlMachineStatePop(MINSTANCE mInst);
+MACHAPI    int MACH_APIENTRY mcCntlMachineStatePush(MINSTANCE mInst);
+MACHAPI    int MACH_APIENTRY mcCntlProbeFileClose(MINSTANCE mInst);
+MACHAPI    int MACH_APIENTRY mcCntlProbeFileOpen(MINSTANCE mInst, const char *fileName, const char *format, BOOL overWrite);
+MACHAPI    int MACH_APIENTRY mcCntlProbeGetStrikeStatus(MINSTANCE mInst, BOOL *didStrike);
+MACHAPI    int MACH_APIENTRY mcCntlReset(MINSTANCE mInst);
+MACHAPI    int MACH_APIENTRY mcCntlRewindFile(MINSTANCE mInst);
+MACHAPI    int MACH_APIENTRY mcCntlSetBlockDelete(MINSTANCE mInst, int deleteID, BOOL val);
+MACHAPI    int MACH_APIENTRY mcCntlSetCoolantDelay(MINSTANCE mInst, double secs);
+MACHAPI    int MACH_APIENTRY mcCntlSetDiaMode(MINSTANCE mInst, BOOL Dia);
+MACHAPI    int MACH_APIENTRY mcCntlSetEnableFRO(MINSTANCE mInst, BOOL enable);
+MACHAPI    int MACH_APIENTRY mcCntlSetFRO(MINSTANCE mInst, double percent);
+MACHAPI    int MACH_APIENTRY mcCntlSetGcodeLineNbr(MINSTANCE mInst, double line);
+/*! Sets the last error message */
+MACHAPI    int MACH_APIENTRY mcCntlSetLastError(MINSTANCE mInst, const char *emsg);
+MACHAPI    int MACH_APIENTRY mcCntlSetLogging(MINSTANCE mInst, BOOL enable);
+MACHAPI    int MACH_APIENTRY mcCntlSetMistDelay(MINSTANCE mInst, double secs);
+MACHAPI    int MACH_APIENTRY mcCntlSetMode(MINSTANCE mInst, double mode);
+MACHAPI    int MACH_APIENTRY mcCntlSetOptionalStop(MINSTANCE mInst, BOOL val);
+MACHAPI    int MACH_APIENTRY mcCntlSetPoundVar(MINSTANCE mInst, int param, double value);
+MACHAPI    int MACH_APIENTRY mcCntlSetResetCodes(MINSTANCE mInst, const char *resetCodes);
+MACHAPI    int MACH_APIENTRY mcCntlSetRRO(MINSTANCE mInst, double percent);
+MACHAPI    int MACH_APIENTRY mcCntlSetSingleBlock(MINSTANCE mInst, BOOL DoSingleBlock);
+MACHAPI    int MACH_APIENTRY mcCntlSetTestReg(MINSTANCE mInst, int regNum, double reg);
+MACHAPI    int MACH_APIENTRY mcCntlStartMotionDev(MINSTANCE mInst);
+MACHAPI    int MACH_APIENTRY mcCntlStopMotionDev(MINSTANCE mInst);
+MACHAPI    int MACH_APIENTRY mcCntlWaitOnCycleStart(MINSTANCE mInst, const char *msg, int timeOutMs);
+
+/*! Get the ID of the computer for the license*/
+MACHAPI_NS int MACH_APIENTRY mcCntlInitLicense(BOOL force);
+MACHAPI_NS int MACH_APIENTRY mcCntlInitLicenseDebug(BOOL force);
+MACHAPI_NS int MACH_APIENTRY mcCntlInitOemLicense(BOOL force);
+MACHAPI_NS int MACH_APIENTRY mcCntlInitOemLicenseDebug(BOOL force);
+MACHAPI    int MACH_APIENTRY mcCntlGetComputerID(MINSTANCE mInst, char *buff, long buffsize);
+MACHAPI    int MACH_APIENTRY mcCntlGetLicenseModules(MINSTANCE  mInst, unsigned long long *modules);
+MACHAPI    int MACH_APIENTRY mcCntlGetLicenseData(MINSTANCE  mInst, int index, char *buff, long bufsize);
+MACHAPI    int MACH_APIENTRY mcCntlGetLicenseDataLen(MINSTANCE  mInst, int index, long *bufsize);
+MACHAPI    int MACH_APIENTRY mcCntlCheckLicenseFeature(MINSTANCE  mInst, const char *licFile, const char *requirement, const char *feature);
+/* Main API entry point for sending commands to the core or setting values from the GUI or Plugins */
+MACHAPI    int MACH_APIENTRY mcCntlSetValue(MINSTANCE  mInst, int Command, int Param, double Value);
+/* Main API entry point for getting values from the core */
+MACHAPI    int MACH_APIENTRY mcCntlGetValue(MINSTANCE  mInst, int Command, int Param, double *Value);
+
+MACHAPI    int MACH_APIENTRY mcCntlGetOffset(MINSTANCE  mInst, int axis, int type, double *offset);
+
+/*!*************************************************************
+ * Tool life management specfic API functions and definitions. *
+ ***************************************************************/
+#define MC_TLM_DEFAULT          -1
+#define MC_TLM_NOCHANGE         -2
+#define MC_TLM_TOOL_AVAILABLE   32
+#define MC_TLM_TOOL_SELECTED    '@'
+#define MC_TLM_TOOL_EXPIRED     '*'
+#define MC_TLM_TOOL_SKIPPED     '#'
+#define MC_TLM_TOOL_INVALID     -1
+#define MC_TLM_GROUP_INVALID     -1
+#define MC_TLM_GROUP_EXPIRED    MC_TLM_TOOL_EXPIRED
+#define MC_TLM_GROUP_AVAILABLE  MC_TLM_TOOL_AVAILABLE
+#define MC_TLM_GROUP_TYPE_CYCLE 1
+#define MC_TLM_GROUP_TYPE_TIME  2
+
+MACHAPI    int MACH_APIENTRY mcTlmAddOrChangeGroup(MINSTANCE inst, int group, int defaultLife, int defualtType);
+MACHAPI    int MACH_APIENTRY mcTlmAddOrChangeTool(MINSTANCE inst, int group, int tCode, int hCode, int dCode, int count);
+MACHAPI    int MACH_APIENTRY mcTlmDeleteGroup(MINSTANCE mInst, int group);
+MACHAPI    int MACH_APIENTRY mcTlmDeleteGroups(MINSTANCE mInst);
+MACHAPI    int MACH_APIENTRY mcTlmDeleteTool(MINSTANCE mInst, int tool);
+MACHAPI    int MACH_APIENTRY mcTlmDeleteTools(MINSTANCE mInst, int group);
+MACHAPI    int MACH_APIENTRY mcTlmGroupGetInfo(MINSTANCE mInst, int group, int *type, int *life, int *count, int *state);
+MACHAPI    int MACH_APIENTRY mcTlmGroupGetNext(MINSTANCE mInst, int startGroup, int *group);
+MACHAPI    int MACH_APIENTRY mcTlmGroupGetPrev(MINSTANCE mInst, int startGroup, int *group);
+MACHAPI    int MACH_APIENTRY mcTlmToolGetInfo(MINSTANCE mInst, int tCode, int *hCode, int *dCode, int *count, int *state);
+MACHAPI    int MACH_APIENTRY mcTlmToolGetNext(MINSTANCE mInst, int group, int startTool, int *tCode);
+MACHAPI    int MACH_APIENTRY mcTlmToolGetPrev(MINSTANCE mInst, int group, int startTool, int *tCode);
+MACHAPI    int MACH_APIENTRY mcTlmToolIsManaged(MINSTANCE mInst, int tool, BOOL *val);
+MACHAPI    int MACH_APIENTRY mcTlmToolSkip(MINSTANCE mInst, int tool);
+MACHAPI    int MACH_APIENTRY mcTlmToolSkipReset(MINSTANCE mInst, int tool);
+MACHAPI    int MACH_APIENTRY mcTlmGetCurrentGroup(MINSTANCE mInst, int *group);
+MACHAPI    int MACH_APIENTRY mcTlmGetNextGroup(MINSTANCE mInst, int *group);
+MACHAPI    int MACH_APIENTRY mcTlmGetSelectedGroup(MINSTANCE mInst, int *group);
+MACHAPI    int MACH_APIENTRY mcTlmSetCountOverrideEnable(MINSTANCE mInst, BOOL enable);
+MACHAPI    int MACH_APIENTRY mcTlmGetCountOverrideEnable(MINSTANCE mInst, BOOL *enabled);
+MACHAPI    int MACH_APIENTRY mcTlmSetCountOverridePercent(MINSTANCE mInst, double percent);
+MACHAPI    int MACH_APIENTRY mcTlmGetCountOverridePercent(MINSTANCE mInst, double *percent);
+MACHAPI    int MACH_APIENTRY mcTlmResetToolData(MINSTANCE mInst, int group);
+MACHAPI    int MACH_APIENTRY mcTlmLoadFile(MINSTANCE mInst, const char *FileToLoad);
+MACHAPI    int MACH_APIENTRY mcTlmSaveFile(MINSTANCE mInst);
+
+
+
+/*!********************************************
+ * GUI specfic API functions and definitions. *
+ **********************************************/
+MACHAPI_NS int MACH_APIENTRY mcGuiSetCallback(MINSTANCE mInst, unsigned long fp);
+MACHAPI_NS int MACH_APIENTRY mcGuiSetFocus(MINSTANCE mInst, int focus);
+MACHAPI_NS int MACH_APIENTRY mcGuiGetWindowHandle(MINSTANCE mInst, void **handle);
+MACHAPI_NS int MACH_APIENTRY mcGuiSetWindowHandle(MINSTANCE mInst, void *handle);
+MACHAPI    int MACH_APIENTRY mcGuiSendMsg(MINSTANCE mInst, long msg, long param1, long param2);
+
+/*!********************************************
+ * Motion definitions.                        *
+ **********************************************/
+
+#define EX_NONE    -1
+#define EX_DWELL    0
+#define EX_LINE     1
+#define EX_RAPID    2
+#define EX_ARC      3
+#define EX_THREAD   4
+#define EX_TAP      5
+#define EX_RTAP     6
+#define EX_PROBE    7
+#define EX_JOG_CONT 8
+#define EX_JOG_INCR 9
+#define EX_SPIN_ON  10
+#define EX_SPIN_OFF 11
+#define EX_SPIN_FWD 12
+#define EX_SPIN_REV 13
+#define EX_FILE_CNG 14
+#define EX_STOP_REQ 15
+
+struct move_info {
+	BOOL enabled;
+	long axisId;
+	double time;
+	long posAbs;
+	double posAbsFract;
+	long posInc;
+	double posIncFract;
+	long velocity;
+	double velocityFract;
+	long blAbs;
+	long blInc;
+	BOOL reportStopped;
+	BOOL reverse;
+};
+typedef struct move_info move_t;
+
+struct execution_info {
+	move_t exMotors[MC_MAX_MOTORS];
+	long exMoveId;
+	long exId;
+	long exType;
+	double exCycleTime;
+	long exLine;
+	unsigned long exSerial;
+	long exOutputQueue;
+};
+typedef struct execution_info execution_t;
+
+struct thread_info {
+	move_t exEndPos[MC_MAX_MOTORS];
+	double endPos[MC_MAX_COORD_AXES];
+	double lead;
+};
+typedef struct thread_info thread_t;
+
+struct probe_info {
+	move_t exEndPos[MC_MAX_MOTORS];
+	double endPos[MC_MAX_COORD_AXES];
+	double feedRate;
+};
+typedef struct probe_info probe_t;
+
+struct tap_info {
+	move_t exDepthPos[MC_MAX_MOTORS];
+	move_t exRetractPos[MC_MAX_MOTORS];
+	double endPos[MC_MAX_COORD_AXES];
+	double retractPos[MC_MAX_COORD_AXES];
+	double feedRate; // In units per min.
+	double rpm;
+	long   motorFeedRate[MC_MAX_MOTORS]; // In counts per second.
+	int    direction;  // Direction to feed in the spindle.
+	double ret_rpm;//retract RPM 
+	double dwell;//dwell at the bottom of the thread
+};
+typedef struct tap_info tap_t;
+
+/*!********************************************
+ * Motion functions.                          *
+ **********************************************/
+
+typedef int (MCP_APIENTRY* LPFmcMotionCallback)(MINSTANCE mInst, execution_t exInfo);
+
+MACHAPI    int MACH_APIENTRY mcMotionClearPlanner(MINSTANCE mInst);
+MACHAPI_NS int MACH_APIENTRY mcMotionCyclePlanner(MINSTANCE mInst);
+MACHAPI_NSCV int MACH_APIENTRY mcMotionCyclePlannerEx(MINSTANCE mInst, execution_t *exInfo);
+MACHAPI_NS int MACH_APIENTRY mcMotionGetAbsPos(MINSTANCE mInst, int motorId, double *val);
+MACHAPI_NS int MACH_APIENTRY mcMotionGetAbsPosFract(MINSTANCE mInst, int motorId, double *val); 
+MACHAPI_NS int MACH_APIENTRY mcMotionGetAuxPos(MINSTANCE mInst, int motorId, double *val);
+MACHAPI_NS int MACH_APIENTRY mcMotionGetBacklashAbs(MINSTANCE mInst, int motorId, double *pos);
+MACHAPI_NS int MACH_APIENTRY mcMotionGetBacklashInc(MINSTANCE mInst, int motorId, double *pos);
+MACHAPI_NS int MACH_APIENTRY mcMotionGetIncPos(MINSTANCE mInst, int motorId, double *val);
+MACHAPI_NS int MACH_APIENTRY mcMotionGetMoveID(MINSTANCE mInst, long *val);
+MACHAPI_NS int MACH_APIENTRY mcMotionGetPos(MINSTANCE mInst, int motorId, double *val);
+MACHAPI_NS int MACH_APIENTRY mcMotionGetSyncOutput(MINSTANCE mInst, int outputQueue, HMCIO *hIo, BOOL *state);
+MACHAPI_NS int MACH_APIENTRY mcMotionGetVel(MINSTANCE mInst, int motorId, double *velocity);
+MACHAPI_NS int MACH_APIENTRY mcMotionRegisterCallback(MINSTANCE mInst, LPFmcMotionCallback fp);
+MACHAPI_NS int MACH_APIENTRY mcMotionSetAuxPos(MINSTANCE mInst, int motorId, double val);
+MACHAPI_NS int MACH_APIENTRY mcMotionSetCycleTime(MINSTANCE mInst, double secs);
+MACHAPI_NS int MACH_APIENTRY mcMotionSetMoveID(MINSTANCE mInst, int ID);
+MACHAPI_NS int MACH_APIENTRY mcMotionSetPos(MINSTANCE mInst, int motorId, double val);
+MACHAPI_NS int MACH_APIENTRY mcMotionSetProbeComplete(MINSTANCE mInst);
+MACHAPI_NS int MACH_APIENTRY mcMotionSetProbePos(MINSTANCE mInst, int motorId, double val);
+MACHAPI_NS int MACH_APIENTRY mcMotionSetStill(MINSTANCE mInst, int motorId);
+MACHAPI_NS int MACH_APIENTRY mcMotionSetVel(MINSTANCE mInst, int motorId, double velocity);
+MACHAPI    int MACH_APIENTRY mcMotionSync(MINSTANCE mInst);
+MACHAPI_NS int MACH_APIENTRY mcMotionSetThreadingRate(MINSTANCE mInst, double ratio);
+MACHAPI_NS int MACH_APIENTRY mcMotionGetThreadingRate(MINSTANCE mInst, double *ratio);
+MACHAPI_NS int MACH_APIENTRY mcMotionGetThreadParams(MINSTANCE mInst, thread_t *threadInfo);
+MACHAPI_NS int MACH_APIENTRY mcMotionThreadComplete(MINSTANCE mInst);
+MACHAPI_NS int MACH_APIENTRY mcMotionUnregisterCallback(MINSTANCE mInst, LPFmcMotionCallback fp);
+MACHAPI_NSCV int MACH_APIENTRY mcMotionGetProbeParams(MINSTANCE mInst, probe_t *probeInfo);
+MACHAPI_NSCV int MACH_APIENTRY mcMotionGetRigidTapParams(MINSTANCE mInst, tap_t *tapInfo);
+MACHAPI_NS int MACH_APIENTRY mcMotionConvertAxisToMotor(MINSTANCE mInst, int axis, int motor, int *motorId, int *pos);
+MACHAPI    int MACH_APIENTRY mcMotionSetCVAngleEnable(MINSTANCE mInst, BOOL On);
+MACHAPI    int MACH_APIENTRY mcMotionGetCVAngleEnable(MINSTANCE mInst, BOOL *On);
+MACHAPI    int MACH_APIENTRY mcMotionSetCVAngle(MINSTANCE mInst, int angle, double Feedrate);
+MACHAPI    int MACH_APIENTRY mcMotionGetCVAngle(MINSTANCE mInst, int angle, double *Feedrate);
+
+/*!********************************************
+ * MPG functions                              *
+ **********************************************/
+#define MC_MPG_DEFAULT -1
+MACHAPI int MACH_APIENTRY mcMpgGetAccel(MINSTANCE mInst, int mpg, double *percentMaxAccel);
+MACHAPI int MACH_APIENTRY mcMpgSetAccel(MINSTANCE mInst, int mpg, double percentMaxAccel);
+MACHAPI int MACH_APIENTRY mcMpgGetRate(MINSTANCE mInst, int mpg, double *percentMaxVel);
+MACHAPI int MACH_APIENTRY mcMpgSetRate(MINSTANCE mInst, int mpg, double percentMaxVel);
+MACHAPI int MACH_APIENTRY mcMpgSetAxis(MINSTANCE mInst, int mpg, int axis);
+MACHAPI int MACH_APIENTRY mcMpgGetAxis(MINSTANCE mInst, int mpg, int *axis);
+MACHAPI int MACH_APIENTRY mcMpgGetEnable(MINSTANCE mInst, int mpg, BOOL *enabled);
+MACHAPI int MACH_APIENTRY mcMpgSetEnable(MINSTANCE mInst, int mpg, BOOL enable);
+MACHAPI int MACH_APIENTRY mcMpgGetReversed(MINSTANCE mInst, int mpg, BOOL *reversed);
+MACHAPI int MACH_APIENTRY mcMpgSetReversed(MINSTANCE mInst, int mpg, BOOL reversed);
+MACHAPI int MACH_APIENTRY mcMpgSetInc(MINSTANCE mInst, int mpg, double inc);
+MACHAPI int MACH_APIENTRY mcMpgGetInc(MINSTANCE mInst, int mpg, double *inc);
+MACHAPI int MACH_APIENTRY mcMpgSetCountsPerDetent(MINSTANCE mInst, int mpg, int pulses);
+MACHAPI int MACH_APIENTRY mcMpgGetCountsPerDetent(MINSTANCE mInst, int mpg, int *pulses);
+MACHAPI int MACH_APIENTRY mcMpgMoveCounts(MINSTANCE mInst, int mpg, int deltaCounts);
+MACHAPI int MACH_APIENTRY mcMpgSetShuttleMode(MINSTANCE mInst, BOOL on);
+MACHAPI int MACH_APIENTRY mcMpgGetShuttleMode(MINSTANCE mInst, BOOL *on);
+MACHAPI int MACH_APIENTRY mcMpgSetShuttlePercent(MINSTANCE mInst, double percent);
+MACHAPI int MACH_APIENTRY mcMpgGetShuttlePercent(MINSTANCE mInst, double *percent);
+MACHAPI int MACH_APIENTRY mcMpgSetEncoderReg(MINSTANCE mInst, int mpg, HMCREG hReg);
+MACHAPI int MACH_APIENTRY mcMpgGetEncoderReg(MINSTANCE mInst, int mpg, HMCREG *hReg);
+
+/*!********************************************
+ * Jog functions                              *
+ **********************************************/
+#define MC_JOG_POS   1
+#define MC_JOG_NEG  -1
+#define MC_JOG_STOP  0
+
+#define MC_JOG_TYPE_VEL 0 
+#define MC_JOG_TYPE_INC 1 
+
+MACHAPI int MACH_APIENTRY mcJogAbsStart(MINSTANCE mInst, int axis, double mpos);
+MACHAPI int MACH_APIENTRY mcJogAbsStop(MINSTANCE mInst, int axis, double incr);
+MACHAPI int MACH_APIENTRY mcJogGetAccel(MINSTANCE mInst, int axis, double *percent);
+MACHAPI int MACH_APIENTRY mcJogGetFeedRate(MINSTANCE mInst, int axis, double *unitsPerMinute);
+MACHAPI int MACH_APIENTRY mcJogGetInc(MINSTANCE mInst, int axis, double *increment);
+MACHAPI int MACH_APIENTRY mcJogGetRate(MINSTANCE mInst, int axis, double *percent);
+MACHAPI int MACH_APIENTRY mcJogGetUnitsMode(MINSTANCE mInst, int axis, int *unitsMode);
+MACHAPI int MACH_APIENTRY mcJogGetVelocity(MINSTANCE mInst, int axis, double *vel);
+MACHAPI int MACH_APIENTRY mcJogIncStart(MINSTANCE mInst, int axis, double dist);
+MACHAPI int MACH_APIENTRY mcJogIncStop(MINSTANCE mInst, int axis, double incr);
+MACHAPI int MACH_APIENTRY mcJogIsJogging(MINSTANCE mInst, int axis, BOOL *jogging);
+MACHAPI int MACH_APIENTRY mcJogIsStopping(MINSTANCE mInst, int axis, BOOL *stopping);
+MACHAPI int MACH_APIENTRY mcJogSetAccel(MINSTANCE mInst, int axis, double percent);
+MACHAPI int MACH_APIENTRY mcJogSetFeedRate(MINSTANCE mInst, int axis, double unitsPerMinute);
+MACHAPI int MACH_APIENTRY mcJogSetInc(MINSTANCE mInst, int axis, double increment);
+MACHAPI int MACH_APIENTRY mcJogSetType(MINSTANCE mInst, int axis, int type);
+MACHAPI int MACH_APIENTRY mcJogSetUnitsMode(MINSTANCE mInst, int axis, int unitsMode);
+MACHAPI int MACH_APIENTRY mcJogSetRate(MINSTANCE mInst, int axis, double percent);
+MACHAPI int MACH_APIENTRY mcJogSetTraceEnable(MINSTANCE mInst, BOOL enable);
+MACHAPI int MACH_APIENTRY mcJogVelocityStart(MINSTANCE mInst, int axis, double dir);
+MACHAPI int MACH_APIENTRY mcJogVelocityStop(MINSTANCE mInst, int axis);
+
+/*!********************************************
+ * Tool path generation functions             *
+ **********************************************/
+MACHAPI    int MACH_APIENTRY mcToolPathCreate(MINSTANCE mInst, void *Parent);
+MACHAPI    int MACH_APIENTRY mcToolPathDelete(MINSTANCE mInst, void *Parent);
+
+/*! Starts the tool path generation process. */
+MACHAPI    int MACH_APIENTRY mcToolPathGenerate(MINSTANCE mInst);
+/*! Aborts the tool path generation process. */
+MACHAPI    int MACH_APIENTRY mcToolPathGenerateAbort(MINSTANCE mInst);
+/*! Returns the progrss of the tool path generation process. */
+MACHAPI    int MACH_APIENTRY mcToolPathGeneratedPercent(MINSTANCE mInst, double *percent);
+MACHAPI    int MACH_APIENTRY mcToolPathUpdate(MINSTANCE mInst, void *parent);
+MACHAPI    int MACH_APIENTRY mcToolPathGetGenerating(MINSTANCE mInst, BOOL *pathGenerating);
+MACHAPI    int MACH_APIENTRY mcToolPathSetBackColor(MINSTANCE mInst, unsigned long topcolor, unsigned long botcolor);
+MACHAPI    int MACH_APIENTRY mcToolPathSetPathColor(MINSTANCE mInst, unsigned long rapidcolor, unsigned long linecolor, unsigned long arccolor, unsigned long highlightcolor);
+MACHAPI    int MACH_APIENTRY mcToolPathGetBackColor(MINSTANCE mInst, unsigned long *topcolor, unsigned long *botcolor);
+MACHAPI    int MACH_APIENTRY mcToolPathGetPathColor(MINSTANCE mInst, unsigned long *rapidcolor, unsigned long *linecolor, unsigned long *arccolor, unsigned long *highlightcolor);
+MACHAPI    int MACH_APIENTRY mcToolPathSetAxisColor(MINSTANCE mInst, unsigned long axiscolor, unsigned long limitcolor);
+MACHAPI    int MACH_APIENTRY mcToolPathGetAxisColor(MINSTANCE mInst, unsigned long *axiscolor, unsigned long *limitcolor);
+MACHAPI    int MACH_APIENTRY mcToolPathGetDrawLimits(MINSTANCE mInst, BOOL *drawlimits);
+MACHAPI    int MACH_APIENTRY mcToolPathSetDrawLimits(MINSTANCE mInst, BOOL drawlimits);
+MACHAPI    int MACH_APIENTRY mcToolPathGetFollowMode(MINSTANCE mInst, BOOL *mode_on);
+MACHAPI    int MACH_APIENTRY mcToolPathSetFollowMode(MINSTANCE mInst, BOOL mode_on);
+MACHAPI    int MACH_APIENTRY mcToolPathSetAAxisPosition(MINSTANCE mInst, double xPos, double yPos, double zPos);
+MACHAPI    int MACH_APIENTRY mcToolPathGetAAxisPosition(MINSTANCE mInst, double *xPos, double *yPos, double *zPos);
+MACHAPI    int MACH_APIENTRY mcToolPathSetARotationAxis(MINSTANCE mInst, int axis);
+MACHAPI    int MACH_APIENTRY mcToolPathGetARotationAxis(MINSTANCE mInst, int *axis);
+MACHAPI    int MACH_APIENTRY mcToolPathSetUseAuxPosAxis(MINSTANCE mInst, int axis, BOOL enable);
+MACHAPI    int MACH_APIENTRY mcToolPathGetUseAuxPosAxis(MINSTANCE mInst, int axis, BOOL *enabled);
+MACHAPI    int MACH_APIENTRY mcToolPathSetUseAuxPos(MINSTANCE mInst, BOOL enable);
+MACHAPI    int MACH_APIENTRY mcToolPathGetUseAuxPos(MINSTANCE mInst, BOOL *enabled);
+
+MACHAPI_NSCV int MACH_APIENTRY mcToolPathGetExecution(MINSTANCE mInst, unsigned long exNum, void **data, unsigned long *len);
+
+#define MC_TPVIEW_TOP     0
+#define MC_TPVIEW_BOTTOM  1
+#define MC_TPVIEW_LEFT    2
+#define MC_TPVIEW_RIGHT   3
+#define MC_TPVIEW_ISO     4
+#define MC_TPVIEW_DEFAULT 5
+
+#define MC_TP_MOUSEFUNC_ROTATE	0
+#define MC_TP_MOUSEFUNC_PAN		1
+#define MC_TP_MOUSEFUNC_ZOOM	2
+
+MACHAPI_NS int MACH_APIENTRY mcToolPathSetView(MINSTANCE mInst, void *parent, int view);
+MACHAPI_NS int MACH_APIENTRY mcToolPathSetZoom(MINSTANCE mInst, void *parent, double zoom);
+
+
+MACHAPI    int MACH_APIENTRY mcToolPathSetSignalMouseClicks(MINSTANCE mInst, BOOL mode_on);
+MACHAPI    int MACH_APIENTRY mcToolPathIsSignalMouseClicks(MINSTANCE mInst, BOOL *mode_on);
+MACHAPI    int MACH_APIENTRY mcToolPathGetLeftMouseDn(MINSTANCE mInst, double *x, double *y, double *z);
+MACHAPI    int MACH_APIENTRY mcToolPathGetLeftMouseUp(MINSTANCE mInst, double *x, double *y, double *z);
+MACHAPI    int MACH_APIENTRY mcToolPathSetMouseLeftClick(MINSTANCE mInst, int click_func);
+MACHAPI    int MACH_APIENTRY mcToolPathGetMouseLeftClick(MINSTANCE mInst, int *click_func);
+
+/*!********************************************
+ * Script engine API functions.               *
+ **********************************************/
+
+MACHAPI_NS int MACH_APIENTRY mcScriptDebug(MINSTANCE mInst, const char *filename);
+MACHAPI_NS int MACH_APIENTRY mcScriptGetExtensions(MINSTANCE mInst, char *buf, long bufsize);
+MACHAPI    int MACH_APIENTRY mcScriptExecute(MINSTANCE mInst, const char *filename, BOOL async);
+MACHAPI    int MACH_APIENTRY mcScriptExecutePrivate(MINSTANCE mInst, const char *filename, BOOL async);
+MACHAPI    int MACH_APIENTRY mcScriptExecuteIfExists(MINSTANCE mInst, const char *filename, BOOL async);
+MACHAPI_NS int MACH_APIENTRY mcScriptEngineRegister(MINSTANCE mInst, HMCPLUG plugid, const char *EngineName, const char *EngineDesc, const char *FileExtensions);
+
+/*!********************************************
+ * Soft limit API functions                   *
+ **********************************************/
+
+MACHAPI int MACH_APIENTRY mcSoftLimitSetState(MINSTANCE mInst, int axis, BOOL on);
+MACHAPI int MACH_APIENTRY mcSoftLimitGetState(MINSTANCE mInst, int axis, BOOL *ison); 
+MACHAPI int MACH_APIENTRY mcSoftLimitMaxMinsClear(MINSTANCE mInst);
+
+/*!********************************************
+ * Profile Get, Write, and Delete functions.  *
+ **********************************************/
+MACHAPI int MACH_APIENTRY mcProfileDeleteKey(MINSTANCE mInst, const char *section, const char *key);
+MACHAPI int MACH_APIENTRY mcProfileDeleteSection(MINSTANCE mInst, const char *section);
+MACHAPI int MACH_APIENTRY mcProfileEnumerateSection(MINSTANCE mInst, const char *section, char *entryBuf, size_t entryBufSize, long startIndex, long *index);
+MACHAPI int MACH_APIENTRY mcProfileGetDouble(MINSTANCE mInst, const char *section, const char *key, double *retval, double defval);
+MACHAPI int MACH_APIENTRY mcProfileGetInt(MINSTANCE mInst, const char *section, const char *key, long *retval, long defval);
+MACHAPI int MACH_APIENTRY mcProfileGetString(MINSTANCE mInst, const char *section, const char *key, char *buff, long buffsize, const char *defval);
+MACHAPI int MACH_APIENTRY mcProfileWriteDouble(MINSTANCE mInst, const char *section, const char *key, double val);
+MACHAPI int MACH_APIENTRY mcProfileWriteInt(MINSTANCE mInst, const char *section, const char *key, long val);
+MACHAPI int MACH_APIENTRY mcProfileWriteString(MINSTANCE mInst, const char *section, const char *key, const char *val);
+MACHAPI int MACH_APIENTRY mcProfileExists(MINSTANCE mInst, const char *section, const char *key);
+MACHAPI int MACH_APIENTRY mcProfileSave(MINSTANCE mInst);
+MACHAPI int MACH_APIENTRY mcProfileReload(MINSTANCE mInst);
+MACHAPI int MACH_APIENTRY mcProfileFlush(MINSTANCE mInst);
+MACHAPI int MACH_APIENTRY mcProfileGetName(MINSTANCE mInst, char *buff, size_t bufsize);
+
+MACHAPI int MACH_APIENTRY mcFileHoldAquire(MINSTANCE mInst, const char *reason, int JogAxisBits);
+MACHAPI int MACH_APIENTRY mcFileHoldRelease(MINSTANCE mInst);
+MACHAPI int MACH_APIENTRY mcFileHoldReason(MINSTANCE mInst, char *buff, long buffsize);
+
+/* Plugin API exported function typedefs and declarations */
+typedef int (MCP_APIENTRY* LPFmcPluginLoad)(HMCPLUG id);
+typedef int (MCP_APIENTRY* LPFmcPluginUnload)(HMCPLUG id);
+typedef int (MCP_APIENTRY* LPFmcPluginInit)(MINSTANCE mInst, HMCPLUG id);
+typedef int (MCP_APIENTRY* LPFmcPluginCleanup)(MINSTANCE mInst);
+typedef int (MCP_APIENTRY* LPFmcPluginMsg)(MINSTANCE mInst, long msg, long param1, long param2);
+typedef int (MCP_APIENTRY* LPFmcPluginAsyncMsg)(MINSTANCE mInst, long msg, long param1, long param2);
+typedef int (MCP_APIENTRY* LPFmcPluginExecuteScript)(MINSTANCE mInst, const char *filename, double *params, int numParams);
+typedef int (MCP_APIENTRY* LPFmcPluginExecuteScriptPrivate)(MINSTANCE mInst, const char *filename, double *params, int numParams);
+typedef int (MCP_APIENTRY* LPFmcPluginDebugScript)(MINSTANCE mInst, const char *filename);
+typedef int (MCP_APIENTRY* LPFmcPluginKillScripts)(MINSTANCE mInst);
+typedef int (MCP_APIENTRY* LPFmcPluginCompileScript)(MINSTANCE mInst, const char *filename);
+typedef int (MCP_APIENTRY* LPFmcPluginCompileAllScripts)(MINSTANCE mInst, const char *path);
+typedef int (MCP_APIENTRY* LPFmcPluginStop)(MINSTANCE mInst);
+typedef int (MCP_APIENTRY* LPFmcPluginConfig)(MINSTANCE mInst);
+typedef int (MCP_APIENTRY* LPFmcPluginProbe)(MINSTANCE mInst);
+typedef int (MCP_APIENTRY* LPFmcPluginDiag)(MINSTANCE mInst);
+typedef int (MCP_APIENTRY* LPFmcPluginWinCreate)(MINSTANCE mInst, HMCWIN hWin, unsigned long parentNativeHandle, unsigned long *nativeHandle);
+typedef int (MCP_APIENTRY* LPFmcPluginWinMessage)(MINSTANCE mInst, long nativeHandle, long msg, long param1, long param2);
+MCP_API int MCP_APIENTRY mcPluginLoad(HMCPLUG id);
+MCP_API int MCP_APIENTRY mcPluginUnload(HMCPLUG id);
+MCP_API int MCP_APIENTRY mcPluginInit(MINSTANCE mInst, HMCPLUG id);
+MCP_API int MCP_APIENTRY mcPluginCleanup(MINSTANCE mInst);
+MCP_API int MCP_APIENTRY mcPluginMsg(MINSTANCE mInst, long msg, long param1, long param2);
+MCP_API int MCP_APIENTRY mcPluginAsyncMsg(MINSTANCE mInst, long msg, long param1, long param2);
+MCP_API int MCP_APIENTRY mcPluginExecuteScript(MINSTANCE mInst, const char *filename, double *params, int numParams);
+MCP_API int MCP_APIENTRY mcPluginExecuteScriptPrivate(MINSTANCE mInst, const char *filename, double *params, int numParams);
+MCP_API int MCP_APIENTRY mcPluginKillScripts(MINSTANCE mInst);
+MCP_API int MCP_APIENTRY mcPluginCompileScript(MINSTANCE mInst, const char *filename);
+MCP_API int MCP_APIENTRY mcPluginCompileAllScripts(MINSTANCE mInst, const char *path);
+MCP_API int MCP_APIENTRY mcPluginDebugScript(MINSTANCE mInst, const char *filename);
+MCP_API int MCP_APIENTRY mcPluginStop(MINSTANCE mInst);
+MCP_API int MCP_APIENTRY mcPluginConfig(MINSTANCE mInst);
+MCP_API int MCP_APIENTRY mcPluginProbe(MINSTANCE mInst);
+MCP_API int MCP_APIENTRY mcPluginDiag(MINSTANCE mInst);
+MCP_API int MCP_APIENTRY mcPluginWinCreate(MINSTANCE mInst, HMCWIN hWin, unsigned long parentNativeHandle, unsigned long *nativeHandle);
+MCP_API int MCP_APIENTRY mcPluginWinMessage(MINSTANCE mInst, unsigned long nativeHandle, long msg, long param1, long param2);
+
+/* GUI exported function typedefs and declarations */
+typedef int (MCP_APIENTRY* LPFmcGUIMsg)(MINSTANCE mInst, long msg, long param1, long param2);
+MCP_API int MCP_APIENTRY mcGUIMsg(MINSTANCE mInst, long msg, long param1, long param2);
+
+
+
+/* numerical constants */
+#define MC_SETVN_DEF_START 500
+#define MC_SETVN_DEF_END   549
+
+//Parameter registers
+
+// stack based local vars.
+#define SV_LOCAL_VARS_START             1
+#define SV_A                            1
+#define SV_B                            2
+#define SV_C                            3
+#define SV_I                            4
+#define SV_J                            5
+#define SV_K                            6
+#define SV_D                            7
+#define SV_E                            8
+#define SV_F                            9
+#define SV_G                            10
+#define SV_H                            11
+#define SV_L                            12
+#define SV_M                            13
+#define SV_N                            14
+#define SV_O                            15
+#define SV_P                            16
+#define SV_Q                            17
+#define SV_R                            18
+#define SV_S                            19
+#define SV_T                            20
+#define SV_U                            21
+#define SV_V                            22
+#define SV_W                            23
+#define SV_X                            24
+#define SV_Y                            25
+#define SV_Z                            26
+#define SV_LOCAL_VARS_END               33
+
+// Common vars (cleared on startup)
+#define SV_CMN1_START                   100
+#define SV_CMN1_END                     199
+
+// Common vars (retained across startups)
+#define SV_CMN2_START                   500
+#define SV_CMN2_END                     599
+
+// Input signal shadows (read only)
+#define SV_UI0                       1000
+#define SV_UI1                       (SV_UI0 + 1)
+#define SV_UI2                       (SV_UI0 + 2)
+#define SV_UI3                       (SV_UI0 + 3)
+#define SV_UI4                       (SV_UI0 + 4)
+#define SV_UI5                       (SV_UI0 + 5)
+#define SV_UI6                       (SV_UI0 + 6)
+#define SV_UI7                       (SV_UI0 + 7)
+#define SV_UI8                       (SV_UI0 + 8)
+#define SV_UI9                       (SV_UI0 + 9)
+#define SV_UI10                      (SV_UI0 + 10)
+#define SV_UI11                      (SV_UI0 + 11)
+#define SV_UI12                      (SV_UI0 + 12)
+#define SV_UI13                      (SV_UI0 + 13)
+#define SV_UI14                      (SV_UI0 + 14)
+#define SV_UI15                      (SV_UI0 + 15)
+#define SV_UI16                      (SV_UI0 + 16)
+#define SV_UI17                      (SV_UI0 + 17)
+#define SV_UI18                      (SV_UI0 + 18)
+#define SV_UI19                      (SV_UI0 + 19)
+#define SV_UI20                      (SV_UI0 + 20)
+#define SV_UI21                      (SV_UI0 + 21)
+#define SV_UI22                      (SV_UI0 + 22)
+#define SV_UI23                      (SV_UI0 + 23)
+#define SV_UI24                      (SV_UI0 + 24)
+#define SV_UI25                      (SV_UI0 + 25)
+#define SV_UI26                      (SV_UI0 + 26)
+#define SV_UI27                      (SV_UI0 + 27)
+#define SV_UI28                      (SV_UI0 + 28)
+#define SV_UI29                      (SV_UI0 + 29)
+#define SV_UI30                      (SV_UI0 + 30)
+#define SV_UI31                      (SV_UI0 + 31)
+// Input signal shadows, 32 bits, inputs 0-31 (read only)
+#define SV_UIL                       (SV_UI0 + 32)
+
+// Output signal shadows (read/write)
+#define SV_UO0                       1100
+#define SV_UO1                       (SV_UO0 + 1)
+#define SV_UO2                       (SV_UO0 + 2)
+#define SV_UO3                       (SV_UO0 + 3)
+#define SV_UO4                       (SV_UO0 + 4)
+#define SV_UO5                       (SV_UO0 + 5)
+#define SV_UO6                       (SV_UO0 + 6)
+#define SV_UO7                       (SV_UO0 + 7)
+#define SV_UO8                       (SV_UO0 + 8)
+#define SV_UO9                       (SV_UO0 + 9)
+#define SV_UO10                      (SV_UO0 + 10)
+#define SV_UO11                      (SV_UO0 + 11)
+#define SV_UO12                      (SV_UO0 + 12)
+#define SV_UO13                      (SV_UO0 + 13)
+#define SV_UO14                      (SV_UO0 + 14)
+#define SV_UO15                      (SV_UO0 + 15)
+#define SV_UO16                      (SV_UO0 + 16)
+#define SV_UO17                      (SV_UO0 + 17)
+#define SV_UO18                      (SV_UO0 + 18)
+#define SV_UO19                      (SV_UO0 + 19)
+#define SV_UO20                      (SV_UO0 + 20)
+#define SV_UO21                      (SV_UO0 + 21)
+#define SV_UO22                      (SV_UO0 + 22)
+#define SV_UO23                      (SV_UO0 + 23)
+#define SV_UO24                      (SV_UO0 + 24)
+#define SV_UO25                      (SV_UO0 + 25)
+#define SV_UO26                      (SV_UO0 + 26)
+#define SV_UO27                      (SV_UO0 + 27)
+#define SV_UO28                      (SV_UO0 + 28)
+#define SV_UO29                      (SV_UO0 + 29)
+#define SV_UO30                      (SV_UO0 + 30)
+#define SV_UO31                      (SV_UO0 + 31)
+// Output signal shadows 32 bit, outputs 0-31 (read/write)
+#define SV_UOL                       (SV_UO0 + 32)
+
+#define SV_CURRENT_TIP                  1237 // Tool tip direction in Lathe mode for Tip Comp
+
+#define SV_FRO_ON_OFF                   2027 // FRO On or Off
+#define SV_CUR_DIA_INDEX                2028 // Current Dia number (D)
+#define SV_CUR_TOOL_NUMBER              2029 // Current tool number (T)
+#define SV_CUR_SELECTED_TOOL            2031 // Current tool that is selected (Next T number)
+#define SV_CUR_LENGTH_INDEX             2032 // Current Length number (H)
+
+#define SV_CUR_TOOL_XLENGTH_REGISTER    2033
+#define SV_CUR_TOOLDIA_REGISTER         2034 // Register for the amount of tool dia offset
+#define SV_CUR_TOOL_ZLENGTH_REGISTER    2035
+#define SV_CUR_TOOL_YLENGTH_REGISTER    2036
+
+#define SV_CUR_CSS_LIMIT                2130
+#define SV_CUR_SPINDLE_SFPM             2131
+#define SV_CUR_SPINDLE_SPEED            2132
+#define SV_TRAVERSE_RATE                2133 // Rate for traverse motions .. I don't think this is needed here.. 
+#define SV_FEEDRATE                     2134 // Feed rate in current units/min
+
+#define SV_ROTATION_X                   2135
+#define SV_ROTATION_Y                   2136
+#define SV_ROTATION                     2137
+
+#define SV_ALM                          3000 // W: Writing to this var will produce a machine alarm.
+#define SV_CLOCK1                       3001 // R/W: Mllisecond timer, set to 0 when the machine is powered on.  Can be reset to any value.
+#define SV_CLOCK2                       3002 // R: Accumulated time, in hours, of the machine.  (Hour Meter)
+#define SV_CNTL1                        3003 // R/W: bit 0 high suppresses single block (default == not set), bit 1 high suppresses waits on MST codes (default == not set).
+#define SV_M_SBK                        0x01
+#define SV_M_MST                        0x02
+#define SV_M_FIN                        0x02 // Same as SV_M_MST.
+#define SV_CNTL2                        3004 // R/W: bit 0 high disables feed hold (default == not set), bit 1 high disables FRO (default == not set), bit 2 high enables exact stop (default == not set).
+#define SV_M_FHD                        0x01     
+#define SV_M_OV                         0x02
+#define SV_M_EST                        0x04
+#define SV_SETDT                        3005 // R/W: Settings Data (bit 2 = 0 Inch, bit 2 = 1 Metric) 
+#define SV_MSGSTP                       3006 // W: Writing to this var will produce a machine stop.
+#define SV_MRIMG                        3007 // R: Status of Mirror Image.
+#define SV_PRSTR                        3008 // R: Program restart (0 or 1)
+#define SV_DEFAULT_UNITS                3005 // Same as SV_SETDT R/W: (bit 2 = 0 Inch, bit 2 = 1 Metric) 
+#define SV_DATE                         3011 // R: Current Date (YYYYMMDD)
+#define SV_TIME                         3012 // R: Current Time (HHMMSS)
+
+#define SV_EMPTY                        3100 // R: returns NIL
+#define SV_PI                           3101 // R: returns pi. (3.14159265358979323846)
+#define SV_BASE_LOG_E                   3102 // R: returns base of natural logarithm E. (2.71828182845904523536)
+#define SV_MSTATE                       3103 // R: returns the machine state.
+
+#define SV_PRTSA                        3901 // R/W: Total number of parts.
+#define SV_PRTSN                        3902 // R/W: Number of required parts
+
+#define SV_MAINO                        4000 // Main program number.
+#define MC_MAX_MODAL_GROUPS             26
+#define SV_MOD_GROUP_1                  4001 // Group 1 // active G-code for motion
+#define SV_MOD_GROUP_2                  4002 // Group 2 // active plane, XY-, YZ-, or XZ-plane
+#define SV_MOD_GROUP_3                  4003 // Group 3 // absolute or incremental
+#define SV_MOD_GROUP_4                  4004 // Group 4 // arc center mode
+#define SV_MOD_GROUP_5                  4005 // Group 5 // G93 (inverse time) or G94 units/min
+#define SV_MOD_GROUP_6                  4006 // Group 6 // millimeters or inches
+#define SV_MOD_GROUP_7                  4007 // Group 7 // current cutter compensation side
+#define SV_MOD_GROUP_8                  4008 // Group 8 // tool length offset
+#define SV_MOD_GROUP_9                  4009 // Group 9 // canned cycles
+#define SV_MOD_GROUP_10                 4010 // Group 10 // for cycles, old_z or r_plane
+#define SV_MOD_GROUP_11                 4011 // Group 11 // scale mode
+#define SV_MOD_GROUP_12                 4012 // Group 12 // modal macro (G66,G66.1,G67)
+#define SV_MOD_GROUP_13                 4013 // Group 13 // spindle mode
+#define SV_MOD_GROUP_14                 4014 // Group 14 // coordinate systems
+#define SV_MOD_GROUP_15                 4015 // Group 15 // exact path or cutting mode
+#define SV_MOD_GROUP_16                 4016 // Group 16 // coordinate system rotation mode
+#define SV_MOD_GROUP_17                 4017 // Group 17 // polar mode
+#define SV_MOD_GROUP_18                 4018 // Group 18 // compensation mode
+#define SV_MOD_GROUP_19                 4019 // Group 19 // not used
+#define SV_MOD_GROUP_20                 4020 // Group 20 // not used
+#define SV_MOD_GROUP_21                 4021 // Group 21 // not used
+#define SV_MOD_GROUP_22                 4022 // Group 22 // not used
+#define SV_MOD_GROUP_23                 4023 // Group 23 // not used
+#define SV_MOD_GROUP_24                 4024 // Group 24 // not used
+#define SV_MOD_GROUP_25                 4025 // Group 25 // not used
+
+#define SV_BUFB                         4102 // last buffered B code value.
+#define SV_BUFD                         4107 // last buffered D code value.
+#define SV_BUFE                         4108 // last buffered E code value.
+#define SV_BUFF                         4109 // last buffered F code value.
+#define SV_BUFH                         4111 // last buffered H code value.
+#define SV_BUFM                         4113 // last buffered H code value.
+#define SV_BUFN                         4114 // last buffered N code value.
+#define SV_BUFO                         4115 // last buffered O code value.
+#define SV_BUFS                         4119 // last buffered S code value.
+#define SV_BUFT                         4120 // last buffered T code value.
+#define SV_BUFP                         4130 // last buffered P code value.
+
+#define SV_ORIGIN_OFFSET_X              4140
+#define SV_ORIGIN_OFFSET_Y              4141
+#define SV_ORIGIN_OFFSET_Z              4142
+#define SV_ORIGIN_OFFSET_A              4143
+#define SV_ORIGIN_OFFSET_B              4144
+#define SV_ORIGIN_OFFSET_C              4145
+
+#define SV_LAST_OUTPUT_X                5001
+#define SV_LAST_OUTPUT_Y                5002
+#define SV_LAST_OUTPUT_Z                5003
+#define SV_LAST_OUTPUT_A                5004
+#define SV_LAST_OUTPUT_B                5005
+#define SV_LAST_OUTPUT_C                5006
+
+#define SV_CURRENT_MACH_X               5021
+#define SV_CURRENT_MACH_Y               5022
+#define SV_CURRENT_MACH_Z               5023
+#define SV_CURRENT_MACH_A               5024
+#define SV_CURRENT_MACH_B               5025
+#define SV_CURRENT_MACH_C               5026
+
+#define SV_AXIS_OFFSET_X                5030 // Used to save the offset with the G92.3 command
+#define SV_AXIS_OFFSET_Y                5031
+#define SV_AXIS_OFFSET_Z                5032
+#define SV_AXIS_OFFSET_A                5033
+#define SV_AXIS_OFFSET_B                5034
+#define SV_AXIS_OFFSET_C                5035
+
+#define SV_CURRENT_ABS_X                5041
+#define SV_CURRENT_ABS_Y                5042
+#define SV_CURRENT_ABS_Z                5043
+#define SV_CURRENT_ABS_A                5044
+#define SV_CURRENT_ABS_B                5045
+#define SV_CURRENT_ABS_C                5046
+
+#define SV_G92_OFFSET_X                 5050 // Used to save the offset with the G92.3 command
+#define SV_G92_OFFSET_Y                 5051
+#define SV_G92_OFFSET_Z                 5052
+#define SV_G92_OFFSET_A                 5053
+#define SV_G92_OFFSET_B                 5054
+#define SV_G92_OFFSET_C                 5055
+
+#define SV_PROBE_POS_X                  5061 // G31 Skip position
+#define SV_PROBE_POS_Y                  5062 
+#define SV_PROBE_POS_Z                  5063
+#define SV_PROBE_POS_A                  5064
+#define SV_PROBE_POS_B                  5065
+#define SV_PROBE_POS_C                  5066
+
+#define SV_PROBE_MACH_POS_X             5071 // G31 Skip machine position
+#define SV_PROBE_MACH_POS_Y             5072
+#define SV_PROBE_MACH_POS_Z             5073
+#define SV_PROBE_MACH_POS_A             5074
+#define SV_PROBE_MACH_POS_B             5075
+#define SV_PROBE_MACH_POS_C             5076
+
+#define SV_HEAD_SHIFT_X                 5081
+#define SV_HEAD_SHIFT_Y                 5082
+#define SV_HEAD_SHIFT_Z                 5083
+#define SV_HEAD_SHIFT_A                 5084
+#define SV_HEAD_SHIFT_B                 5085
+#define SV_HEAD_SHIFT_C                 5086
+
+// Defines Q shift direction for G76 and G87
+// Controlled by bits 5 and 4 to produce 
+// the following table:
+//+-----+-----+-----+-----+-----+
+//| RD2 | RD1 | G17 | G18 | G19 |
+//+-----+-----+-----+-----+-----+
+//|  0  |  0  |  X+ |  Z+ |  Y+ |
+//|  0  |  1  |  X- |  Z- |  Y- |
+//|  1  |  0  |  Y+ |  X+ |  Z+ |
+//|  1  |  1  |  Y- |  X- |  Z- |
+//+-----+-----+-----+-----+-----+
+#define SV_CYCLE_PARAM1                 5101
+#define SV_CP1_BIT_RD1                  0x04
+#define SV_CP1_BIT_RD2                  0x05
+
+// High Speed Peck drilling cycle (G73) rapid retract clearance.
+// (integer specifying .0001" or .001mm increments, depending on machine setup units)
+// default:
+// 250 (.0250") for inch machines.
+// 600 (.600mm) for metric machines.
+#define SV_HSP_CLEARANCE                5114 
+// Full Retract Peck drilling cycle (G83) rapid clearance before feed starts.
+// (integer specifying .0001" or .001mm increments, depending on machine setup units)
+// default:
+// 100 (.0100") for inch machines.
+// 250 (.250mm) for metric machines.
+#define SV_FRP_CLEARANCE                5115
+
+// G92 chamfer pitch.
+// (integer specifying .1 pitch increments)
+// default:
+// 10 (1.0 pitch)
+#define SV_G92_CHAMFER_PITCH            5130
+
+/* Turn Registers only */
+/* G76 Parameters */
+#define SV_G76_MIN_PASS_DEPTH           5140
+#define SV_G76_FINISH_DEPTH             5141
+#define SV_G76_FINISH_PASSES			5142
+#define SV_G76_THREAD_ANGLE             5143
+#define SV_G76_CHAMFER_AMOUNT           5144
+#define SV_G76_CUTTING_METHOD           5145
+/* End of Turn Registers */
+
+#define SV_CUR_COMP_X                   5157 // Program x, used when cutter comp on
+#define SV_CUR_COMP_Y                   5158 // Program y, used when cutter comp on
+#define SV_CUR_COMP_Z                   5159 // Program z, used when cutter comp on
+
+#define SV_G_30_XPOS                    5181
+#define SV_G_30_YPOS                    5182
+#define SV_G_30_ZPOS                    5183
+#define SV_G_30_APOS                    5184
+#define SV_G_30_BPOS                    5185
+#define SV_G_30_CPOS                    5186
+
+#define SV_WORK_SHIFT_X                 5201
+#define SV_WORK_SHIFT_Y                 5202
+#define SV_WORK_SHIFT_Z                 5203
+#define SV_WORK_SHIFT_A                 5204
+#define SV_WORK_SHIFT_B                 5205
+#define SV_WORK_SHIFT_C                 5206
+
+#define MC_FIXTURES_START               5221 // Fixture start in Parameter list
+#define SV_FIXTURES_START               MC_FIXTURES_START
+#define MC_FIXTURES_INC                 20	 // Increment from fixture to fixture (does not define a system var!)
+#define SV_FIXTURES_INC                 MC_FIXTURES_INC	 // For Compat
+#define MC_FIXTURES_MAX                 106	 // Max Fixtures  G54 to G59 + G54.1 P1 to G54.1 P100 
+#define SV_FIXTURES_MAX                 MC_FIXTURES_MAX  // For Compat
+#define MC_FIXTURE_EXPAND_MAX           100
+#define SV_FIXTURE_G54                  5221 // 5221- 5226 1st axis to 6th axis
+#define SV_FIXTURE_G55                  5241 // 5241- 5246 1st axis to 6th axis
+#define SV_FIXTURE_G56                  5261 // 5261- 5266 1st axis to 6th axis
+#define SV_FIXTURE_G57                  5281 // 5281- 5286 1st axis to 6th axis
+#define SV_FIXTURE_G58                  5301 // 5301- 5306 1st axis to 6th axis
+#define SV_FIXTURE_G59                  5321 // 5321- 5326 1st axis to 6th axis
+#define MC_FIXTURE_END                  5326
+#define MC_FIXTURE_EXPAND               7001 // Fixtures G54.1 P1 to G54.1 P50
+#define SV_FIXTURE_EXPAND               MC_FIXTURE_EXPAND
+#define SV_FIXTURE_G541P1               7001 // 7001- 7006 1st axis to 6th axis
+#define SV_FIXTURE_G541P2               7021 // 7021- 7026 1st axis to 6th axis
+//...
+#define SV_FIXTURE_G541P48              7941 // 7941- 7946 1st axis to 6th axis
+#define SV_FIXTURE_G541P49              7961 // 7961- 7966 1st axis to 6th axis
+#define SV_FIXTURE_G541P50              7981 // 7981- 7986 1st axis to 6th axis
+
+#define SV_WORK_SHIFT2_X                2500 // Shadows 5201.
+#define SV_WORK_SHIFT2_Y                2600 // Shadows 5202.
+#define SV_WORK_SHIFT2_Z                2700 // Shadows 5203.
+#define SV_WORK_SHIFT2_A                2800 // Shadows 5204.
+#define SV_WORK_SHIFT2_B                2900 // Shadows 5205.
+#define SV_FIXTURE_G54_X                2501 // Shadows 5221.
+#define SV_FIXTURE_G54_Y                2601 // Shadows 5222.
+#define SV_FIXTURE_G54_Z                2701 // Shadows 5223.
+#define SV_FIXTURE_G54_A                2801 // Shadows 5224.
+#define SV_FIXTURE_G54_B                2901 // Shadows 5225.
+#define SV_FIXTURE_G55_X                2502 // Shadows 5241.
+#define SV_FIXTURE_G55_Y                2602 // Shadows 5242.
+#define SV_FIXTURE_G55_Z                2702 // Shadows 5243.
+#define SV_FIXTURE_G55_A                2802 // Shadows 5244.
+#define SV_FIXTURE_G55_B                2902 // Shadows 5245.
+#define SV_FIXTURE_G56_X                2503 // Shadows 5261.
+#define SV_FIXTURE_G56_Y                2603 // Shadows 5262.
+#define SV_FIXTURE_G56_Z                2703 // Shadows 5263.
+#define SV_FIXTURE_G56_A                2803 // Shadows 5264.
+#define SV_FIXTURE_G56_B                2903 // Shadows 5265.
+#define SV_FIXTURE_G57_X                2504 // Shadows 5281.
+#define SV_FIXTURE_G57_Y                2604 // Shadows 5282.
+#define SV_FIXTURE_G57_Z                2704 // Shadows 5283.
+#define SV_FIXTURE_G57_A                2804 // Shadows 5284.
+#define SV_FIXTURE_G57_B                2904 // Shadows 5285.
+#define SV_FIXTURE_G58_X                2505 // Shadows 5301.
+#define SV_FIXTURE_G58_Y                2605 // Shadows 5302.
+#define SV_FIXTURE_G58_Z                2705 // Shadows 5303.
+#define SV_FIXTURE_G58_A                2805 // Shadows 5304.
+#define SV_FIXTURE_G58_B                2905 // Shadows 5305.
+#define SV_FIXTURE_G59_X                2506 // Shadows 5321.
+#define SV_FIXTURE_G59_Y                2606 // Shadows 5322.
+#define SV_FIXTURE_G59_Z                2706 // Shadows 5323.
+#define SV_FIXTURE_G59_A                2806 // Shadows 5324.
+#define SV_FIXTURE_G59_B                2906 // Shadows 5325.
+
+#define SV_FIXTURE_EXPAND2              8001 // Fixtures G54.1 P51 to G54.1 P100
+#define SV_FIXTURE_G541P51              8001 // 8001- 8006 1st axis to 6th axis
+#define SV_FIXTURE_G541P52              8021 // 8021- 8026 1st axis to 6th axis
+//...
+#define SV_FIXTURE_G541P99              8961 // 8961- 8966 1st axis to 6th axis
+#define SV_FIXTURE_G541P100             8981 // 8981- 8986 1st axis to 6th axis
+#define MC_FIXTURE_EXPAND_END           8986
+
+#define SV_G_30_P2_XPOS                 5351
+#define SV_G_30_P2_YPOS                 5352
+#define SV_G_30_P2_ZPOS                 5353
+#define SV_G_30_P2_APOS                 5354
+#define SV_G_30_P2_BPOS                 5355
+#define SV_G_30_P2_CPOS                 5356
+
+#define SV_G_30_P3_XPOS                 5361
+#define SV_G_30_P3_YPOS                 5362
+#define SV_G_30_P3_ZPOS                 5363
+#define SV_G_30_P3_APOS                 5364
+#define SV_G_30_P3_BPOS                 5365
+#define SV_G_30_P3_CPOS                 5366
+
+#define SV_G_30_P4_XPOS                 5371
+#define SV_G_30_P4_YPOS                 5372
+#define SV_G_30_P4_ZPOS                 5373
+#define SV_G_30_P4_APOS                 5374
+#define SV_G_30_P4_BPOS                 5375
+#define SV_G_30_P4_CPOS                 5376
+
+#define SV_ROTATION_G68_NO_R            5410
+
+#define SV_APPROACH_DIST_X              5440 // Approch distance for the G60 Unidirectional approch command
+#define SV_APPROACH_DIST_Y              5441
+#define SV_APPROACH_DIST_Z              5442
+#define SV_APPROACH_DIST_A              5443
+#define SV_APPROACH_DIST_B              5444
+#define SV_APPROACH_DIST_C              5445
+
+// Custom macro variables
+#define SV_CM1                          6000
+#define SV_CM1_SMB_BIT                  0x05 // Setting this bit will step into the macro or sub program. 0 (or step over) is the default.
+
+#define SV_CM2                          6001
+#define SV_CM2_TCS_BIT                  0x05 // O9000: 0 = Not called using a T code.  1 = called by using a T code.
+#define SV_CM2_CCV_BIT                  0x05 // #100-#199: 0 = Cleared to NIL by reset, 1 Not cleared by reset
+#define SV_CM2_CLV_BIT                  0x05 // #1-#33: 0 = Cleared to NIL by reset, 1 Not cleared by reset
+
+#define SV_CMN_RO_START                 6031 // The starting commnon var (#500-#999) to write protect.
+#define SV_CMN_RO_END                   6032 // The ending commnon var (#500-#999) to write protect.
+
+// Multipath common variables definitions.  (multipath requires more than one Mach instance)
+#define SV_PATH_CNM1                    6036 // The number of variables in range #100-#199 that are common to all instances/paths (defualt is NIL or 0)
+#define SV_PATH_CNM2                    6037 // The number of variables in range #500-#999 that are common to all instances/paths (defualt is NIL or 0)
+
+// Macro call using a G code.
+// The varables below correspond to sub program numbers. If a value other than zero
+// is specified, it will be interpreted as a G code that calls the associated 
+// subprogram via G65.
+// e.g. If #6050 is set to 100, G100 will be translated as G65 P9010.
+
+#define SV_O9010                        6050
+#define SV_O9011                        6051
+#define SV_O9012                        6052
+#define SV_O9013                        6053
+#define SV_O9014                        6054
+#define SV_O9015                        6055
+#define SV_O9016                        6056
+#define SV_O9017                        6057
+#define SV_O9018                        6058
+#define SV_O9019                        6059
+
+// Suprogram call using a M code.
+// The varables below correspond to sub program numbers. If a value other than zero
+// is specified, it will be interpreted as a M code that calls the associated 
+// subprogram via M98.
+// e.g. If #6071 is set to 100, M100 will be translated as M98 P9001.
+
+#define SV_O9001                        6071
+#define SV_O9002                        6072
+#define SV_O9003                        6073
+#define SV_O9004                        6074
+#define SV_O9005                        6075
+#define SV_O9006                        6076
+#define SV_O9007                        6077
+#define SV_O9008                        6078
+#define SV_O9009                        6079
+
+// Macro call using a M code.
+// The varables below correspond to sub program numbers. If a value other than zero
+// is specified, it will be interpreted as a M code that calls the associated 
+// subprogram via G65.
+// e.g. If #6080 is set to 100, M100 will be translated as G65 P9020.
+// M codes break CV
+
+#define SV_O9020                        6080
+#define SV_O9021                        6081
+#define SV_O9022                        6082
+#define SV_O9023                        6083
+#define SV_O9024                        6084
+#define SV_O9025                        6085
+#define SV_O9026                        6086
+#define SV_O9027                        6087
+#define SV_O9028                        6088
+#define SV_O9029                        6089
+
+#define SV_PRTCNTL                      6700 // Setting to 1 only allows M code specified by #6710 to increment part count. (default 0)
+#define SV_PRTINCM                      6710 // Set to a M code that will incremnt part counts with or without M02 and M30 according to #6700.
+#define SV_PRTSA2                       6711 // R/W: Total number of parts.  Will change/reflect #3901 as well. (cleared on file load).
+#define SV_PRTST                        6712 // R/W: Total number of parts machined.
+#define SV_PRTSN2                       6713 // R/W: Number of required parts  Will change/reflect #3902 as well.
+
+// R/W: Tool life management.
+// Defines the number of tool groups and max tools 
+// for each group controlled by bits 0 and 1 to produce 
+// the following table:
+//+----------+----------+-------------+------------+
+//| GS1 bit 0| GS2 bit 1| # of groups | # of tools |
+//+----------+----------+-------------+------------+
+//|     0    |     0    |     16      |     16     |
+//|     0    |     1    |     32      |      8     |
+//|     1    |     0    |     64      |      4     |
+//|     1    |     1    |    128      |      2     |
+//+----------+----------+-------------+------------+
+#define SV_TLM1                          6800
+#define SV_TLM1_GS1_BIT                  0x0  // (NOT USED - we don't limit tools and groups)
+#define SV_TLM1_GS2_BIT                  0x1  // (NOT USED - we don't limit tools and groups)
+#define SV_TLM1_LTM_BIT                  0x2  // Tool life default: 0 == Specified by count, 1 == Specified by time
+#define SV_TLM1_SIG_BIT                  0x3  // (NOT USED CURRENTLY)
+#define SV_TLM1_GRS_BIT                  0x4
+#define SV_TLM1_SNG_BIT                  0x5
+#define SV_TLM1_IGI_BIT                  0x6
+#define SV_TLM1_M6T_BIT                  0x7
+
+#define SV_TLM2                          6801
+#define SV_TLM2_LFV_BIT                  0x2  // Tool life count override. default: 0 == diabled, 1 == enabled
+#define SV_TLM2_EMD_BIT                  0x3  // Asterisk (*) indicating tool expired is displayed, default: 0 == When the next tool is selected, 1 == When the tool life is expired.
+#define SV_TLM2_E1S_BIT                  0x5  // (NOT USED CURRENTLY) When the life of a tool is measured in time�based units: 0 = every four seconds, 1 = every second.
+#define SV_TLM2_EXT_BIT                  0x6  // (NOT USED CURRENTLY, always extended!) Use extended tool life management. 0 == not used, 1 == used.
+#define SV_TLM2_M6E_BIT                  0x7  // When a T code is in the same block as M06: 0 = The T code is next group, 1 == The tool group life is counted immediately.
+
+#define SV_TLM3                          6802
+#define SV_TLM3_T99_BIT                  0x0  // TLCNGB signal on M99 default: 0 == not rasied, 1 == raised.
+#define SV_TLM3_TCO_BIT                  0x1  // (NOT USED CURRENTLY)
+#define SV_TLM3_E17_BIT                  0x2  // (NOT USED CURRENTLY)
+#define SV_TLM3_GRP_BIT                  0x3  // (NOT USED CURRENTLY)
+#define SV_TLM3_ARL_BIT                  0x4  // TLCHB sinal is: 0 == Output for each tool, 1 == Output for the last tool in a group.
+#define SV_TLM3_TSK_BIT                  0x6  // (NOT USED CURRENTLY)
+
+
+#define SV_TLM_CANCEL                   6810 // R/W: The base number to specify a tool group.  Default 1000.  e.g. T1001 selects a tool from tool group #1.
+#define SV_TLM_RESTART                  6811 // R/W: The M code number that does a TLM restart.
+
+// Tool Compensation system variable locations.  Fanuc Tool Comp Memory C.  Tools limited to MC_TOOLS_MAX
+#define MC_TOOL_COMP_MEM_BEGIN          10000
+#define MC_TOOL_COMP_MEM_END            20000
+#define SV_MILL_LEN_COMP                MTOOL_MILL_HEIGHT     // #11001-#11999 Tool 1-999 height offset.
+#define SV_MILL_LEN_WEAR                MTOOL_MILL_HEIGHT_W   // #10001-#10999 Tool 1-999 height wear offset.
+#define SV_MILL_DIA_COMP                MTOOL_MILL_DIA        // #13001-#13999 Tool 1-999 dia offset.
+#define SV_MILL_DIA_WEAR                MTOOL_MILL_DIA_W      // #12001-#12999 Tool 1-999 dia wear offset.
+#define SV_MILL_X_COMP                  MTOOL_MILL_X          // #15001-#15999 Tool 1-999 x offset.
+#define SV_MILL_X_WEAR                  MTOOL_MILL_X_W        // #14001-#14999 Tool 1-999 x wear offset.
+#define SV_MILL_Y_COMP                  MTOOL_MILL_Y          // #19001-#19999 Tool 1-999 y offset.
+#define SV_MILL_Y_WEAR                  MTOOL_MILL_Y_W        // #17001-#17999 Tool 1-999 y wear offset.
+#define SV_MILL_POCKET                  MTOOL_MILL_POCKET     // #18001-#18999 Tool 1-999 pocket.
+
+#define SV_LATHE_X_COMP                 MTOOL_LATHE_X         // #15001-#15999 Tool 1-999 x offset.
+#define SV_LATHE_X_WEAR                 MTOOL_LATHE_X_W       // #10001-#10999 Tool 1-999 x wear offset.
+#define SV_LATHE_Y_COMP                 MTOOL_LATHE_Y         // #19001-#19999 Tool 1-999 y offset.
+#define SV_LATHE_Y_WEAR                 MTOOL_LATHE_Y_W       // #14001-#14999 Tool 1-999 y wear offset.
+#define SV_LATHE_Z_COMP                 MTOOL_LATHE_Z         // #11001-#11999 Tool 1-999 z offset.
+#define SV_LATHE_Z_WEAR                 MTOOL_LATHE_Z_W       // #16001-#16999 Tool 1-999 z wear offset.
+#define SV_LATHE_NOSE_COMP              MTOOL_LATHE_TIPRAD    // #17001-#17999 Tool 1-999 nose radius offset.
+#define SV_LATHE_NOSE_DIR               MTOOL_LATHE_TIPDIR    // #12001-#12999 Tool 1-999 nose direction.
+#define SV_LATHE_IMAG_POS               MTOOL_LATHE_IMAG_POS  // #13001-#13999 Tool 1-999 imaginary position.
+#define SV_LATHE_TOOLSLIDE              MTOOL_LATHE_TOOLSLIDE // #18001-#18999 Tool 1-999 axis slide.
+
+#ifdef __cplusplus
+}
+#endif
+
+
+#endif // __MACHAPI_H_INCLUDED__

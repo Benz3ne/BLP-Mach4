@@ -1,0 +1,235 @@
+--------------------------------------
+
+-- CNC4PC Pendant --
+
+--------------------------------------
+
+-- These simply run the CNC4PCPendant function if their
+state changes.
+
+SigLib = {
+
+[mc.ISIG_INPUT10] = function (state)
+
+CNC4PCPendant()
+
+end,
+
+[mc.ISIG_INPUT11] = function (state)
+
+CNC4PCPendant()
+
+end,
+
+[mc.ISIG_INPUT12] = function (state)
+
+CNC4PCPendant()
+
+end,
+
+[mc.ISIG_INPUT13] = function (state)
+
+CNC4PCPendant()
+
+end,
+
+[mc.ISIG_INPUT14] = function (state)
+
+CNC4PCPendant()
+
+end,
+
+[mc.ISIG_INPUT15] = function (state)
+
+CNC4PCPendant()
+
+end,
+
+[mc.ISIG_INPUT16] = function (state)
+
+CNC4PCPendant()
+
+end,
+
+[mc.ISIG_INPUT17] = function (state)
+
+CNC4PCPendant()
+
+end,
+
+[mc.ISIG_INPUT18] = function (state)
+
+CNC4PCPendant()
+
+end,
+
+[mc.ISIG_INPUT19] = function (state)
+
+CNC4PCPendant()
+
+end
+
+}
+
+---------------------------------------------------------------
+
+-- CNC4PC Pendant function.
+
+---------------------------------------------------------------
+
+function CNC4PCPendant()
+
+local hSig, rc = mc.mcSignalGetHandle(inst, mc.ISIG_INPUT10)
+-- Is mapped to Port 2 Pin 4 *X
+
+Selection local XSelection, rc = mc.mcSignalGetState(hSig)
+
+local hSig, rc = mc.mcSignalGetHandle(inst, mc.ISIG_INPUT11)
+-- Is mapped to Port 2 Pin 5 *Y
+
+Selection local YSelection, rc = mc.mcSignalGetState(hSig)
+
+local hSig, rc = mc.mcSignalGetHandle(inst, mc.ISIG_INPUT12)
+-- Is mapped to Port 2 Pin 6 *Z
+
+Selection local ZSelection, rc = mc.mcSignalGetState(hSig)
+
+local hSig, rc = mc.mcSignalGetHandle(inst, mc.ISIG_INPUT13)
+-- Is mapped to Port 2 Pin 7 *A
+
+Selection local ASelection, rc = mc.mcSignalGetState(hSig)
+
+local hSig, rc = mc.mcSignalGetHandle(inst, mc.ISIG_INPUT14)
+-- Is mapped to Port 2 Pin 8 *.001
+
+Selection
+
+local Step001, rc = mc.mcSignalGetState(hSig)
+
+local hSig, rc = mc.mcSignalGetHandle(inst, mc.ISIG_INPUT15)
+-- Is mapped to Port 2 Pin 9 *.010
+
+Selection
+
+local Step010, rc = mc.mcSignalGetState(hSig)
+
+local hSig, rc = mc.mcSignalGetHandle(inst, mc.ISIG_INPUT16)
+-- Is mapped to Port 2 Pin 10 *.100
+
+Selection
+
+local Step100, rc = mc.mcSignalGetState(hSig)
+
+local hSig, rc = mc.mcSignalGetHandle(inst, mc.ISIG_INPUT17)
+-- Is mapped to Port 2 Pin 15
+
+*Estop local PenStop, rc = mc.mcSignalGetState(hSig)
+
+local hSig, rc = mc.mcSignalGetHandle(inst, mc.ISIG_INPUT18)
+-- Is mapped to Port 2 Pin 12 *B
+
+Selection
+
+local BSelection, rc = mc.mcSignalGetState(hSig)
+
+local hSig, rc = mc.mcSignalGetHandle(inst, mc.ISIG_INPUT19)
+-- Is mapped to Port 2 Pin 13 *C
+
+Selection
+
+local CSelection, rc = mc.mcSignalGetState(hSig)
+
+local PenJogOn, rc = mc.mcSignalGetHandle(inst,
+mc.OSIG_OUTPUT10)-- Is mapped to Port 2 Pin
+
+1
+
+*Jog on LED if XSelection == 1 then
+
+mc.mcMpgSetAxis(inst, 0, 0) --X Axis
+
+mc.mcCntlSetLastError(inst, "X
+
+Selected")
+
+mc.mcSignalSetState(PenJogOn, 1)
+
+elseif YSelection == 1 then
+
+mc.mcMpgSetAxis(inst, 0, 1) --Y Axis
+
+mc.mcCntlSetLastError(inst, "Y
+
+Selected")
+
+mc.mcSignalSetState(PenJogOn, 1)
+
+elseif ZSelection == 1 then
+
+mc.mcMpgSetAxis(inst, 0, 2) --Z Axis
+
+mc.mcCntlSetLastError(inst, "Z
+
+Selected")
+
+mc.mcSignalSetState(PenJogOn, 1)
+
+elseif ASelection == 1 then
+
+mc.mcMpgSetAxis(inst, 0, 3) --A Axis
+
+mc.mcCntlSetLastError(inst, "A
+
+Selected")
+
+mc.mcSignalSetState(PenJogOn, 1)
+
+elseif BSelection == 1 then
+
+mc.mcMpgSetAxis(inst, 0, 4) --B Axis
+
+mc.mcCntlSetLastError(inst, "B
+
+Selected")
+
+mc.mcSignalSetState(PenJogOn, 1)
+
+elseif CSelection == 1 then
+
+mc.mcMpgSetAxis(inst, 0, 5) --C Axis
+
+mc.mcCntlSetLastError(inst, "C
+
+Selected")
+
+mc.mcSignalSetState(PenJogOn, 1)
+
+else
+
+mc.mcMpgSetAxis(inst, 0, -1) --No Axis
+
+mc.mcCntlSetLastError(inst, "No Axis Selected")
+
+mc.mcSignalSetState(PenJogOn, 0)
+
+end
+
+if Step001 == 1 then
+
+mc.mcMpgSetInc(inst, 0,
+
+.001) elseif Step010 == 1
+
+then mc.mcMpgSetInc(inst,
+
+0, .010) elseif Step100 == 1
+
+then mc.mcMpgSetInc(inst,
+
+0, .100) end if PenStop == 1
+
+then mc.mcCntlEStop(inst)
+
+end
+
+end

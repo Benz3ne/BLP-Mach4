@@ -1,0 +1,34 @@
+function m150()
+    local inst = mc.mcGetInstance()
+    
+    -- Get H value from pound variable 
+    -- SV_H_WORD might not exist, use direct pound var 203
+    local H_WORD_VAR = 203  -- Standard location for H parameter
+    if mc.SV_H_WORD then
+        H_WORD_VAR = mc.SV_H_WORD
+    end
+    
+    local hParam = mc.mcCntlGetPoundVar(inst, H_WORD_VAR)
+    
+    if hParam < 0 or hParam > 99 then
+        mc.mcCntlSetLastError(inst, "M150: Invalid H value: " .. tostring(hParam))
+        return
+    end
+    
+    -- Method 1: Try direct G43
+    mc.mcCntlGcodeExecuteWait(inst, string.format("G43 H%.0f", hParam))
+    wx.wxMilliSleep(100)
+    
+    -- Method 2: If that failed, use direct set
+    if mc.mcCntlGetPoundVar(inst, 4120) ~= hParam then
+        mc.mcCntlSetPoundVar(inst, 4120, hParam)
+        mc.mcCntlSetPoundVar(inst, 4008, 43)
+        mc.mcCntlSetLastError(inst, string.format("M150: Set H%.0f via direct method", hParam))
+    else
+        mc.mcCntlSetLastError(inst, string.format("M150: Set H%.0f via G43", hParam))
+    end
+end
+
+if mc.mcInEditor() == 1 then
+    m150()
+end

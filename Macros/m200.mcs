@@ -1,0 +1,4 @@
+function m200()
+    local inst = mc.mcGetInstance()
+    ProbeScripts.Debug(inst)
+end

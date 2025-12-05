@@ -1,0 +1,293 @@
+-----------------------------------------------------------------------------
+-- Name:        MouseWheel
+-- Author:      B Barker
+-- Modified by:
+-- Created:     08/03/2021
+-- Copyright:   (c) 2021 Newfangled Solutions. All rights reserved.
+-- Licence:     BSD license - This header can not be removed 
+-----------------------------------------------------------------------------
+
+function GetNextID()
+    m_id = m_id+1
+    return m_id
+end
+--global var to hold the frame
+mainframe = nil
+panel = nil
+m_id = 0
+m_iniName = "MouseWheelMPG"
+m_position = 0;
+m_axis = 0;
+m_wheelcount = 0;
+
+m_moveAvg = {};
+m_moveAvg.index = 0
+m_moveAvg.max = 3
+m_moveAvg.lastpos = 0
+
+for i=0, m_moveAvg.max, 1 do
+	m_moveAvg[i] = 0
+end
+
+ID_MPG_X_BUT  = GetNextID()
+ID_MPG_Y_BUT  = GetNextID()
+ID_MPG_Z_BUT  = GetNextID()
+ID_MPG_OFF_BUT = GetNextID()
+ID_MPG_INC  = GetNextID()
+ID_CLOSE_BUTTON  = GetNextID()
+ID_PANNEL  = GetNextID()
+
+
+
+function SelectAxis(axis)
+    if(axis == 'x') then
+      mpgX:SetBackgroundColour(wx.wxColour(0,255, 128));
+      mc.mcMpgSetAxis(0, 0, 0);
+      m_axis = 0;
+	mc.mcMpgSetShuttleMode(0,0)   
+    else
+      mpgX:SetBackgroundColour(wx.wxNullColour)
+    end
+if(axis == 'y') then
+      mpgY:SetBackgroundColour(wx.wxColour(0,255, 128));
+      mc.mcMpgSetAxis(0, 0, 1);
+      m_axis = 1;
+	mc.mcMpgSetShuttleMode(0,0)   
+    else
+      mpgY:SetBackgroundColour(wx.wxNullColour)
+    end
+if(axis == 'z') then
+      mpgZ:SetBackgroundColour(wx.wxColour(0,255, 128));
+      mc.mcMpgSetAxis(0, 0, 2);
+      m_axis = 2;
+	 mc.mcMpgSetShuttleMode(0,0)  
+    else
+      mpgZ:SetBackgroundColour(wx.wxNullColour)
+    end
+
+if(axis == 'shuttle') then
+      mpgOff:SetBackgroundColour(wx.wxColour(255, 0, 0));
+      mc.mcMpgSetAxis(0, 0, 0);
+      m_axis = -1;
+	 mc.mcMpgSetShuttleMode(0,1)  
+    else
+      mpgOff:SetBackgroundColour(wx.wxNullColour)
+    end
+end
+
+function main()
+
+if(mcLuaPanelParent == nil)then
+    -- create the wxFrame window
+    mainframe = wx.wxFrame( wx.NULL,          -- no parent
+                        wx.wxID_ANY,          -- whatever for wxWindow ID
+                        "Mach4 Mouse Wheel MPG", -- frame caption
+                        wx.wxDefaultPosition, -- place the frame in default position
+                        wx.wxDefaultSize,     -- default frame size
+                        --wx.wxDEFAULT_FRAME_STYLE + wx.wxSTAY_ON_TOP ) -- use default frame styles
+						wx.wxSTAY_ON_TOP + wx.wxCAPTION ) -- use default frame styles
+
+    -- create a panel in the frame
+    panel = wx.wxPanel(mainframe, ID_PANNEL)
+
+    -- create a simple file menu with an exit
+    local fileMenu = wx.wxMenu()
+    fileMenu:Append(wx.wxID_EXIT, "E&xit", "Quit MouseMPG")
+
+    -- create a simple help menu
+    local helpMenu = wx.wxMenu()
+    helpMenu:Append(wx.wxID_ABOUT, "&About", "About Mouse Wheel MPG")
+
+    -- create a menu bar and append the file and help menus
+    local menuBar = wx.wxMenuBar()
+    menuBar:Append(helpMenu, "&Help")
+
+    -- attach the menu bar into the frame
+    mainframe:SetMenuBar(menuBar)
+
+    -- create a simple status bar
+    mainframe:CreateStatusBar(1)
+    mainframe:SetStatusText("MPG Count: 0")
+
+    -- connect the selection event of the exit menu item to an
+    -- event handler that closes the window
+    mainframe:Connect(wx.wxID_EXIT, 
+                      wx.wxEVT_COMMAND_MENU_SELECTED,
+                      function (event) 
+                          mainframe:Close(true) 
+                      end )
+
+    -- connect the selection event of the about menu item
+    mainframe:Connect(wx.wxID_ABOUT, wx.wxEVT_COMMAND_MENU_SELECTED,
+        function (event)
+             wx.wxMessageBox("Mouse Wheel MPG \n\nAuthor: Brian Barker\nDate: 8/3/13\nThis wizard is used to move the machine \nwith the mouse wheel working as an MPG",
+                            "About Mouse Wheel",
+                            wx.wxOK + wx.wxICON_INFORMATION,
+                            mainframe)
+        end )
+
+else
+    panel = mcLuaPanelParent
+    local window = panel:GetParent()
+    local wsize = window:GetSize()
+    panel:SetSize(wsize)
+end
+
+    --Set up the main sizer so we can start adding controls
+    local mainSizer = wx.wxBoxSizer(wx.wxVERTICAL)
+
+	local InputsGridSizer  = wx.wxFlexGridSizer( 3, 2, 0, 0 )
+    InputsGridSizer:AddGrowableRow(1, 0)
+    -- make the buttons
+    
+    mpgX = wx.wxButton( panel, ID_MPG_X_BUT, "&X MPG")
+    InputsGridSizer:Add( mpgX, 0, wx.wxALIGN_CENTER, 2 )
+    mpgY = wx.wxButton( panel, ID_MPG_Y_BUT, "&Y MPG")
+    InputsGridSizer:Add( mpgY, 0, wx.wxALIGN_CENTER, 2 )
+    mpgZ = wx.wxButton( panel, ID_MPG_Z_BUT, "&Z MPG")
+    InputsGridSizer:Add( mpgZ, 0, wx.wxALIGN_CENTER, 2 )
+	mpgOff = wx.wxButton( panel, ID_MPG_OFF_BUT, "&Shuttle")
+    InputsGridSizer:Add( mpgOff, 0, wx.wxALIGN_CENTER, 2 )
+    --mpgX:SetBackgroundColour(wx.wxColour(0,255, 128))
+    
+	txt = wx.wxStaticText( panel, wx.wxID_ANY, "Inc :", wx.wxDefaultPosition, wx.wxSize(50, -1))
+    InputsGridSizer:Add( txt , 0, wx.wxALIGN_RIGHT, 2 )
+    
+    m_inc   = wx.wxTextCtrl( panel, wx.wxID_ANY, "0.01", wx.wxDefaultPosition, wx.wxSize(50, -1), wx.wxTE_PROCESS_ENTER ,wx.wxTextValidator(wx.wxFILTER_NUMERIC))
+    InputsGridSizer:Add( m_inc, 0, wx.wxALIGN_LEFT, 2 )
+	
+	local buttonSizer = wx.wxBoxSizer( wx.wxHORIZONTAL )
+    if(mcLuaPanelParent == nil)then
+        local closeButton = wx.wxButton( panel, ID_CLOSE_BUTTON, "E&xit")
+        buttonSizer:Add( closeButton, 0, wx.wxALIGN_CENTER+wx.wxALL, 2 )
+    end
+ 
+    --Set up the sizers
+    mainSizer:Add( InputsGridSizer, 0, wx.wxALIGN_CENTER+wx.wxALL, 2 )
+    mainSizer:Add(     buttonSizer, 0, wx.wxALIGN_CENTER+wx.wxALL, 2 )
+    panel:SetSizer( mainSizer )
+    
+	mc.mcMpgSetAccel(0, 0, 25);
+	mc.mcMpgSetRate(0, 0, 100);
+	mc.mcMpgSetCountsPerDetent(0, 0, 1);
+    SelectAxis('x')
+	
+
+	--mc.mcMpgSetEncoderReg(0,0,m_WheelReg)
+	ID_TIMER = GetNextID()
+	
+    panel:Connect(ID_MPG_X_BUT, wx.wxEVT_COMMAND_BUTTON_CLICKED,
+    function(event) 
+        SelectAxis('x')
+		event:Skip()
+    end)
+
+    panel:Connect(ID_MPG_Y_BUT, wx.wxEVT_COMMAND_BUTTON_CLICKED,
+    function(event) 
+        SelectAxis('y')
+		event:Skip()
+    end)
+
+    panel:Connect(ID_MPG_Z_BUT, wx.wxEVT_COMMAND_BUTTON_CLICKED,
+    function(event) 
+        SelectAxis('z')
+		event:Skip()
+    end)
+	panel:Connect(ID_MPG_OFF_BUT, wx.wxEVT_COMMAND_BUTTON_CLICKED,
+    function(event) 
+        SelectAxis('shuttle')
+		event:Skip()
+    end)
+
+
+    panel:Connect(wx.wxID_ANY, 
+                      wx.wxEVT_MOUSEWHEEL,
+                      function (event) 
+                           local inc = m_inc:GetValue()
+                           mc.mcMpgSetInc(0, 0, tonumber(inc));
+                           local v = event:GetWheelRotation()
+                           m_position = m_position + v/120
+						   if(mcLuaPanelParent == nil)then
+							mainframe:SetStatusText("MPG Count: " .. tostring(m_position) .. " Inc: " .. tostring(inc))
+						  end
+						if(m_axis >=0 )then  
+                           mc.mcMpgMoveCounts(0, 0, v/120);
+						end
+							
+						   event:Skip()
+                      end )
+   
+	
+	
+	panel:Fit()
+    panel:SetBackgroundColour(wx.wxColour(232,232,232))
+   
+
+	
+
+   m_Timer = 0
+   
+    if(mcLuaPanelParent == nil)then
+        panel:Connect(ID_CLOSE_BUTTON, wx.wxEVT_COMMAND_BUTTON_CLICKED,
+                        function(event) 
+							m_Timer:Stop()
+							m_Timer = nil
+							mc.mcMpgSetShuttleMode(0,0) 
+							mainframe:Destroy() 
+							end)
+        panel:Fit()
+        mainframe:Fit()
+        mainframe:Show(true)
+    else
+        local window = panel:GetParent()
+        window:Connect(wx.wxID_ANY, wx.wxEVT_SIZE,
+        function(event)
+            local wsize = event:GetSize()
+            panel:SetSize(wsize)
+            panel:FitInside()
+			event:Skip()
+        end)
+    end
+	m_Timer = wx.wxTimer( panel, ID_TIMER);
+		panel:Connect(ID_TIMER, wx.wxEVT_TIMER,
+		function (event)
+			--Code to see if the MPG has stopped
+			--local WheelReg = mc.mcRegGetHandle(0, "iRegs0/MouseWheelCount")
+			--local v = mc.mcRegGetValue(WheelReg);
+			--mc.mcRegSetValue(WheelReg,v+1);
+			shuttleUpdate()
+			event:Skip()
+		end)
+
+	function shuttleUpdate()
+		local deltamove = 0;
+		inst = 0
+		--local modeon = mc.mcMpgGetShuttleMode(inst)
+
+		count = m_position
+		deltamove = math.abs(count - m_moveAvg.lastpos)
+		m_moveAvg.lastpos = count 
+
+
+		m_moveAvg[m_moveAvg.index] = deltamove
+		m_moveAvg.index = m_moveAvg.index + 1
+		if(m_moveAvg.index >= m_moveAvg.max) then 
+			m_moveAvg.index = 0
+		end
+
+		local i=0
+		local total = 0
+		for i=0, m_moveAvg.max, 1 do
+		total = total + m_moveAvg[i]
+		end
+
+		local str = string.format("%.4f",100* (tonumber(total / m_moveAvg.max) )/3.0 )
+		mc.mcMpgSetShuttlePercent(inst,tonumber(str))
+	end
+	
+	m_Timer:Start(50)
+end
+
+main()
+
+wx.wxGetApp():MainLoop()

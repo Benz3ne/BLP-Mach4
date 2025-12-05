@@ -1,0 +1,34 @@
+local TC_Positions = {}
+local inst = mc.mcGetInstance()
+
+local CSVPath = wx.wxGetCwd() .. "\\Modules\\ToolChangePositions.csv"
+
+local ToolNum = 0;
+--[[
+Open the file and read out the data	
+--]]
+io.input(io.open(CSVPath,"r"))
+local line;
+for line in io.lines(CSVPath) do
+	local tkz = wx.wxStringTokenizer(line, ",");
+	TC_Positions[ToolNum] = {}-- make a blank table in the positions table to hold the tool table data
+	local token = tkz:GetNextToken();
+	TC_Positions[ToolNum] ["Tool_Number"] = token;
+	TC_Positions[ToolNum] ["X_Position"] = tkz:GetNextToken();
+	TC_Positions[ToolNum] ["Y_Position"] = tkz:GetNextToken();
+	TC_Positions[ToolNum] ["Z_Position"] = tkz:GetNextToken();
+	TC_Positions[ToolNum] ["A_Position"] = tkz:GetNextToken();
+	TC_Positions["Max"] = ToolNum
+	ToolNum = ToolNum + 1;
+end
+io.close()
+
+function TC_Positions.GetToolData(SelectToolNum)
+	local MaxToolNum = TC_Positions["Max"]
+	if (SelectToolNum <= MaxToolNum) and (SelectToolNum > 0) then
+		return TC_Positions[SelectToolNum]
+	else
+		return nil
+	end
+end
+return TC_Positions

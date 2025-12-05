@@ -1,0 +1,7 @@
+function m9()
+    local inst = mc.mcGetInstance()
+    local hMist = mc.mcSignalGetHandle(inst, mc.OSIG_MISTON)
+    local hFlood = mc.mcSignalGetHandle(inst, mc.OSIG_COOLANTON)
+    mc.mcSignalSetState(hMist, 0)
+    mc.mcSignalSetState(hFlood, 0)
+end

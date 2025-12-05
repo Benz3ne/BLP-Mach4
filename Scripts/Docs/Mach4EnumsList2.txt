@@ -1,0 +1,466 @@
+Mach4 ENUM list for mc.VAR calls:
+(it covers most all of the useable enums, enjoy Scott Shafer)
+
+Controller modes:
+mc.MC_MODE_MILL
+mc.MC_MODE_LATHE_DIA
+mc.MC_MODE_LATHE_RAD
+mc.MC_MODE_TANGENTIAL
+
+Axis Enums:
+mc.X_AXIS
+mc.Y_AXIS
+mc.Z_AXIS
+mc.A_AXIS
+mc.B_AXIS
+mc.C_AXIS
+mc.S_AXIS
+mc.AXIS7
+mc.AXIS8
+mc.AXIS9
+mc.AXIS10
+mc.AXIS11
+
+Motor Enums:
+mc.MOTOR0 to mc.MOTOR31
+
+Axis Bit Enums:
+mc.X_AXIS_BIT
+mc.Y_AXIS_BIT
+mc.Z_AXIS_BIT
+mc.A_AXIS_BIT
+mc.B_AXIS_BIT
+mc.C_AXIS_BIT
+mc.AXIS6_BIT
+mc.AXIS7_BIT
+mc.AXIS8_BIT
+mc.AXIS9_BIT
+mc.AXIS10_BIT
+mc.AXIS11_BIT
+
+Motor Bit Enums:
+mc.MOT0R0_BIT to mc.MOT0R31_BIT
+
+Spindle Control Enums:
+mc.MC_SPINDLE_OFF
+mc.MC_SPINDLE_FWD
+mc.MC_SPINDLE_REV
+mc.MC_SPINDLE_RPM
+mc.MC_SPINDLE_CSS
+mc.MC_SRANGE0 to mc.MC_SRANGE19
+
+Getting Offsets:
+mc.MC_OFFSET_FIXTURE
+mc.MC_OFFSET_AXIS
+mc.MC_OFFSET_TOOL
+mc.MC_OFFSET_WORK
+mc.MC_OFFSET_HEAD
+mc.MC_OFFSET_ALL
+
+System Values:
+mc.VAL_ACTIVE_TOOL
+mc.VAL_AXIS_MACHINE_POS
+mc.VAL_AXIS_POS
+mc.VAL_AXIS_VEL
+mc.VAL_BLOCK_DELETE
+mc.VAL_CONTROLLER_MODE
+mc.VAL_CYCLE_TIME
+mc.VAL_DIA_REG
+mc.VAL_DIST_TO_GO
+mc.VAL_ENCODER_POS
+mc.VAL_EXECUTION_NUM
+mc.VAL_FIXTURE_POS
+mc.VAL_FRO
+mc.VAL_G_INTERPRETER_POS
+mc.VAL_GCODE_LINE
+mc.VAL_GCODE_LINE_COUNT
+mc.VAL_GCODE_VAR
+mc.VAL_TOOLPATH_PERCENT
+mc.VAL_HEIGHT_REG
+mc.VAL_MACHINE_POS
+mc.VAL_MOTOR_PLAN_ABS
+mc.VAL_MOTOR_PLAN_INC
+mc.VAL_MOTOR_POS
+mc.VAL_MOTOR_VEL
+mc.VAL_NEXT_TOOL
+mc.VAL_OPTIONAL_STOP
+mc.VAL_PATHGENERATE
+mc.VAL_REGISTER
+mc.VAL_RRO
+mc.VAL_SINGLE_BLOCK
+mc.VAL_SLOW_JOG_RATE
+mc.VAL_SOFTLIMIT
+mc.VAL_SOFTLIMIT_MAX
+mc.VAL_SOFTLIMIT_MIN
+mc.VAL_SPINDLE_SPEED
+mc.VAL_TOOLPATH_JOGFOLLOW
+mc.VAL_VELOCITY
+mc.VAL_TOOLOFFSETDIST
+mc.VAL_SOFTLIMIT_USED
+mc.VAL_SLOW_JOG_ACCEL
+mc.VAL_JOG_INC
+mc.VAL_AXIS_PROBE_POS
+mc.VAL_AXIS_MACHINE_PROBE_POS
+mc.VAL_JOG_TYPE
+mc.VAL_AXIS_SCALE
+
+Input Signals 0-63:
+mc.ISIG_INPUT0 to mc.ISIG_INPUT63
+
+Input Motor Home 0-32:
+mc.ISIG_MOTOR0_HOME to mc.ISIG_MOTOR31_HOME
+
+Input Motor Pos limit 0-32:
+mc.ISIG_MOTOR0_PLUS to mc.ISIG_MOTOR31_PLUS
+
+Input Motor Min limit 0-32:
+mc.ISIG_MOTOR0_MINUS to mc.ISIG_MOTOR31_MINUS
+
+Input Signals Other:
+mc.ISIG_PROBE
+mc.ISIG_INDEX
+mc.ISIG_LIMITOVER
+mc.ISIG_EMERGENCY
+mc.ISIG_THCON
+mc.ISIG_THCUP
+mc.ISIG_THCDOWN
+mc.ISIG_TIMING
+mc.ISIG_JOGXP
+mc.ISIG_JOGXN
+mc.ISIG_JOGYP
+mc.ISIG_JOGYN
+mc.ISIG_JOGZP
+mc.ISIG_JOGZN
+mc.ISIG_JOGAP
+mc.ISIG_JOGAN
+mc.ISIG_JOGBP
+mc.ISIG_JOGBN
+mc.ISIG_JOGCP
+mc.ISIG_JOGCN
+mc.ISIG_SPINDLE_AT_SPEED
+mc.ISIG_SPINDLE_AT_ZERO
+mc.ISIG_PROBE1
+mc.ISIG_PROBE2
+mc.ISIG_PROBE3
+
+Output Signals Limit/Home:
+mc.OSIG_XLIMITPLUS
+mc.OSIG_XLIMITMINUS
+mc.OSIG_XHOME
+mc.OSIG_YLIMITPLUS
+mc.OSIG_YLIMITMINUS
+mc.OSIG_YHOME
+mc.OSIG_ZLIMITPLUS
+mc.OSIG_ZLIMITMINUS
+mc.OSIG_ZHOME
+mc.OSIG_ALIMITPLUS
+mc.OSIG_ALIMITMINUS
+mc.OSIG_AHOME
+mc.OSIG_BLIMITPLUS
+mc.OSIG_BLIMITMINUS
+mc.OSIG_BHOME
+mc.OSIG_CLIMITPLUS
+mc.OSIG_CLIMITMINUS
+mc.OSIG_CHOME
+
+Output Signals Enable (0-32):
+mc.OSIG_ENABLE0 to mc.OSIG_ENABLE31
+
+Output Signals (0-63):
+mc.OSIG_OUTPUT0 to mc.OSIG_OUTPUT63
+
+Output Signals Other:
+mc.OSIG_RUNNING_GCODE
+mc.OSIG_FEEDHOLD
+mc.OSIG_BLOCK_DELETE
+mc.OSIG_SINGLE_BLOCK
+mc.OSIG_REVERSE_RUN
+mc.OSIG_OPT_STOP
+mc.OSIG_MACHINE_ENABLED
+mc.OSIG_TOOL_CHANGE
+mc.OSIG_DIST_TOGO
+mc.OSIG_MACHINE_CORD
+mc.OSIG_SOFTLIMITS_ON
+mc.OSIG_JOG_INC
+mc.OSIG_JOG_CONT
+mc.OSIG_JOG_ENABLED
+mc.OSIG_JOG_MPG
+mc.OSIG_HOMED_X
+mc.OSIG_HOMED_Y
+mc.OSIG_HOMED_Z
+mc.OSIG_HOMED_A
+mc.OSIG_HOMED_B
+mc.OSIG_HOMED_C
+mc.OSIG_DWELL
+mc.OSIG_TP_MOUSE_DN
+mc.OSIG_LIMITOVER
+mc.OSIG_CHARGE
+mc.OSIG_CHARGE2
+mc.OSIG_CURRENTHILOW
+mc.OSIG_SPINDLEON
+mc.OSIG_SPINDLEFWD
+mc.OSIG_SPINDLEREV
+mc.OSIG_COOLANTON
+mc.OSIG_MISTON
+mc.OSIG_DIGTRIGGER
+mc.OSIG_ALARM
+mc.OSIG_PRTSF
+Tool Table Enums:
+
+mc.TOOLS_START					//Start of Tools in Parameter list
+mc.TOOL_INC 					//Inc from tool to tool in the param list
+mc.MTOOL_MILL_X 				/*X offset*/
+mc.MTOOL_MILL_X_W				/*X Wear offset*/
+mc.MTOOL_MILL_Y 				/* offset*/
+mc.MTOOL_MILL_Y_W			 	/*Y Wear offset*/
+mc.MTOOL_MILL_HEIGHT			 	/*Tool height offset*/
+mc.MTOOL_MILL_HEIGHT_W			 	/*Height wear Offset*/
+mc.MTOOL_MILL_RAD			 	/*Rad for comp*/
+mc.MTOOL_MILL_RAD_W			 	/*wear offset for comp*/
+mc.MTOOL_MILL_POCKET				/*Tool changer pocket*/
+mc.MTOOL_LATHE_X mc.MTOOL_MILL_X  		/*X offset*/
+mc.MTOOL_LATHE_X_W mc.MTOOL_MILL_X_W 		/*X Wear offset*/
+mc.MTOOL_LATHE_Y mc.MTOOL_MILL_Y		/*Y offset*/
+mc.MTOOL_LATHE_Y_W mc.MTOOL_MILL_Y_W	 	/*Y Wear offset*/
+mc.MTOOL_LATHE_Z mc.MTOOL_MILL_HEIGHT	 	/*Z offset*/
+mc.MTOOL_LATHE_Z_W mc.MTOOL_MILL_HEIGHT_W 	/*Z wear offset*/
+mc.MTOOL_LATHE_POCKET mc.MTOOL_MILL_POCKET	/*Pocket # (may not be needed)*/
+mc.MTOOL_LATHE_TIPRAD mc.MTOOL_MILL_RAD 	/*Tip Rad for comp*/
+mc.MTOOL_LATHE_TIPDIR mc.MTOOL_MILL_RAD_W 	/*Tool tip DIR*/
+mc.MTOOL_LATHE_TOOLSLIDE 			/*AxisSlide number and - for reversed*/
+mc.MTOOL_TYPE 					/*Type = 0 == MILL Type != 0 == Lathe*/
+
+Jog Enums:
+mc.MC_JOG_POS
+mc.MC_JOG_NEG
+mc.MC_JOG_STOP
+mc.MC_JOG_TYPE_VEL
+mc.MC_JOG_TYPE_INC
+
+ToolPath View Enums:
+mc.MC_TPVIEW_TOP
+mc.MC_TPVIEW_BOTTOM
+mc.MC_TPVIEW_LEFT
+mc.MC_TPVIEW_RIGHT
+mc.MC_TPVIEW_ISO
+
+Local Var Enums:
+mc.SV_A
+mc.SV_B
+mc.SV_C
+mc.SV_I
+mc.SV_J
+mc.SV_K
+mc.SV_D
+mc.SV_E
+mc.SV_F
+mc.SV_G
+mc.SV_H
+mc.SV_L
+mc.SV_M
+mc.SV_N
+mc.SV_O
+mc.SV_P
+mc.SV_Q
+mc.SV_R
+mc.SV_S
+mc.SV_T
+mc.SV_U
+mc.SV_V
+mc.SV_W
+mc.SV_X
+mc.SV_Y
+mc.SV_Z
+
+Common vars (cleared on startup)
+mc.SV_CMN1_START
+mc.SV_CMN1_END
+
+Common vars (retained across startups)
+mc.SV_CMN2_START
+mc.SV_CMN2_END
+mc.SV_CURRENT_TIP 			// Tool tip direction in Lathe mode for Tip Comp
+mc.SV_FRO_ON_OFF 			// FRO On or Off
+mc.SV_CUR_DIA_INDEX 			// Current Dia number (D)
+mc.SV_CUR_TOOL_NUMBER 			// Current tool number (T)
+mc.SV_CUR_SELECTED_TOOL 		// Current tool that is selected (Next T number)
+mc.SV_CUR_LENGTH_INDEX 			// Current Length number (H)
+mc.SV_CUR_TOOL_XLENGTH_REGISTER
+mc.SV_CUR_TOOLDIA_REGISTER 		// Register for the amount of tool dia offset
+mc.SV_CUR_TOOL_ZLENGTH_REGISTER
+mc.SV_CUR_TOOL_YLENGTH_REGISTER
+mc.SV_CUR_SPINDLE_SPEED
+mc.SV_TRAVERSE_RATE 			// Rate for traverse motions .. I don't think this is needed here..
+mc.SV_FEEDRATE 				// Feed rate in current units/min
+mc.SV_ROTATION_X
+mc.SV_ROTATION_Y
+mc.SV_ROTATION
+mc.SV_ALM 				// W: Writing to this var will produce a machine alarm.
+mc.SV_CLOCK1 				// R: Time, in milliseconds, since the machine was powered on.
+mc.SV_CLOCK2 				// R: Accumulated time, in hours, of the machine. (Hour Meter)
+mc.SV_CNTL1 				// R/W: bit 0 high suppresses single block (default == not set), bit 1 high suppresses waits on MST codes (default == not set).
+mc.SV_M_SBK
+mc.SV_M_MST
+mc.SV_M_FIN 				// Same as SV_M_MST.
+mc.SV_CNTL2 				// R/W: bit 0 high disables feed hold (default == not set), bit 1 high disables FRO (default == not set), bit 2 high enables exact stop (default == not set).
+mc.SV_M_FHD
+mc.SV_M_OV
+mc.SV_M_EST
+mc.SV_SETDT 				// R/W: Settings Data (bit 2 = 0 Inch, bit 2 = 1 Metric)
+mc.SV_MSGSTP 				// W: Writing to this var will produce a machine stop.
+mc.SV_MRIMG 				// R: Status of Mirror Image.
+mc.SV_PRSTR 				// R: Program restart (0 or 1)
+mc.SV_DEFAULT_UNITS 			// Same as SV_SETDT R/W: (bit 2 = 0 Inch, bit 2 = 1 Metric)
+mc.SV_DATE 				// R: Current Date (YYYYMMDD)
+mc.SV_TIME 				// R: Current Time (HHMMSS)
+mc.SV_EMPTY 				// R: returns NIL
+mc.SV_PI 				// R: returns pi. (3.14159265358979323846)
+mc.SV_BASE_LOG_E			// R: returns base of natural logarithm E. 2.71828182845904523536)
+mc.SV_PRTSA 				// R/W: Total number of parts.
+mc.SV_PRTSN 				// R/W: Number of required parts
+mc.SV_MAINO 				// Main program number.
+mc.SV_MOD_GROUP_1 			// Group 1 // active G-code for motion
+mc.SV_MOD_GROUP_2 			// Group 2 // active plane, XY-, YZ-, or XZ-plane
+mc.SV_MOD_GROUP_3 			// Group 3 // absolute or incremental
+mc.SV_MOD_GROUP_4 			// Group 4 // Arc Center mode
+mc.SV_MOD_GROUP_5 			// Group 5 // G_93 (inverse time) or G_94 units/min
+mc.SV_MOD_GROUP_6 			// Group 6 // millimeters or inches
+mc.SV_MOD_GROUP_7 			// Group 7 // current cutter compensation side
+mc.SV_MOD_GROUP_8 			// Group 8 // not used
+mc.SV_MOD_GROUP_9 			// Group 9 // not used
+mc.SV_MOD_GROUP_10 			// Group 10 // for cycles, old_z or r_plane
+mc.SV_MOD_GROUP_11 			// Group 11 // Polar mode
+mc.SV_MOD_GROUP_12 			// Group 12 // modal macro (G66,G66.1,G67)
+mc.SV_MOD_GROUP_13 			// Group 13 // exact path or cutting mode
+mc.SV_MOD_GROUP_14 			// Group 14 // coordinate systems (g54,g55,g56 etc)
+mc.SV_MOD_GROUP_15 			// Group 15 // not used
+mc.SV_MOD_GROUP_16 			// Group 16 // not used
+mc.SV_MOD_GROUP_17 			// Group 17 // not used
+mc.SV_MOD_GROUP_18 			// Group 18 // not used
+mc.SV_MOD_GROUP_19 			// Group 19 // not used
+mc.SV_MOD_GROUP_20 			// Group 20 // not used
+mc.SV_MOD_GROUP_21 			// Group 21 // not used
+mc.SV_MOD_GROUP_22 			// Group 22 // not used
+mc.SV_BUFB 				// last buffered D code value.
+mc.SV_BUFE 				// last buffered E code value.
+mc.SV_BUFF 				// last buffered F code value.
+mc.SV_BUFH 				// last buffered H code value.
+mc.SV_BUFM 				// last buffered H code value.
+mc.SV_BUFN 				// last buffered N code value.
+mc.SV_BUFO 				// last buffered O code value.
+mc.SV_BUFS 				// last buffered S code value.
+mc.SV_BUFT 				// last buffered T code value.
+mc.SV_ORIGIN_OFFSET_X
+mc.SV_ORIGIN_OFFSET_Y
+mc.SV_ORIGIN_OFFSET_Z
+mc.SV_ORIGIN_OFFSET_A
+mc.SV_ORIGIN_OFFSET_B
+mc.SV_ORIGIN_OFFSET_C
+mc.SV_LAST_OUTPUT_X
+mc.SV_LAST_OUTPUT_Y
+mc.SV_LAST_OUTPUT_Z
+mc.SV_LAST_OUTPUT_A
+mc.SV_LAST_OUTPUT_B
+mc.SV_LAST_OUTPUT_C
+mc.SV_CURRENT_MACH_X
+mc.SV_CURRENT_MACH_Y
+mc.SV_CURRENT_MACH_Z
+mc.SV_CURRENT_MACH_A
+mc.SV_CURRENT_MACH_B
+mc.SV_CURRENT_MACH_C
+mc.SV_AXIS_OFFSET_X 			// Used to save the offset with the G92.3 command
+mc.SV_AXIS_OFFSET_Y
+mc.SV_AXIS_OFFSET_Z
+mc.SV_AXIS_OFFSET_A
+mc.SV_AXIS_OFFSET_B
+mc.SV_AXIS_OFFSET_C
+mc.SV_CURRENT_ABS_X
+mc.SV_CURRENT_ABS_Y
+mc.SV_CURRENT_ABS_Z
+mc.SV_CURRENT_ABS_A
+mc.SV_CURRENT_ABS_B
+mc.SV_CURRENT_ABS_C
+mc.SV_G92_OFFSET_X 			// Used to save the offset with the G92.3 command
+mc.SV_G92_OFFSET_Y
+mc.SV_G92_OFFSET_Z
+mc.SV_G92_OFFSET_A
+mc.SV_G92_OFFSET_B
+mc.SV_G92_OFFSET_C
+mc.SV_PROBE_POS_X 			// G31 Skip signal
+mc.SV_PROBE_POS_Y
+mc.SV_PROBE_POS_Z
+mc.SV_PROBE_POS_A
+mc.SV_PROBE_POS_B
+mc.SV_PROBE_POS_C
+mc.SV_PROBE_MACH_POS_X 			// G31 Skip signal machine position
+mc.SV_PROBE_MACH_POS_Y
+mc.SV_PROBE_MACH_POS_Z
+mc.SV_PROBE_MACH_POS_A
+mc.SV_PROBE_MACH_POS_B
+mc.SV_PROBE_MACH_POS_C
+mc.SV_HEAD_SHIFT_X
+mc.SV_HEAD_SHIFT_Y
+mc.SV_HEAD_SHIFT_Z
+mc.SV_HEAD_SHIFT_A
+mc.SV_HEAD_SHIFT_B
+mc.SV_HEAD_SHIFT_C
+
+/* Turn Registers only */
+/* G76 Parameters */
+mc.SV_G76_MIN_PASS_DEPTH
+mc.SV_G76_FINISH_DEPTH
+mc.SV_G76_FINISH_PASSES
+mc.SV_G76_THREAD_ANGLE
+mc.SV_G76_CHAMFER_AMOUNT
+mc.SV_G76_CUTTING_METHOD
+/* End of Turn Registers */
+mc.SV_CUR_COMP_X 			// Program x, used when cutter comp on
+mc.SV_CUR_COMP_Y 			// Program y, used when cutter comp on
+mc.SV_CUR_COMP_Z 			// Program z, used when cutter comp on
+mc.SV_G_30_XPOS
+mc.SV_G_30_YPOS
+mc.SV_G_30_ZPOS
+mc.SV_G_30_APOS
+mc.SV_G_30_BPOS
+mc.SV_G_30_CPOS
+mc.SV_WORK_SHIFT_X
+mc.SV_WORK_SHIFT_Y
+mc.SV_WORK_SHIFT_Z
+mc.SV_WORK_SHIFT_A
+mc.SV_WORK_SHIFT_B
+mc.SV_WORK_SHIFT_C
+mc.SV_FIXTURES_START 			// Fixture start in Parameter list
+mc.SV_FIXTURES_INC 			// (20)Increment from fixture to fixture (does not define a system var!)
+mc.SV_G_30_P2_XPOS
+mc.SV_G_30_P2_YPOS
+mc.SV_G_30_P2_ZPOS
+mc.SV_G_30_P2_APOS
+mc.SV_G_30_P2_BPOS
+mc.SV_G_30_P2_CPOS
+mc.SV_G_30_P3_XPOS
+mc.SV_G_30_P3_YPOS
+mc.SV_G_30_P3_ZPOS
+mc.SV_G_30_P3_APOS
+mc.SV_G_30_P3_BPOS
+mc.SV_G_30_P3_CPOS
+mc.SV_G_30_P4_XPOS
+mc.SV_G_30_P4_YPOS
+mc.SV_G_30_P4_ZPOS
+mc.SV_G_30_P4_APOS
+mc.SV_G_30_P4_BPOS
+mc.SV_G_30_P4_CPOS
+mc.SV_ROTATION_G68_NO_R
+mc.SV_APPROACH_DIST_X 			// Approch distance for the G60 Unidirectional approch command
+mc.SV_APPROACH_DIST_Y
+mc.SV_APPROACH_DIST_Z
+mc.SV_APPROACH_DIST_A
+mc.SV_APPROACH_DIST_B
+mc.SV_APPROACH_DIST_C
+mc.SV_CMN_RO_START 			// The starting commnon var (#500-#999) to write protect.
+mc.SV_CMN_RO_END 			// The ending commnon var (#500-#999) to write protect.
+mc.SV_PRTCNTL 				// Setting to 1 only allows M code specified by #6710 to increment part count. (default 0)
+mc.SV_PRTINCM 				// Set to a M code that will incremnt part counts with or without M02 and M30 according to #6700.
+mc.SV_PRTSA2 				// R/W: Total number of parts. Will change/reflect #3901 as well. (cleared on file load).
+mc.SV_PRTST 				// R/W: Total number of parts machined.
+mc.SV_PRTSN2 				// R/W: Number of required parts Will change/reflect #3902 as well
+mc.SV_FIXTURE_EXPAND 			// Fixtures after G54.1

@@ -1,0 +1,1362 @@
+-----------------------------------------------------------------------------
+-- Name:        Mach3 XML reader
+-- Author:      T Lamontagne
+-- Modified by:
+-- Created:     09/29/2018
+-- Copyright:   (c) 2018 Newfangled Solutions. All rights reserved.
+-- Licence:     BSD license
+-----------------------------------------------------------------------------
+--***************************
+--Set wizard name for table index
+wizname = "Mach3_XML"
+--***************************
+inst = mc.mcGetInstance()
+local MachDirectory = mc.mcCntlGetMachDir(inst)
+local ScriptDirectory = MachDirectory .. "\\Wizards\\xmlhandler\\"
+--package.path = ScriptDirectory .. "?.lua"
+package.path = package.path .. ";./Wizards/xmlhandler/?.lua" --Edited 4-8-2019
+
+-- XML table
+XML = {}
+function readXML(path)
+	if (path ~= nil) then
+		local xml2lua = require("xml2lua")
+		--Uses a handler that converts the XML to a Lua table
+		local handler = require("tree")
+		--Instantiates the XML parser
+		local xml = xml2lua.loadFile(path)
+		local parser = xml2lua.parser(handler)
+		parser:parse(xml)
+		-- Dig into the xml and pull all the preferences into a table
+		local tbl = handler.root.profile.Preferences
+		return tbl
+	else
+		wx.wxMessageBox("ERROR", "No path specified")
+	end
+end
+
+-- Look up tables
+local tbl_motors = {
+	[1] = function(num)	
+			local s = "Motor" .. tostring(num) .. "Active"
+			return s
+			end,
+	[2] = function(num)	
+			local s = "Steps" .. tostring(num)
+			return s
+			end,
+	[3] = function(num)	
+			local s = "Vel" .. tostring(num)
+			return s
+			end,
+	[4] = function(num)	
+			local s = "Acc" .. tostring(num)
+			return s
+			end,
+	[5] = function(num)	
+			local s = "M" .. tostring(num) .. "Rev"
+			return s
+			end,
+	[6] = function(num)	
+			local s = "Motor" .. tostring(num) .. "DirPort"
+			return s
+			end,
+	[7] = function(num)	
+			local s = "Motor" .. tostring(num) .. "DirPin"
+			return s
+			end,
+	[8] = function(num)	
+			local s = "Motor" .. tostring(num) .. "DirNeg"
+			return s
+			end,
+	[9] = function(num)	
+			local s = "Motor" .. tostring(num) .. "StepPort"
+			return s
+			end,
+	[10] = function(num)	
+			local s = "Motor" .. tostring(num) .. "StepPin"
+			return s
+			end,
+	[11] = function(num)	
+			local s = "Motor" .. tostring(num) .. "StepNeg"
+			return s
+			end
+}
+
+local tbl_homing = {
+	[0] = function(num)	
+			local s = "M" .. tostring(num) .. "Neg"
+			return s
+			end,
+	[1] = function(num)	
+			local s = "RefSpeed" .. tostring(num)
+			return s
+			end,
+	[2] = function(num)	
+			local s = "M" .. tostring(num) .. "AutoZero"
+			return s
+			end,
+	[3] = function(num)	
+			local s = "M" .. tostring(num) .. "Min"
+			return s
+			end,
+	[4] = function(num)	
+			local s = "M" .. tostring(num) .. "Max"
+			return s
+			end,
+	[5] = function(num)	
+			local s = "M" .. tostring(num) .. "SoftRamp"
+			return s
+			end
+}
+
+local tbl_spindle = {
+	[1] = "NoSpindle",
+	[2] = "SpinCW",
+	[3] = "SpinCCW",
+	[4] = "PWM",
+	[5] = "PWMBase",
+	[6] = "PWMin",
+	[7] = "Motor6Active",
+	[8] = "Steps6",
+	[9] = "Vel6",
+	[10] = "Acc6",
+	[11] = "M6Rev",
+	[12] = "Motor6DirPort",
+	[13] = "Motor6DirPin",
+	[14] = "Motor6DirNeg",
+	[15] = "Motor6StepPort",
+	[16] = "Motor6StepPin",
+	[17] = "Motor6StepNeg",
+	[18] = "SpinClosed",
+	[19] = "SpinP",
+	[20] = "SpinI",
+	[21] = "SpinD",
+	[22] = "SpinAverage",
+	[23] = "ModSpindleOn",
+	[24] = "ModSpindleCal",
+	[25] = "ModSpindleReg",
+	[26] = "ImmediateOff",
+	[27] = "SpinDelayCW",
+	[28] = "SpinDelayCCW",
+	[29] = "SpinDownCW",
+	[30] = "SpinDownCCW",
+	[31] = "Pulley"
+}
+
+local tbl_inputs = {
+	[0] = "X ++",
+	[1] = "X --",
+	[2] = "X Home",
+	[3] = "Y ++",
+	[4] = "Y --",
+	[5] = "Y Home",
+	[6] = "Z ++",
+	[7] = "Z --",
+	[8] = "Z Home",
+	[9] = "A ++",
+	[10] = "A --",
+	[11] = "A Home",
+	[12] = "B ++",
+	[13] = "B --",
+	[14] = "B Home",
+	[15] = "C ++",
+	[16] = "C --",
+	[17] = "C Home",
+	[18] = "Input #1",
+	[19] = "Input #2",
+	[20] = "Input #3",
+	[21] = "Input #4",
+	[22] = "Probe",
+	[23] = "Index",
+	[24] = "Limit Ovrd",
+	[25] = "EStop",
+	[26] = "THC On",
+	[27] = "THC Up",
+	[28] = "THC Dn",
+	[29] = "OEM Trig #1",
+	[30] = "OEM Trig #2",
+	[31] = "OEM Trig #3",
+	[32] = "OEM Trig #4",
+	[33] = "OEM Trig #5",
+	[34] = "OEM Trig #6",
+	[35] = "OEM Trig #7",
+	[36] = "OEM Trig #8",
+	[37] = "OEM Trig #9",
+	[38] = "OEM Trig #10",
+	[39] = "OEM Trig #11",
+	[40] = "OEM Trig #12",
+	[41] = "OEM Trig #13",
+	[42] = "OEM Trig #14",
+	[43] = "OEM Trig #15",
+	[44] = "Timing",
+	[45] = "Jog X ++",
+	[46] = "Jog X --",
+	[47] = "Jog Y ++",
+	[48] = "Jog Y --",
+	[49] = "Jog Z ++",
+	[50] = "Jog Z --",
+	[51] = "Jog A ++",
+	[52] = "Jog A --"	
+}
+
+local tbl_outputs = {
+	[0] = "Digit Trig",
+	[1] = "Enable1",
+	[2] = "Enable2",
+	[3] = "Enable3",
+	[4] = "Enable4",
+	[5] = "Enable5",
+	[6] = "Enable6",
+	[7] = "Output #1",
+	[8] = "Output #2",
+	[9] = "Output #3",
+	[10] = "Output #4",
+	[11] = "Output #5",
+	[12] = "Output #6",
+	[13] = "Charge Pump",
+	[14] = "Charge Pump 2",
+	[15] = "Current Hi/Low",
+	[16] = "Output #7",
+	[17] = "Output #8",
+	[18] = "Output #9",
+	[19] = "Output #10",
+	[20] = "Output #11",
+	[21] = "Output #12",
+	[22] = "Output #13",
+	[23] = "Output #14",
+	[24] = "Output #15",
+	[25] = "Output #16",
+	[26] = "Output #17",
+	[27] = "Output #18",
+	[28] = "Output #19",
+	[29] = "Output #20"
+}
+
+function LoadXML(tbl_xml)
+	-- Set profile and units fields
+	txt_Profile:SetValue(tostring(tbl_xml["Profile"]))
+	local unit = "Millimeter"
+	if (tonumber(tbl_xml["Units"]) == 1) then
+		unit = "Inch"
+	end
+	txt_Units:SetValue(unit)
+	
+	-- Load entire xml to the XML tab
+	-- Delete all current rows
+	local rowCnt = grdXML:GetNumberRows()
+	if (rowCnt ~= 0) then
+		grdXML:DeleteRows(0, rowCnt, true)
+	end
+	
+	local rowNum = 0
+	for k,v in pairs(tbl_xml) do
+		grdXML:AppendRows(1, true)
+		grdXML:SetRowSize( rowNum, 30 )
+		grdXML:SetCellValue(rowNum, 0, tostring(k))
+		grdXML:SetCellValue(rowNum, 1, tostring(v))
+		rowNum = rowNum + 1
+	end
+	grdXML:ForceRefresh()
+	tab_XML:Layout()
+	tab_XML:Refresh()
+	
+	-- Load motor values
+	for i = 0, 5, 1 do
+		for j = 1, #tbl_motors, 1 do
+			local txtMotor = "txt_Motor" .. tostring(i) .. "_" .. tostring(j)
+			local mtrFunc = tbl_motors[j]
+			local key = mtrFunc(i)
+			local val = tbl_xml[key]
+			if (j == 3) and (val ~= nil) then
+				-- For velocity value convert from units/sec in the xml to units/min to input into Mach4
+				val = tonumber(val)
+				val = val * 60
+			end
+			mtr[txtMotor]:SetValue(tostring(val))
+		end
+	end
+	
+	-- Load homing values
+	for i = 0, 5, 1 do -- Row
+		for j = 0, #tbl_homing, 1 do -- Column
+			local hmFunc = tbl_homing[j]
+			local key = hmFunc(i)
+			local val = tbl_xml[key]
+			grdHoming:SetCellValue(i, j, tostring(val))
+		end
+	end
+	
+	-- Load spindle values
+	for i = 1, #tbl_spindle, 1 do
+		local key = tbl_spindle[i]
+		local val = tbl_xml[key]
+		if ((i == 2) or (i == 3)) and (val ~= nil) then
+			val = tonumber(val)
+			val = val - 6
+		end
+		local txtSpindle = "txtSpindle" .. tostring(i)
+		sp[txtSpindle]:SetValue(tostring(val))
+	end
+	-- Pulleys
+	for i = 1, 25, 1 do
+		local k_min = "LSPEED" .. tostring(i)
+		local k_max = "SPEED" .. tostring(i)
+		local k_ratio = "SPINRATIO" .. tostring(i)
+		local k_rev = "SPINREV" .. tostring(i)
+		local v_min = tbl_xml[k_min]
+		local v_max = tbl_xml[k_max]
+		local v_ratio = tbl_xml[k_ratio]
+		local v_rev = tbl_xml[k_rev]
+		local grdRow = i - 1
+		grdPulleys:SetCellValue(grdRow, 0, tostring(v_min))
+		grdPulleys:SetCellValue(grdRow, 1, tostring(v_max))
+		grdPulleys:SetCellValue(grdRow, 2, tostring(v_ratio))
+		grdPulleys:SetCellValue(grdRow, 3, tostring(v_rev))
+	end
+	
+	-- Load Input values to grid
+	for i = 1, #tbl_inputs, 1 do
+		local n = tbl_inputs[i]
+		local xmlNum = i - 1
+		local k_act = "Input" .. tostring(xmlNum) .. "Active"
+		local k_port = "Input" .. tostring(xmlNum) .. "Port"
+		local k_pin = "Input" .. tostring(xmlNum) .. "Pin"
+		local k_low = "Input" .. tostring(xmlNum) .. "Neg"
+		local v_act = tbl_xml[k_act]
+		local v_port = tbl_xml[k_port]
+		local v_pin = tbl_xml[k_pin]
+		local v_low = tbl_xml[k_low]
+		grdInputs:SetCellValue(xmlNum, 0, tostring(n))
+		grdInputs:SetCellValue(xmlNum, 1, tostring(v_act))
+		grdInputs:SetCellValue(xmlNum, 2, tostring(v_port))
+		grdInputs:SetCellValue(xmlNum, 3, tostring(v_pin))
+		grdInputs:SetCellValue(xmlNum, 4, tostring(v_low))
+	end
+	-- Load Output values to grid
+	for i = 1, #tbl_outputs, 1 do
+		local n = tbl_outputs[i]
+		local xmlNum = i - 1
+		local k_act = "Output" .. tostring(xmlNum) .. "Active"
+		local k_port = "Output" .. tostring(xmlNum) .. "Port"
+		local k_pin = "Output" .. tostring(xmlNum) .. "Pin"
+		local k_low = "Output" .. tostring(xmlNum) .. "Neg"
+		local v_act = tbl_xml[k_act]
+		local v_port = tbl_xml[k_port]
+		local v_pin = tbl_xml[k_pin]
+		local v_low = tbl_xml[k_low]
+		grdOutputs:SetCellValue(xmlNum, 0, tostring(n))
+		grdOutputs:SetCellValue(xmlNum, 1, tostring(v_act))
+		grdOutputs:SetCellValue(xmlNum, 2, tostring(v_port))
+		grdOutputs:SetCellValue(xmlNum, 3, tostring(v_pin))
+		grdOutputs:SetCellValue(xmlNum, 4, tostring(v_low))
+	end
+	
+	Panel:Layout()
+	Panel:Refresh()
+end
+
+function Main()
+	if (inst == nil) then
+		inst = mc.mcGetInstance()
+	end
+	MachDirectory = mc.mcCntlGetMachDir(inst)
+	Profile = mc.mcProfileGetName(inst)
+	ScriptDirectory = MachDirectory .. "\\Modules\\"
+
+	--Check to see if a wizard of the same name has been opened
+	--If it has then call the openWizard function to bring it to the front
+	--and then exit the main() function
+	if (_G["tblWizards"] ~= nil) then
+		--Make sure the table of open wizards exists. if it doesn't skip
+		--the openWizard function to raise a currently open instance.
+		if (tblWizards[wizname] ~= nil) then
+			openWizard(wizname)
+			do return end
+		end
+	end
+	
+	if(mcLuaPanelParent == nil)then
+		-- create the wxFrame window
+		mainframe = wx.wxFrame( wx.NULL,          -- no parent
+							wx.wxID_ANY,          -- whatever for wxWindow ID
+							"Mach3 XML Reader", -- frame caption
+							wx.wxDefaultPosition, -- place the frame in default position
+							wx.wxSize( 810,500 ),     -- default frame size
+							wx.wxDEFAULT_FRAME_STYLE ) -- use default frame styles
+		-- create a panel in the frame
+		Panel = wx.wxPanel(mainframe, wx.wxID_ANY, wx.wxDefaultPosition, wx.wxSize( -1,-1 ), wx.wxTAB_TRAVERSAL)
+		Panel :SetMinSize( wx.wxSize( 810,450 ) )
+	else	
+		Panel = mcLuaPanelParent
+		Panel :SetBackgroundColour( wx.wxColour( 40, 40, 40 ) )
+		local window = Panel:GetParent()
+		local wsize = window:GetSize()
+		Panel:SetSize(wsize)
+	end
+	--*************************************************************
+	--*************************************************************
+	-- Body of panel layout here
+	
+	Panel :SetBackgroundColour( wx.wxColour( 255, 255, 255 ) )
+	
+	szrPanel = wx.wxGridBagSizer( 0, 0 )
+	szrPanel:SetFlexibleDirection( wx.wxBOTH )
+	szrPanel:SetNonFlexibleGrowMode( wx.wxFLEX_GROWMODE_SPECIFIED )
+	
+	szrProfile = wx.wxBoxSizer( wx.wxHORIZONTAL )
+	
+	btn_OpenXML = wx.wxButton( Panel, wx.wxID_ANY, "Open XML", wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+	szrProfile:Add( btn_OpenXML, 0, wx.wxALL, 5 )
+	
+	m_staticText0 = wx.wxStaticText( Panel, wx.wxID_ANY, "Filename:", wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+	m_staticText0:Wrap( -1 )
+	m_staticText0:SetFont( wx.wxFont( 9, 74, 90, 92, false, "Arial" ) )
+	
+	szrProfile:Add( m_staticText0, 0, wx.wxALIGN_CENTER_VERTICAL + wx.wxALL, 5 )
+	
+	txt_Filename = wx.wxTextCtrl( Panel, wx.wxID_ANY, "", wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxTE_READONLY )
+	txt_Filename:SetForegroundColour( wx.wxColour( 0, 0, 0 ) )
+	txt_Filename:SetBackgroundColour( wx.wxColour( 255, 255, 255 ) )
+	txt_Filename:SetMinSize( wx.wxSize( 200,-1 ) )
+	
+	szrProfile:Add( txt_Filename, 0, wx.wxALIGN_CENTER_VERTICAL + wx.wxALL, 5 )
+	
+	m_staticText1 = wx.wxStaticText( Panel, wx.wxID_ANY, "Profile:", wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+	m_staticText1:Wrap( -1 )
+	m_staticText1:SetFont( wx.wxFont( 9, 74, 90, 92, false, "Arial" ) )
+	
+	szrProfile:Add( m_staticText1, 0, wx.wxALIGN_CENTER_VERTICAL + wx.wxALL, 5 )
+	
+	txt_Profile = wx.wxTextCtrl( Panel, wx.wxID_ANY, "", wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxTE_READONLY )
+	txt_Profile:SetForegroundColour( wx.wxColour( 0, 0, 0 ) )
+	txt_Profile:SetBackgroundColour( wx.wxColour( 255, 255, 255 ) )
+	txt_Profile:SetMinSize( wx.wxSize( 200,-1 ) )
+	
+	szrProfile:Add( txt_Profile, 0, wx.wxALIGN_CENTER_VERTICAL + wx.wxALL, 5 )
+	
+	m_staticText2 = wx.wxStaticText( Panel, wx.wxID_ANY, "Units:", wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+	m_staticText2:Wrap( -1 )
+	m_staticText2:SetFont( wx.wxFont( 9, 74, 90, 92, false, "Arial" ) )
+	
+	szrProfile:Add( m_staticText2, 0, wx.wxALIGN_CENTER_VERTICAL + wx.wxALL, 5 )
+	
+	txt_Units = wx.wxTextCtrl( Panel, wx.wxID_ANY, "", wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxTE_READONLY )
+	txt_Units:SetForegroundColour( wx.wxColour( 0, 0, 0 ) )
+	txt_Units:SetBackgroundColour( wx.wxColour( 255, 255, 255 ) )
+	
+	szrProfile:Add( txt_Units, 0, wx.wxALIGN_CENTER_VERTICAL + wx.wxALL, 5 )
+	
+	
+	szrPanel:Add( szrProfile, wx.wxGBPosition( 0, 0 ), wx.wxGBSpan( 1, 8 ), wx.wxEXPAND, 5 )
+	
+	nb_Main = wx.wxNotebook( Panel, wx.wxID_ANY, wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxNB_FIXEDWIDTH )
+	nb_Main:SetBackgroundColour( wx.wxColour( 255, 255, 255 ) )
+	nb_Main:SetMinSize( wx.wxSize( 750,400 ) )
+	
+	tab_Motors = wx.wxPanel( nb_Main, wx.wxID_ANY, wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxTAB_TRAVERSAL )
+	tab_Motors:SetBackgroundColour( wx.wxColour( 255, 255, 255 ) )
+	
+	szrMotors = wx.wxBoxSizer( wx.wxVERTICAL )
+	
+	scrl_Motors = wx.wxScrolledWindow( tab_Motors, wx.wxID_ANY, wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxHSCROLL + wx.wxVSCROLL )
+	scrl_Motors:SetScrollRate( 5, 5 )
+	szrScrollMotors = wx.wxBoxSizer( wx.wxVERTICAL )
+	
+	-- Motor control table
+	mtr = {}
+	for i = 0, 5, 1 do
+		local szrMotor = "szrMotor" .. tostring(i)
+		mtr[szrMotor] = wx.wxGridBagSizer( 0, 0 )
+		mtr[szrMotor]:SetFlexibleDirection( wx.wxBOTH )
+		mtr[szrMotor]:SetNonFlexibleGrowMode( wx.wxFLEX_GROWMODE_SPECIFIED )
+		
+		local stxtMotor1 = "stxt_Motor" .. tostring(i) .. "_1"
+		mtr[stxtMotor1] = wx.wxStaticText( scrl_Motors, wx.wxID_ANY, "Motor " .. tostring(i), wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+		mtr[stxtMotor1]:Wrap( -1 )
+		mtr[stxtMotor1]:SetFont( wx.wxFont( 14, 74, 90, 92, false, "Arial" ) )
+		
+		mtr[szrMotor]:Add( mtr[stxtMotor1], wx.wxGBPosition( 0, 0 ), wx.wxGBSpan( 1, 1 ), wx.wxALL, 5 )
+		
+		local stxtMotor2 = "stxt_Motor" .. tostring(i) .. "_2"
+		mtr[stxtMotor2] = wx.wxStaticText( scrl_Motors, wx.wxID_ANY, "Enabled", wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+		mtr[stxtMotor2]:Wrap( -1 )
+		mtr[szrMotor]:Add( mtr[stxtMotor2], wx.wxGBPosition( 1, 0 ), wx.wxGBSpan( 1, 1 ), wx.wxALIGN_CENTER + wx.wxALL, 0 )
+		
+		local stxtMotor3 = "stxt_Motor" .. tostring(i) .. "_3"
+		mtr[stxtMotor3] = wx.wxStaticText( scrl_Motors, wx.wxID_ANY, "Steps/Unit", wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+		mtr[stxtMotor3]:Wrap( -1 )
+		mtr[szrMotor]:Add( mtr[stxtMotor3], wx.wxGBPosition( 1, 1 ), wx.wxGBSpan( 1, 1 ), wx.wxALIGN_CENTER + wx.wxALL, 0 )
+		
+		local stxtMotor4 = "stxt_Motor" .. tostring(i) .. "_4"
+		mtr[stxtMotor4] = wx.wxStaticText( scrl_Motors, wx.wxID_ANY, "Velocity (Units/Min)", wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+		mtr[stxtMotor4]:Wrap( -1 )
+		mtr[szrMotor]:Add( mtr[stxtMotor4], wx.wxGBPosition( 1, 2 ), wx.wxGBSpan( 1, 1 ), wx.wxALIGN_CENTER + wx.wxALL, 0 )
+		
+		local stxtMotor5 = "stxt_Motor" .. tostring(i) .. "_5"
+		mtr[stxtMotor5] = wx.wxStaticText( scrl_Motors, wx.wxID_ANY, "Acceleration\n(Units/Sec^2)", wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxALIGN_CENTRE )
+		mtr[stxtMotor5]:Wrap( -1 )
+		mtr[szrMotor]:Add( mtr[stxtMotor5], wx.wxGBPosition( 1, 3 ), wx.wxGBSpan( 1, 1 ), wx.wxALIGN_CENTER + wx.wxALL, 0 )
+		
+		local stxtMotor6 = "stxt_Motor" .. tostring(i) .. "_6"
+		mtr[stxtMotor6] = wx.wxStaticText( scrl_Motors, wx.wxID_ANY, "Reversed", wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+		mtr[stxtMotor6]:Wrap( -1 )
+		mtr[szrMotor]:Add( mtr[stxtMotor6], wx.wxGBPosition( 1, 4 ), wx.wxGBSpan( 1, 1 ), wx.wxALIGN_CENTER + wx.wxALL, 0 )
+		
+		local stxtMotor7 = "stxt_Motor" .. tostring(i) .. "_7"
+		mtr[stxtMotor7] = wx.wxStaticText( scrl_Motors, wx.wxID_ANY, "Direction Port", wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+		mtr[stxtMotor7]:Wrap( -1 )
+		mtr[szrMotor]:Add( mtr[stxtMotor7], wx.wxGBPosition( 3, 0 ), wx.wxGBSpan( 1, 1 ), wx.wxALIGN_CENTER + wx.wxALL, 0 )
+		
+		local stxtMotor8 = "stxt_Motor" .. tostring(i) .. "_8"
+		mtr[stxtMotor8] = wx.wxStaticText( scrl_Motors, wx.wxID_ANY, "Direction Pin", wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+		mtr[stxtMotor8]:Wrap( -1 )
+		mtr[szrMotor]:Add( mtr[stxtMotor8], wx.wxGBPosition( 3, 1 ), wx.wxGBSpan( 1, 1 ), wx.wxALIGN_CENTER + wx.wxALL, 0 )
+		
+		local stxtMotor9 = "stxt_Motor" .. tostring(i) .. "_9"
+		mtr[stxtMotor9] = wx.wxStaticText( scrl_Motors, wx.wxID_ANY, "Direction\nActive Low", wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxALIGN_CENTRE )
+		mtr[stxtMotor9]:Wrap( -1 )
+		mtr[szrMotor]:Add( mtr[stxtMotor9], wx.wxGBPosition( 3, 2 ), wx.wxGBSpan( 1, 1 ), wx.wxALIGN_CENTER + wx.wxALL, 0 )
+		
+		local stxtMotor10 = "stxt_Motor" .. tostring(i) .. "_10"
+		mtr[stxtMotor10] = wx.wxStaticText( scrl_Motors, wx.wxID_ANY, "Step Port", wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxALIGN_CENTRE )
+		mtr[stxtMotor10]:Wrap( -1 )
+		mtr[szrMotor]:Add( mtr[stxtMotor10], wx.wxGBPosition( 3, 3 ), wx.wxGBSpan( 1, 1 ), wx.wxALIGN_CENTER + wx.wxALL, 0 )
+		
+		local stxtMotor11 = "stxt_Motor" .. tostring(i) .. "_11"
+		mtr[stxtMotor11] = wx.wxStaticText( scrl_Motors, wx.wxID_ANY, "Step Pin", wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+		mtr[stxtMotor11]:Wrap( -1 )
+		mtr[szrMotor]:Add( mtr[stxtMotor11], wx.wxGBPosition( 3, 4 ), wx.wxGBSpan( 1, 1 ), wx.wxALIGN_CENTER + wx.wxALL, 0 )
+		
+		local stxtMotor12 = "stxt_Motor" .. tostring(i) .. "_12"
+		mtr[stxtMotor12] = wx.wxStaticText( scrl_Motors, wx.wxID_ANY, "Step\nActive Low", wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxALIGN_CENTRE )
+		mtr[stxtMotor12]:Wrap( -1 )
+		mtr[szrMotor]:Add( mtr[stxtMotor12], wx.wxGBPosition( 3, 5 ), wx.wxGBSpan( 1, 1 ), wx.wxALIGN_CENTER + wx.wxALL, 0 )
+		
+		local txtMotor1 = "txt_Motor" .. tostring(i) .. "_1"
+		mtr[txtMotor1] = wx.wxTextCtrl( scrl_Motors, wx.wxID_ANY, "", wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxTE_CENTRE + wx.wxTE_READONLY )
+		mtr[txtMotor1]:SetForegroundColour( wx.wxColour( 0, 0, 0 ) )
+		mtr[txtMotor1]:SetBackgroundColour( wx.wxColour( 255, 255, 255 ) )
+		
+		mtr[szrMotor]:Add( mtr[txtMotor1], wx.wxGBPosition( 2, 0 ), wx.wxGBSpan( 1, 1 ), wx.wxALIGN_CENTER + wx.wxALL, 5 )
+		
+		local txtMotor2 = "txt_Motor" .. tostring(i) .. "_2"
+		mtr[txtMotor2] = wx.wxTextCtrl( scrl_Motors, wx.wxID_ANY, "", wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxTE_CENTRE + wx.wxTE_READONLY )
+		mtr[txtMotor2]:SetForegroundColour( wx.wxColour( 0, 0, 0 ) )
+		mtr[txtMotor2]:SetBackgroundColour( wx.wxColour( 255, 255, 255 ) )
+		
+		mtr[szrMotor]:Add( mtr[txtMotor2], wx.wxGBPosition( 2, 1 ), wx.wxGBSpan( 1, 1 ), wx.wxALIGN_CENTER + wx.wxALL, 5 )
+		
+		local txtMotor3 = "txt_Motor" .. tostring(i) .. "_3"
+		mtr[txtMotor3] = wx.wxTextCtrl( scrl_Motors, wx.wxID_ANY, "", wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxTE_CENTRE + wx.wxTE_READONLY )
+		mtr[txtMotor3]:SetForegroundColour( wx.wxColour( 0, 0, 0 ) )
+		mtr[txtMotor3]:SetBackgroundColour( wx.wxColour( 255, 255, 255 ) )
+		
+		mtr[szrMotor]:Add( mtr[txtMotor3], wx.wxGBPosition( 2, 2 ), wx.wxGBSpan( 1, 1 ), wx.wxALIGN_CENTER + wx.wxALL, 5 )
+		
+		local txtMotor4 = "txt_Motor" .. tostring(i) .. "_4"
+		mtr[txtMotor4] = wx.wxTextCtrl( scrl_Motors, wx.wxID_ANY, "", wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxTE_CENTRE + wx.wxTE_READONLY )
+		mtr[txtMotor4]:SetForegroundColour( wx.wxColour( 0, 0, 0 ) )
+		mtr[txtMotor4]:SetBackgroundColour( wx.wxColour( 255, 255, 255 ) )
+		
+		mtr[szrMotor]:Add( mtr[txtMotor4], wx.wxGBPosition( 2, 3 ), wx.wxGBSpan( 1, 1 ), wx.wxALIGN_CENTER + wx.wxALL, 5 )
+		
+		local txtMotor5 = "txt_Motor" .. tostring(i) .. "_5"
+		mtr[txtMotor5] = wx.wxTextCtrl( scrl_Motors, wx.wxID_ANY, "", wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxTE_CENTRE + wx.wxTE_READONLY )
+		mtr[txtMotor5]:SetForegroundColour( wx.wxColour( 0, 0, 0 ) )
+		mtr[txtMotor5]:SetBackgroundColour( wx.wxColour( 255, 255, 255 ) )
+		
+		mtr[szrMotor]:Add( mtr[txtMotor5], wx.wxGBPosition( 2, 4 ), wx.wxGBSpan( 1, 1 ), wx.wxALIGN_CENTER + wx.wxALL, 5 )
+		
+		local txtMotor6 = "txt_Motor" .. tostring(i) .. "_6"
+		mtr[txtMotor6] = wx.wxTextCtrl( scrl_Motors, wx.wxID_ANY, "", wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxTE_CENTRE + wx.wxTE_READONLY )
+		mtr[txtMotor6]:SetForegroundColour( wx.wxColour( 0, 0, 0 ) )
+		mtr[txtMotor6]:SetBackgroundColour( wx.wxColour( 255, 255, 255 ) )
+		
+		mtr[szrMotor]:Add( mtr[txtMotor6], wx.wxGBPosition( 4, 0 ), wx.wxGBSpan( 1, 1 ), wx.wxALIGN_CENTER + wx.wxALL, 5 )
+		
+		local txtMotor7 = "txt_Motor" .. tostring(i) .. "_7"
+		mtr[txtMotor7] = wx.wxTextCtrl( scrl_Motors, wx.wxID_ANY, "", wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxTE_CENTRE + wx.wxTE_READONLY )
+		mtr[txtMotor7]:SetForegroundColour( wx.wxColour( 0, 0, 0 ) )
+		mtr[txtMotor7]:SetBackgroundColour( wx.wxColour( 255, 255, 255 ) )
+		
+		mtr[szrMotor]:Add( mtr[txtMotor7], wx.wxGBPosition( 4, 1 ), wx.wxGBSpan( 1, 1 ), wx.wxALIGN_CENTER + wx.wxALL, 5 )
+		
+		local txtMotor8 = "txt_Motor" .. tostring(i) .. "_8"
+		mtr[txtMotor8] = wx.wxTextCtrl( scrl_Motors, wx.wxID_ANY, "", wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxTE_CENTRE + wx.wxTE_READONLY )
+		mtr[txtMotor8]:SetForegroundColour( wx.wxColour( 0, 0, 0 ) )
+		mtr[txtMotor8]:SetBackgroundColour( wx.wxColour( 255, 255, 255 ) )
+		
+		mtr[szrMotor]:Add( mtr[txtMotor8], wx.wxGBPosition( 4, 2 ), wx.wxGBSpan( 1, 1 ), wx.wxALIGN_CENTER + wx.wxALL, 5 )
+		
+		local txtMotor9 = "txt_Motor" .. tostring(i) .. "_9"
+		mtr[txtMotor9] = wx.wxTextCtrl( scrl_Motors, wx.wxID_ANY, "", wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxTE_CENTRE + wx.wxTE_READONLY )
+		mtr[txtMotor9]:SetForegroundColour( wx.wxColour( 0, 0, 0 ) )
+		mtr[txtMotor9]:SetBackgroundColour( wx.wxColour( 255, 255, 255 ) )
+		
+		mtr[szrMotor]:Add( mtr[txtMotor9], wx.wxGBPosition( 4, 3 ), wx.wxGBSpan( 1, 1 ), wx.wxALIGN_CENTER + wx.wxALL, 5 )
+		
+		local txtMotor10 = "txt_Motor" .. tostring(i) .. "_10"
+		mtr[txtMotor10] = wx.wxTextCtrl( scrl_Motors, wx.wxID_ANY, "", wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxTE_CENTRE + wx.wxTE_READONLY )
+		mtr[txtMotor10]:SetForegroundColour( wx.wxColour( 0, 0, 0 ) )
+		mtr[txtMotor10]:SetBackgroundColour( wx.wxColour( 255, 255, 255 ) )
+		
+		mtr[szrMotor]:Add( mtr[txtMotor10], wx.wxGBPosition( 4, 4 ), wx.wxGBSpan( 1, 1 ), wx.wxALIGN_CENTER + wx.wxALL, 5 )
+		
+		local txtMotor11 = "txt_Motor" .. tostring(i) .. "_11"
+		mtr[txtMotor11] = wx.wxTextCtrl( scrl_Motors, wx.wxID_ANY, "", wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxTE_CENTRE + wx.wxTE_READONLY )
+		mtr[txtMotor11]:SetForegroundColour( wx.wxColour( 0, 0, 0 ) )
+		mtr[txtMotor11]:SetBackgroundColour( wx.wxColour( 255, 255, 255 ) )
+		
+		mtr[szrMotor]:Add( mtr[txtMotor11], wx.wxGBPosition( 4, 5 ), wx.wxGBSpan( 1, 1 ), wx.wxALIGN_CENTER + wx.wxALL, 5 )
+		
+		local mtrLine = "line" .. tostring(i)
+		mtr[mtrLine] = wx.wxStaticLine( scrl_Motors, wx.wxID_ANY, wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxLI_HORIZONTAL )
+		mtr[szrMotor]:Add( mtr[mtrLine], wx.wxGBPosition( 5, 0 ), wx.wxGBSpan( 1, 6 ), wx.wxEXPAND  + wx. wxALL, 5 )
+	
+	
+		szrScrollMotors:Add( mtr[szrMotor], 1, wx.wxEXPAND, 5 )
+	end
+	
+	scrl_Motors:SetSizer( szrScrollMotors )
+	scrl_Motors:Layout()
+	szrScrollMotors:Fit( scrl_Motors )
+	szrMotors:Add( scrl_Motors, 1, wx.wxEXPAND  + wx. wxALL, 5 )
+	
+	
+	tab_Motors:SetSizer( szrMotors )
+	tab_Motors:Layout()
+	szrMotors:Fit( tab_Motors )
+	nb_Main:AddPage( tab_Motors, "Motors", false )
+	tab_Homing = wx.wxPanel( nb_Main, wx.wxID_ANY, wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxTAB_TRAVERSAL )
+	tab_Homing:SetBackgroundColour( wx.wxColour( 255, 255, 255 ) )
+	
+	szrHoming = wx.wxBoxSizer( wx.wxVERTICAL )
+	
+	grdHoming = wx.wxGrid( tab_Homing, wx.wxID_ANY, wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+	
+	-- Grid
+	grdHoming:CreateGrid( 6, 6 )
+	grdHoming:EnableEditing( false )
+	grdHoming:EnableGridLines( true )
+	grdHoming:EnableDragGridSize( false )
+	grdHoming:SetMargins( 0, 0 )
+	
+	-- Columns
+	grdHoming:SetColSize( 0, 110 )
+	grdHoming:SetColSize( 1, 80 )
+	grdHoming:SetColSize( 2, 80 )
+	grdHoming:SetColSize( 3, 80 )
+	grdHoming:SetColSize( 4, 80 )
+	grdHoming:SetColSize( 5, 80 )
+	grdHoming:EnableDragColSize( true )
+	grdHoming:SetColLabelSize( 30 )
+	grdHoming:SetColLabelValue( 0, "Home Negative" )
+	grdHoming:SetColLabelValue( 1, "Speed %" )
+	grdHoming:SetColLabelValue( 2, "Auto Zero" )
+	grdHoming:SetColLabelValue( 3, "Soft Min" )
+	grdHoming:SetColLabelValue( 4, "Soft Max" )
+	grdHoming:SetColLabelValue( 5, "Slow Zone" )
+	grdHoming:SetColLabelAlignment( wx.wxALIGN_CENTRE, wx.wxALIGN_CENTRE )
+	
+	-- Rows
+	grdHoming:SetRowSize( 0, 30 )
+	grdHoming:SetRowSize( 1, 30 )
+	grdHoming:SetRowSize( 2, 30 )
+	grdHoming:SetRowSize( 3, 30 )
+	grdHoming:SetRowSize( 4, 30 )
+	grdHoming:SetRowSize( 5, 30 )
+	grdHoming:EnableDragRowSize( true )
+	grdHoming:SetRowLabelSize( 80 )
+	grdHoming:SetRowLabelValue( 0, "Motor 0" )
+	grdHoming:SetRowLabelValue( 1, "Motor 1" )
+	grdHoming:SetRowLabelValue( 2, "Motor 2" )
+	grdHoming:SetRowLabelValue( 3, "Motor 3" )
+	grdHoming:SetRowLabelValue( 4, "Motor 4" )
+	grdHoming:SetRowLabelValue( 5, "Motor 5" )
+	grdHoming:SetRowLabelAlignment( wx.wxALIGN_CENTRE, wx.wxALIGN_CENTRE )
+	
+	-- Label Appearance
+	grdHoming:SetLabelBackgroundColour( wx.wxColour( 255, 255, 255 ) )
+	
+	-- Cell Defaults
+	grdHoming:SetDefaultCellAlignment( wx.wxALIGN_CENTRE, wx.wxALIGN_CENTRE )
+	grdHoming:SetBackgroundColour( wx.wxColour( 255, 255, 255 ) )
+	grdHoming:SetMinSize( wx.wxSize( 600,225 ) )
+	
+	szrHoming:Add( grdHoming, 0, wx.wxALIGN_CENTER + wx.wxALL, 10 )
+	
+	
+	tab_Homing:SetSizer( szrHoming )
+	tab_Homing:Layout()
+	szrHoming:Fit( tab_Homing )
+	nb_Main:AddPage( tab_Homing, "Homing", false )
+	
+	--- SPINDLE
+	tab_Spindle = wx.wxPanel( nb_Main, wx.wxID_ANY, wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxTAB_TRAVERSAL )
+	-- Spindle control table
+	sp = {}
+	
+	szrSpMain = wx.wxBoxSizer( wx.wxVERTICAL )
+	
+	m_scrolledWindow3 = wx.wxScrolledWindow( tab_Spindle, wx.wxID_ANY, wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxVSCROLL )
+	m_scrolledWindow3:SetScrollRate( 5, 5 )
+	m_scrolledWindow3:SetBackgroundColour( wx.wxColour( 255, 255, 255 ) )
+	
+	szrSpindle = wx.wxGridBagSizer( 0, 0 )
+	szrSpindle:SetFlexibleDirection( wx.wxBOTH )
+	szrSpindle:SetNonFlexibleGrowMode( wx.wxFLEX_GROWMODE_SPECIFIED )
+	
+	pnl_Relays = wx.wxPanel( m_scrolledWindow3, wx.wxID_ANY, wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxSIMPLE_BORDER + wx.wxTAB_TRAVERSAL )
+	pnl_Relays:SetBackgroundColour( wx.wxColour( 255, 255, 255 ) )
+	
+	szrSpRelays = wx.wxGridBagSizer( 0, 0 )
+	szrSpRelays:SetFlexibleDirection( wx.wxBOTH )
+	szrSpRelays:SetNonFlexibleGrowMode( wx.wxFLEX_GROWMODE_SPECIFIED )
+	
+	m_staticText24 = wx.wxStaticText( pnl_Relays, wx.wxID_ANY, "Relays", wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+	m_staticText24:Wrap( -1 )
+	m_staticText24:SetFont( wx.wxFont( 12, 74, 90, 92, false, "Arial" ) )
+	
+	szrSpRelays:Add( m_staticText24, wx.wxGBPosition( 0, 0 ), wx.wxGBSpan( 1, 2 ), wx.wxALIGN_CENTER + wx.wxALL, 5 )
+	
+	m_staticText25 = wx.wxStaticText( pnl_Relays, wx.wxID_ANY, "Disable Relays", wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+	m_staticText25:Wrap( -1 )
+	szrSpRelays:Add( m_staticText25, wx.wxGBPosition( 1, 0 ), wx.wxGBSpan( 1, 1 ), wx.wxALIGN_CENTER_VERTICAL + wx.wxALL, 5 )
+	
+	sp.txtSpindle1 = wx.wxTextCtrl( pnl_Relays, wx.wxID_ANY, "", wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxTE_CENTRE + wx.wxTE_READONLY )
+	sp.txtSpindle1:SetForegroundColour( wx.wxColour( 0, 0, 0 ) )
+	sp.txtSpindle1:SetBackgroundColour( wx.wxColour( 255, 255, 255 ) )
+	
+	szrSpRelays:Add( sp.txtSpindle1, wx.wxGBPosition( 1, 1 ), wx.wxGBSpan( 1, 1 ), wx.wxALL, 5 )
+	
+	m_staticText26 = wx.wxStaticText( pnl_Relays, wx.wxID_ANY, "CW Output", wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+	m_staticText26:Wrap( -1 )
+	szrSpRelays:Add( m_staticText26, wx.wxGBPosition( 2, 0 ), wx.wxGBSpan( 1, 1 ), wx.wxALIGN_CENTER_VERTICAL + wx.wxALL, 5 )
+	
+	sp.txtSpindle2 = wx.wxTextCtrl( pnl_Relays, wx.wxID_ANY, "", wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxTE_CENTRE + wx.wxTE_READONLY )
+	sp.txtSpindle2:SetForegroundColour( wx.wxColour( 0, 0, 0 ) )
+	sp.txtSpindle2:SetBackgroundColour( wx.wxColour( 255, 255, 255 ) )
+	
+	szrSpRelays:Add( sp.txtSpindle2, wx.wxGBPosition( 2, 1 ), wx.wxGBSpan( 1, 1 ), wx.wxALL, 5 )
+	
+	m_staticText27 = wx.wxStaticText( pnl_Relays, wx.wxID_ANY, "CCW Output", wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+	m_staticText27:Wrap( -1 )
+	szrSpRelays:Add( m_staticText27, wx.wxGBPosition( 3, 0 ), wx.wxGBSpan( 1, 1 ), wx.wxALIGN_CENTER_VERTICAL + wx.wxALL, 5 )
+	
+	sp.txtSpindle3 = wx.wxTextCtrl( pnl_Relays, wx.wxID_ANY, "", wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxTE_CENTRE + wx.wxTE_READONLY )
+	sp.txtSpindle3:SetForegroundColour( wx.wxColour( 0, 0, 0 ) )
+	sp.txtSpindle3:SetBackgroundColour( wx.wxColour( 255, 255, 255 ) )
+	
+	szrSpRelays:Add( sp.txtSpindle3, wx.wxGBPosition( 3, 1 ), wx.wxGBSpan( 1, 1 ), wx.wxALL, 5 )
+	
+	
+	pnl_Relays:SetSizer( szrSpRelays )
+	pnl_Relays:Layout()
+	szrSpRelays:Fit( pnl_Relays )
+	szrSpindle:Add( pnl_Relays, wx.wxGBPosition( 0, 0 ), wx.wxGBSpan( 1, 1 ), wx.wxEXPAND  + wx. wxALL, 5 )
+	
+	pnl_CloseLoop = wx.wxPanel( m_scrolledWindow3, wx.wxID_ANY, wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxSIMPLE_BORDER + wx.wxTAB_TRAVERSAL )
+	pnl_CloseLoop:SetBackgroundColour( wx.wxColour( 255, 255, 255 ) )
+	
+	szrSpClosed = wx.wxGridBagSizer( 0, 0 )
+	szrSpClosed:SetFlexibleDirection( wx.wxBOTH )
+	szrSpClosed:SetNonFlexibleGrowMode( wx.wxFLEX_GROWMODE_SPECIFIED )
+	
+	m_staticText241 = wx.wxStaticText( pnl_CloseLoop, wx.wxID_ANY, "Closed Loop Control", wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+	m_staticText241:Wrap( -1 )
+	m_staticText241:SetFont( wx.wxFont( 12, 74, 90, 92, false, "Arial" ) )
+	
+	szrSpClosed:Add( m_staticText241, wx.wxGBPosition( 0, 0 ), wx.wxGBSpan( 1, 4 ), wx.wxALIGN_CENTER + wx.wxALL, 5 )
+	
+	m_staticText251 = wx.wxStaticText( pnl_CloseLoop, wx.wxID_ANY, "Enable", wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+	m_staticText251:Wrap( -1 )
+	szrSpClosed:Add( m_staticText251, wx.wxGBPosition( 1, 0 ), wx.wxGBSpan( 1, 1 ), wx.wxALIGN_CENTER_VERTICAL + wx.wxALIGN_RIGHT + wx.wxALL, 5 )
+	
+	sp.txtSpindle18 = wx.wxTextCtrl( pnl_CloseLoop, wx.wxID_ANY, "", wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxTE_CENTRE + wx.wxTE_READONLY )
+	sp.txtSpindle18:SetForegroundColour( wx.wxColour( 0, 0, 0 ) )
+	sp.txtSpindle18:SetBackgroundColour( wx.wxColour( 255, 255, 255 ) )
+	
+	szrSpClosed:Add( sp.txtSpindle18, wx.wxGBPosition( 1, 1 ), wx.wxGBSpan( 1, 1 ), wx.wxALL, 5 )
+	
+	m_staticText34 = wx.wxStaticText( pnl_CloseLoop, wx.wxID_ANY, "Averaging", wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+	m_staticText34:Wrap( -1 )
+	szrSpClosed:Add( m_staticText34, wx.wxGBPosition( 2, 0 ), wx.wxGBSpan( 1, 1 ), wx.wxALIGN_CENTER_VERTICAL + wx.wxALL, 5 )
+	
+	sp.txtSpindle22 = wx.wxTextCtrl( pnl_CloseLoop, wx.wxID_ANY, "", wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxTE_CENTRE + wx.wxTE_READONLY )
+	sp.txtSpindle22:SetForegroundColour( wx.wxColour( 0, 0, 0 ) )
+	sp.txtSpindle22:SetBackgroundColour( wx.wxColour( 255, 255, 255 ) )
+	
+	szrSpClosed:Add( sp.txtSpindle22, wx.wxGBPosition( 2, 1 ), wx.wxGBSpan( 1, 1 ), wx.wxALL, 5 )
+	
+	m_staticText35 = wx.wxStaticText( pnl_CloseLoop, wx.wxID_ANY, "P", wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+	m_staticText35:Wrap( -1 )
+	szrSpClosed:Add( m_staticText35, wx.wxGBPosition( 3, 0 ), wx.wxGBSpan( 1, 1 ), wx.wxALIGN_CENTER_VERTICAL + wx.wxALIGN_RIGHT + wx.wxALL, 5 )
+	
+	sp.txtSpindle19 = wx.wxTextCtrl( pnl_CloseLoop, wx.wxID_ANY, "", wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxTE_CENTRE + wx.wxTE_READONLY )
+	sp.txtSpindle19:SetForegroundColour( wx.wxColour( 0, 0, 0 ) )
+	sp.txtSpindle19:SetBackgroundColour( wx.wxColour( 255, 255, 255 ) )
+	
+	szrSpClosed:Add( sp.txtSpindle19, wx.wxGBPosition( 3, 1 ), wx.wxGBSpan( 1, 1 ), wx.wxALL, 5 )
+	
+	m_staticText36 = wx.wxStaticText( pnl_CloseLoop, wx.wxID_ANY, "I", wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+	m_staticText36:Wrap( -1 )
+	szrSpClosed:Add( m_staticText36, wx.wxGBPosition( 4, 0 ), wx.wxGBSpan( 1, 1 ), wx.wxALIGN_CENTER_VERTICAL + wx.wxALIGN_RIGHT + wx.wxALL, 5 )
+	
+	sp.txtSpindle20 = wx.wxTextCtrl( pnl_CloseLoop, wx.wxID_ANY, "", wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxTE_CENTRE + wx.wxTE_READONLY )
+	sp.txtSpindle20:SetForegroundColour( wx.wxColour( 0, 0, 0 ) )
+	sp.txtSpindle20:SetBackgroundColour( wx.wxColour( 255, 255, 255 ) )
+	
+	szrSpClosed:Add( sp.txtSpindle20, wx.wxGBPosition( 4, 1 ), wx.wxGBSpan( 1, 1 ), wx.wxALL, 5 )
+	
+	m_staticText37 = wx.wxStaticText( pnl_CloseLoop, wx.wxID_ANY, "D", wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+	m_staticText37:Wrap( -1 )
+	szrSpClosed:Add( m_staticText37, wx.wxGBPosition( 5, 0 ), wx.wxGBSpan( 1, 1 ), wx.wxALIGN_CENTER_VERTICAL + wx.wxALIGN_RIGHT + wx.wxALL, 5 )
+	
+	sp.txtSpindle21 = wx.wxTextCtrl( pnl_CloseLoop, wx.wxID_ANY, "", wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxTE_CENTRE + wx.wxTE_READONLY )
+	sp.txtSpindle21:SetForegroundColour( wx.wxColour( 0, 0, 0 ) )
+	sp.txtSpindle21:SetBackgroundColour( wx.wxColour( 255, 255, 255 ) )
+	
+	szrSpClosed:Add( sp.txtSpindle21, wx.wxGBPosition( 5, 1 ), wx.wxGBSpan( 1, 1 ), wx.wxALL, 5 )
+	
+	
+	pnl_CloseLoop:SetSizer( szrSpClosed )
+	pnl_CloseLoop:Layout()
+	szrSpClosed:Fit( pnl_CloseLoop )
+	szrSpindle:Add( pnl_CloseLoop, wx.wxGBPosition( 0, 2 ), wx.wxGBSpan( 1, 1 ), wx.wxEXPAND  + wx. wxALL, 5 )
+	
+	pnl_Delays = wx.wxPanel( m_scrolledWindow3, wx.wxID_ANY, wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxSIMPLE_BORDER + wx.wxTAB_TRAVERSAL )
+	pnl_Delays:SetBackgroundColour( wx.wxColour( 255, 255, 255 ) )
+	
+	szrSpRelays1 = wx.wxGridBagSizer( 0, 0 )
+	szrSpRelays1:SetFlexibleDirection( wx.wxBOTH )
+	szrSpRelays1:SetNonFlexibleGrowMode( wx.wxFLEX_GROWMODE_SPECIFIED )
+	
+	m_staticText242 = wx.wxStaticText( pnl_Delays, wx.wxID_ANY, "Delays", wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+	m_staticText242:Wrap( -1 )
+	m_staticText242:SetFont( wx.wxFont( 12, 74, 90, 92, false, "Arial" ) )
+	
+	szrSpRelays1:Add( m_staticText242, wx.wxGBPosition( 0, 0 ), wx.wxGBSpan( 1, 2 ), wx.wxALIGN_CENTER + wx.wxALL, 5 )
+	
+	m_staticText252 = wx.wxStaticText( pnl_Delays, wx.wxID_ANY, "Immediate Off", wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+	m_staticText252:Wrap( -1 )
+	szrSpRelays1:Add( m_staticText252, wx.wxGBPosition( 1, 0 ), wx.wxGBSpan( 1, 1 ), wx.wxALIGN_CENTER_VERTICAL + wx.wxALL, 5 )
+	
+	sp.txtSpindle26 = wx.wxTextCtrl( pnl_Delays, wx.wxID_ANY, "", wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxTE_CENTRE + wx.wxTE_READONLY )
+	sp.txtSpindle26:SetForegroundColour( wx.wxColour( 0, 0, 0 ) )
+	sp.txtSpindle26:SetBackgroundColour( wx.wxColour( 255, 255, 255 ) )
+	
+	szrSpRelays1:Add( sp.txtSpindle26, wx.wxGBPosition( 1, 1 ), wx.wxGBSpan( 1, 1 ), wx.wxALL, 5 )
+	
+	m_staticText261 = wx.wxStaticText( pnl_Delays, wx.wxID_ANY, "Up CW Delay", wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+	m_staticText261:Wrap( -1 )
+	szrSpRelays1:Add( m_staticText261, wx.wxGBPosition( 2, 0 ), wx.wxGBSpan( 1, 1 ), wx.wxALIGN_CENTER_VERTICAL + wx.wxALL, 5 )
+	
+	sp.txtSpindle27 = wx.wxTextCtrl( pnl_Delays, wx.wxID_ANY, "", wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxTE_CENTRE + wx.wxTE_READONLY )
+	sp.txtSpindle27:SetForegroundColour( wx.wxColour( 0, 0, 0 ) )
+	sp.txtSpindle27:SetBackgroundColour( wx.wxColour( 255, 255, 255 ) )
+	
+	szrSpRelays1:Add( sp.txtSpindle27, wx.wxGBPosition( 2, 1 ), wx.wxGBSpan( 1, 1 ), wx.wxALL, 5 )
+	
+	m_staticText271 = wx.wxStaticText( pnl_Delays, wx.wxID_ANY, "Up CCW Delay", wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+	m_staticText271:Wrap( -1 )
+	szrSpRelays1:Add( m_staticText271, wx.wxGBPosition( 3, 0 ), wx.wxGBSpan( 1, 1 ), wx.wxALIGN_CENTER_VERTICAL + wx.wxALL, 5 )
+	
+	sp.txtSpindle28 = wx.wxTextCtrl( pnl_Delays, wx.wxID_ANY, "", wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxTE_CENTRE + wx.wxTE_READONLY )
+	sp.txtSpindle28:SetForegroundColour( wx.wxColour( 0, 0, 0 ) )
+	sp.txtSpindle28:SetBackgroundColour( wx.wxColour( 255, 255, 255 ) )
+	
+	szrSpRelays1:Add( sp.txtSpindle28, wx.wxGBPosition( 3, 1 ), wx.wxGBSpan( 1, 1 ), wx.wxALL, 5 )
+	
+	m_staticText2711 = wx.wxStaticText( pnl_Delays, wx.wxID_ANY, "Dn CW Delay", wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+	m_staticText2711:Wrap( -1 )
+	szrSpRelays1:Add( m_staticText2711, wx.wxGBPosition( 4, 0 ), wx.wxGBSpan( 1, 1 ), wx.wxALIGN_CENTER_VERTICAL + wx.wxALL, 5 )
+	
+	sp.txtSpindle29 = wx.wxTextCtrl( pnl_Delays, wx.wxID_ANY, "", wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxTE_CENTRE + wx.wxTE_READONLY )
+	sp.txtSpindle29:SetForegroundColour( wx.wxColour( 0, 0, 0 ) )
+	sp.txtSpindle29:SetBackgroundColour( wx.wxColour( 255, 255, 255 ) )
+	
+	szrSpRelays1:Add( sp.txtSpindle29, wx.wxGBPosition( 4, 1 ), wx.wxGBSpan( 1, 1 ), wx.wxALL, 5 )
+	
+	m_staticText2712 = wx.wxStaticText( pnl_Delays, wx.wxID_ANY, "Dn CCW Delay", wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+	m_staticText2712:Wrap( -1 )
+	szrSpRelays1:Add( m_staticText2712, wx.wxGBPosition( 5, 0 ), wx.wxGBSpan( 1, 1 ), wx.wxALIGN_CENTER_VERTICAL + wx.wxALL, 5 )
+	
+	sp.txtSpindle30 = wx.wxTextCtrl( pnl_Delays, wx.wxID_ANY, "", wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxTE_CENTRE + wx.wxTE_READONLY )
+	sp.txtSpindle30:SetForegroundColour( wx.wxColour( 0, 0, 0 ) )
+	sp.txtSpindle30:SetBackgroundColour( wx.wxColour( 255, 255, 255 ) )
+	
+	szrSpRelays1:Add( sp.txtSpindle30, wx.wxGBPosition( 5, 1 ), wx.wxGBSpan( 1, 1 ), wx.wxALL, 5 )
+	
+	
+	pnl_Delays:SetSizer( szrSpRelays1 )
+	pnl_Delays:Layout()
+	szrSpRelays1:Fit( pnl_Delays )
+	szrSpindle:Add( pnl_Delays, wx.wxGBPosition( 0, 1 ), wx.wxGBSpan( 1, 1 ), wx.wxEXPAND  + wx. wxALL, 5 )
+	
+	pnl_MotorCtrl = wx.wxPanel( m_scrolledWindow3, wx.wxID_ANY, wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxSIMPLE_BORDER + wx.wxTAB_TRAVERSAL )
+	pnl_MotorCtrl:SetBackgroundColour( wx.wxColour( 255, 255, 255 ) )
+	
+	szrSpRelays2 = wx.wxGridBagSizer( 0, 0 )
+	szrSpRelays2:SetFlexibleDirection( wx.wxBOTH )
+	szrSpRelays2:SetNonFlexibleGrowMode( wx.wxFLEX_GROWMODE_SPECIFIED )
+	
+	m_staticText243 = wx.wxStaticText( pnl_MotorCtrl, wx.wxID_ANY, "Motor Control", wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+	m_staticText243:Wrap( -1 )
+	m_staticText243:SetFont( wx.wxFont( 12, 74, 90, 92, false, "Arial" ) )
+	
+	szrSpRelays2:Add( m_staticText243, wx.wxGBPosition( 0, 0 ), wx.wxGBSpan( 1, 6 ), wx.wxALIGN_CENTER + wx.wxALL, 5 )
+	
+	m_staticText253 = wx.wxStaticText( pnl_MotorCtrl, wx.wxID_ANY, "Type (0: Step/dir, 1: PWM)", wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+	m_staticText253:Wrap( -1 )
+	szrSpRelays2:Add( m_staticText253, wx.wxGBPosition( 1, 0 ), wx.wxGBSpan( 1, 1 ), wx.wxALIGN_CENTER_VERTICAL + wx.wxALL, 5 )
+	
+	sp.txtSpindle4 = wx.wxTextCtrl( pnl_MotorCtrl, wx.wxID_ANY, "", wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxTE_CENTRE + wx.wxTE_READONLY )
+	sp.txtSpindle4:SetForegroundColour( wx.wxColour( 0, 0, 0 ) )
+	sp.txtSpindle4:SetBackgroundColour( wx.wxColour( 255, 255, 255 ) )
+	
+	szrSpRelays2:Add( sp.txtSpindle4, wx.wxGBPosition( 1, 1 ), wx.wxGBSpan( 1, 1 ), wx.wxALL, 5 )
+	
+	m_staticText262 = wx.wxStaticText( pnl_MotorCtrl, wx.wxID_ANY, "PWM Base Frequency", wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+	m_staticText262:Wrap( -1 )
+	szrSpRelays2:Add( m_staticText262, wx.wxGBPosition( 2, 0 ), wx.wxGBSpan( 1, 1 ), wx.wxALIGN_CENTER_VERTICAL + wx.wxALL, 5 )
+	
+	sp.txtSpindle5 = wx.wxTextCtrl( pnl_MotorCtrl, wx.wxID_ANY, "", wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxTE_CENTRE + wx.wxTE_READONLY )
+	sp.txtSpindle5:SetForegroundColour( wx.wxColour( 0, 0, 0 ) )
+	sp.txtSpindle5:SetBackgroundColour( wx.wxColour( 255, 255, 255 ) )
+	
+	szrSpRelays2:Add( sp.txtSpindle5, wx.wxGBPosition( 2, 1 ), wx.wxGBSpan( 1, 1 ), wx.wxALL, 5 )
+	
+	m_staticText272 = wx.wxStaticText( pnl_MotorCtrl, wx.wxID_ANY, "PWM Min %", wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+	m_staticText272:Wrap( -1 )
+	szrSpRelays2:Add( m_staticText272, wx.wxGBPosition( 3, 0 ), wx.wxGBSpan( 1, 1 ), wx.wxALIGN_CENTER_VERTICAL + wx.wxALL, 5 )
+	
+	sp.txtSpindle6 = wx.wxTextCtrl( pnl_MotorCtrl, wx.wxID_ANY, "", wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxTE_CENTRE + wx.wxTE_READONLY )
+	sp.txtSpindle6:SetForegroundColour( wx.wxColour( 0, 0, 0 ) )
+	sp.txtSpindle6:SetBackgroundColour( wx.wxColour( 255, 255, 255 ) )
+	
+	szrSpRelays2:Add( sp.txtSpindle6, wx.wxGBPosition( 3, 1 ), wx.wxGBSpan( 1, 1 ), wx.wxALL, 5 )
+	
+	m_staticline2 = wx.wxStaticLine( pnl_MotorCtrl, wx.wxID_ANY, wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxLI_VERTICAL )
+	szrSpRelays2:Add( m_staticline2, wx.wxGBPosition( 1, 2 ), wx.wxGBSpan( 8, 0 ), wx.wxEXPAND  + wx. wxALL, 5 )
+	
+	m_staticText62 = wx.wxStaticText( pnl_MotorCtrl, wx.wxID_ANY, "Motor 6 Enabled", wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+	m_staticText62:Wrap( -1 )
+	szrSpRelays2:Add( m_staticText62, wx.wxGBPosition( 1, 3 ), wx.wxGBSpan( 1, 1 ), wx.wxALIGN_CENTER + wx.wxALL, 5 )
+	
+	sp.txtSpindle7 = wx.wxTextCtrl( pnl_MotorCtrl, wx.wxID_ANY, "", wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxTE_CENTRE + wx.wxTE_READONLY )
+	sp.txtSpindle7:SetForegroundColour( wx.wxColour( 0, 0, 0 ) )
+	sp.txtSpindle7:SetBackgroundColour( wx.wxColour( 255, 255, 255 ) )
+	
+	szrSpRelays2:Add( sp.txtSpindle7, wx.wxGBPosition( 2, 3 ), wx.wxGBSpan( 1, 1 ), wx.wxALIGN_CENTER + wx.wxALL, 5 )
+	
+	sp.txtSpindle8 = wx.wxTextCtrl( pnl_MotorCtrl, wx.wxID_ANY, "", wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxTE_CENTRE + wx.wxTE_READONLY )
+	sp.txtSpindle8:SetForegroundColour( wx.wxColour( 0, 0, 0 ) )
+	sp.txtSpindle8:SetBackgroundColour( wx.wxColour( 255, 255, 255 ) )
+	
+	szrSpRelays2:Add( sp.txtSpindle8, wx.wxGBPosition( 2, 4 ), wx.wxGBSpan( 1, 1 ), wx.wxALIGN_CENTER + wx.wxALL, 5 )
+	
+	sp.txtSpindle9 = wx.wxTextCtrl( pnl_MotorCtrl, wx.wxID_ANY, "", wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxTE_CENTRE + wx.wxTE_READONLY )
+	sp.txtSpindle9:SetForegroundColour( wx.wxColour( 0, 0, 0 ) )
+	sp.txtSpindle9:SetBackgroundColour( wx.wxColour( 255, 255, 255 ) )
+	
+	szrSpRelays2:Add( sp.txtSpindle9, wx.wxGBPosition( 2, 5 ), wx.wxGBSpan( 1, 1 ), wx.wxALIGN_CENTER + wx.wxALL, 5 )
+	
+	m_staticText63 = wx.wxStaticText( pnl_MotorCtrl, wx.wxID_ANY, "Steps/Unit", wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+	m_staticText63:Wrap( -1 )
+	szrSpRelays2:Add( m_staticText63, wx.wxGBPosition( 1, 4 ), wx.wxGBSpan( 1, 1 ), wx.wxALIGN_CENTER + wx.wxALL, 5 )
+	
+	m_staticText64 = wx.wxStaticText( pnl_MotorCtrl, wx.wxID_ANY, "Velocity (units/min)", wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+	m_staticText64:Wrap( -1 )
+	szrSpRelays2:Add( m_staticText64, wx.wxGBPosition( 1, 5 ), wx.wxGBSpan( 1, 1 ), wx.wxALIGN_CENTER + wx.wxALL, 5 )
+	
+	m_staticText65 = wx.wxStaticText( pnl_MotorCtrl, wx.wxID_ANY, "Acceleration\n(units/sec^2)", wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxALIGN_CENTRE )
+	m_staticText65:Wrap( -1 )
+	szrSpRelays2:Add( m_staticText65, wx.wxGBPosition( 3, 3 ), wx.wxGBSpan( 1, 1 ), wx.wxALIGN_CENTER + wx.wxALL, 5 )
+	
+	m_staticText66 = wx.wxStaticText( pnl_MotorCtrl, wx.wxID_ANY, "Reversed", wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+	m_staticText66:Wrap( -1 )
+	szrSpRelays2:Add( m_staticText66, wx.wxGBPosition( 3, 4 ), wx.wxGBSpan( 1, 1 ), wx.wxALIGN_CENTER + wx.wxALL, 5 )
+	
+	sp.txtSpindle10 = wx.wxTextCtrl( pnl_MotorCtrl, wx.wxID_ANY, "", wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxTE_CENTRE + wx.wxTE_READONLY )
+	sp.txtSpindle10:SetForegroundColour( wx.wxColour( 0, 0, 0 ) )
+	sp.txtSpindle10:SetBackgroundColour( wx.wxColour( 255, 255, 255 ) )
+	
+	szrSpRelays2:Add( sp.txtSpindle10, wx.wxGBPosition( 4, 3 ), wx.wxGBSpan( 1, 1 ), wx.wxALIGN_CENTER + wx.wxALL, 5 )
+	
+	sp.txtSpindle11 = wx.wxTextCtrl( pnl_MotorCtrl, wx.wxID_ANY, "", wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxTE_CENTRE + wx.wxTE_READONLY )
+	sp.txtSpindle11:SetForegroundColour( wx.wxColour( 0, 0, 0 ) )
+	sp.txtSpindle11:SetBackgroundColour( wx.wxColour( 255, 255, 255 ) )
+	
+	szrSpRelays2:Add( sp.txtSpindle11, wx.wxGBPosition( 4, 4 ), wx.wxGBSpan( 1, 1 ), wx.wxALIGN_CENTER + wx.wxALL, 5 )
+	
+	m_staticText68 = wx.wxStaticText( pnl_MotorCtrl, wx.wxID_ANY, "Direction Port", wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+	m_staticText68:Wrap( -1 )
+	szrSpRelays2:Add( m_staticText68, wx.wxGBPosition( 5, 3 ), wx.wxGBSpan( 1, 1 ), wx.wxALIGN_CENTER + wx.wxALL, 5 )
+	
+	m_staticText69 = wx.wxStaticText( pnl_MotorCtrl, wx.wxID_ANY, "Direction Pin", wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+	m_staticText69:Wrap( -1 )
+	szrSpRelays2:Add( m_staticText69, wx.wxGBPosition( 5, 4 ), wx.wxGBSpan( 1, 1 ), wx.wxALIGN_CENTER + wx.wxALL, 5 )
+	
+	m_staticText70 = wx.wxStaticText( pnl_MotorCtrl, wx.wxID_ANY, "Direction\nActive Low", wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxALIGN_CENTRE )
+	m_staticText70:Wrap( -1 )
+	szrSpRelays2:Add( m_staticText70, wx.wxGBPosition( 5, 5 ), wx.wxGBSpan( 1, 1 ), wx.wxALIGN_CENTER + wx.wxALL, 5 )
+	
+	sp.txtSpindle12 = wx.wxTextCtrl( pnl_MotorCtrl, wx.wxID_ANY, "", wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxTE_CENTRE + wx.wxTE_READONLY )
+	sp.txtSpindle12:SetForegroundColour( wx.wxColour( 0, 0, 0 ) )
+	sp.txtSpindle12:SetBackgroundColour( wx.wxColour( 255, 255, 255 ) )
+	
+	szrSpRelays2:Add( sp.txtSpindle12, wx.wxGBPosition( 6, 3 ), wx.wxGBSpan( 1, 1 ), wx.wxALIGN_CENTER + wx.wxALL, 5 )
+	
+	sp.txtSpindle13 = wx.wxTextCtrl( pnl_MotorCtrl, wx.wxID_ANY, "", wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxTE_CENTRE + wx.wxTE_READONLY )
+	sp.txtSpindle13:SetForegroundColour( wx.wxColour( 0, 0, 0 ) )
+	sp.txtSpindle13:SetBackgroundColour( wx.wxColour( 255, 255, 255 ) )
+	
+	szrSpRelays2:Add( sp.txtSpindle13, wx.wxGBPosition( 6, 4 ), wx.wxGBSpan( 1, 1 ), wx.wxALIGN_CENTER + wx.wxALL, 5 )
+	
+	sp.txtSpindle14 = wx.wxTextCtrl( pnl_MotorCtrl, wx.wxID_ANY, "", wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxTE_CENTRE + wx.wxTE_READONLY )
+	sp.txtSpindle14:SetForegroundColour( wx.wxColour( 0, 0, 0 ) )
+	sp.txtSpindle14:SetBackgroundColour( wx.wxColour( 255, 255, 255 ) )
+	
+	szrSpRelays2:Add( sp.txtSpindle14, wx.wxGBPosition( 6, 5 ), wx.wxGBSpan( 1, 1 ), wx.wxALIGN_CENTER + wx.wxALL, 5 )
+	
+	m_staticText71 = wx.wxStaticText( pnl_MotorCtrl, wx.wxID_ANY, "Step Port", wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+	m_staticText71:Wrap( -1 )
+	szrSpRelays2:Add( m_staticText71, wx.wxGBPosition( 7, 3 ), wx.wxGBSpan( 1, 1 ), wx.wxALIGN_CENTER + wx.wxALL, 5 )
+	
+	m_staticText72 = wx.wxStaticText( pnl_MotorCtrl, wx.wxID_ANY, "Step Pin", wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+	m_staticText72:Wrap( -1 )
+	szrSpRelays2:Add( m_staticText72, wx.wxGBPosition( 7, 4 ), wx.wxGBSpan( 1, 1 ), wx.wxALIGN_CENTER + wx.wxALL, 5 )
+	
+	m_staticText73 = wx.wxStaticText( pnl_MotorCtrl, wx.wxID_ANY, "Step\nActive Low", wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxALIGN_CENTRE )
+	m_staticText73:Wrap( -1 )
+	szrSpRelays2:Add( m_staticText73, wx.wxGBPosition( 7, 5 ), wx.wxGBSpan( 1, 1 ), wx.wxALIGN_CENTER + wx.wxALL, 5 )
+	
+	sp.txtSpindle15 = wx.wxTextCtrl( pnl_MotorCtrl, wx.wxID_ANY, "", wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxTE_CENTRE + wx.wxTE_READONLY )
+	sp.txtSpindle15:SetForegroundColour( wx.wxColour( 0, 0, 0 ) )
+	sp.txtSpindle15:SetBackgroundColour( wx.wxColour( 255, 255, 255 ) )
+	
+	szrSpRelays2:Add( sp.txtSpindle15, wx.wxGBPosition( 8, 3 ), wx.wxGBSpan( 1, 1 ), wx.wxALIGN_CENTER + wx.wxALL, 5 )
+	
+	sp.txtSpindle16 = wx.wxTextCtrl( pnl_MotorCtrl, wx.wxID_ANY, "", wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxTE_CENTRE + wx.wxTE_READONLY )
+	sp.txtSpindle16:SetForegroundColour( wx.wxColour( 0, 0, 0 ) )
+	sp.txtSpindle16:SetBackgroundColour( wx.wxColour( 255, 255, 255 ) )
+	
+	szrSpRelays2:Add( sp.txtSpindle16, wx.wxGBPosition( 8, 4 ), wx.wxGBSpan( 1, 1 ), wx.wxALIGN_CENTER + wx.wxALL, 5 )
+	
+	sp.txtSpindle17 = wx.wxTextCtrl( pnl_MotorCtrl, wx.wxID_ANY, "", wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxTE_CENTRE + wx.wxTE_READONLY )
+	sp.txtSpindle17:SetForegroundColour( wx.wxColour( 0, 0, 0 ) )
+	sp.txtSpindle17:SetBackgroundColour( wx.wxColour( 255, 255, 255 ) )
+	
+	szrSpRelays2:Add( sp.txtSpindle17, wx.wxGBPosition( 8, 5 ), wx.wxGBSpan( 1, 1 ), wx.wxALIGN_CENTER + wx.wxALL, 5 )
+	
+	m_staticText80 = wx.wxStaticText( pnl_MotorCtrl, wx.wxID_ANY, "Modbus Enable", wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+	m_staticText80:Wrap( -1 )
+	szrSpRelays2:Add( m_staticText80, wx.wxGBPosition( 5, 0 ), wx.wxGBSpan( 1, 1 ), wx.wxALL, 5 )
+	
+	sp.txtSpindle23 = wx.wxTextCtrl( pnl_MotorCtrl, wx.wxID_ANY, "", wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxTE_CENTRE + wx.wxTE_READONLY )
+	sp.txtSpindle23:SetForegroundColour( wx.wxColour( 0, 0, 0 ) )
+	sp.txtSpindle23:SetBackgroundColour( wx.wxColour( 255, 255, 255 ) )
+	
+	szrSpRelays2:Add( sp.txtSpindle23, wx.wxGBPosition( 5, 1 ), wx.wxGBSpan( 1, 1 ), wx.wxALL, 5 )
+	
+	m_staticText78 = wx.wxStaticText( pnl_MotorCtrl, wx.wxID_ANY, "Max ADC Count", wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+	m_staticText78:Wrap( -1 )
+	szrSpRelays2:Add( m_staticText78, wx.wxGBPosition( 6, 0 ), wx.wxGBSpan( 1, 1 ), wx.wxALL, 5 )
+	
+	sp.txtSpindle24 = wx.wxTextCtrl( pnl_MotorCtrl, wx.wxID_ANY, "", wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxTE_CENTRE + wx.wxTE_READONLY )
+	sp.txtSpindle24:SetForegroundColour( wx.wxColour( 0, 0, 0 ) )
+	sp.txtSpindle24:SetBackgroundColour( wx.wxColour( 255, 255, 255 ) )
+	
+	szrSpRelays2:Add( sp.txtSpindle24, wx.wxGBPosition( 6, 1 ), wx.wxGBSpan( 1, 1 ), wx.wxALL, 5 )
+	
+	m_staticText79 = wx.wxStaticText( pnl_MotorCtrl, wx.wxID_ANY, "Modbus Register", wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+	m_staticText79:Wrap( -1 )
+	szrSpRelays2:Add( m_staticText79, wx.wxGBPosition( 7, 0 ), wx.wxGBSpan( 1, 1 ), wx.wxALL, 5 )
+	
+	sp.txtSpindle25 = wx.wxTextCtrl( pnl_MotorCtrl, wx.wxID_ANY, "", wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxTE_CENTRE + wx.wxTE_READONLY )
+	sp.txtSpindle25:SetForegroundColour( wx.wxColour( 0, 0, 0 ) )
+	sp.txtSpindle25:SetBackgroundColour( wx.wxColour( 255, 255, 255 ) )
+	
+	szrSpRelays2:Add( sp.txtSpindle25, wx.wxGBPosition( 7, 1 ), wx.wxGBSpan( 1, 1 ), wx.wxALL, 5 )
+	
+	
+	pnl_MotorCtrl:SetSizer( szrSpRelays2 )
+	pnl_MotorCtrl:Layout()
+	szrSpRelays2:Fit( pnl_MotorCtrl )
+	szrSpindle:Add( pnl_MotorCtrl, wx.wxGBPosition( 1, 0 ), wx.wxGBSpan( 3, 3 ), wx.wxEXPAND  + wx. wxALL, 5 )
+	
+	pnl_Pulleys = wx.wxPanel( m_scrolledWindow3, wx.wxID_ANY, wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxSIMPLE_BORDER + wx.wxTAB_TRAVERSAL )
+	pnl_Pulleys:SetBackgroundColour( wx.wxColour( 255, 255, 255 ) )
+	
+	szrSpPulleys = wx.wxGridBagSizer( 0, 0 )
+	szrSpPulleys:SetFlexibleDirection( wx.wxBOTH )
+	szrSpPulleys:SetNonFlexibleGrowMode( wx.wxFLEX_GROWMODE_SPECIFIED )
+	
+	m_staticText244 = wx.wxStaticText( pnl_Pulleys, wx.wxID_ANY, "Pulleys", wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+	m_staticText244:Wrap( -1 )
+	m_staticText244:SetFont( wx.wxFont( 12, 74, 90, 92, false, "Arial" ) )
+	
+	szrSpPulleys:Add( m_staticText244, wx.wxGBPosition( 0, 1 ), wx.wxGBSpan( 1, 3 ), wx.wxALIGN_CENTER + wx.wxALL, 5 )
+	
+	
+	szrSpPulleys:Add( 125, 0 , wx.wxGBPosition( 1, 0 ), wx.wxGBSpan( 1, 1 ), wx.wxEXPAND, 5 )
+	
+	m_staticText84 = wx.wxStaticText( pnl_Pulleys, wx.wxID_ANY, "Current Pulley", wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+	m_staticText84:Wrap( -1 )
+	szrSpPulleys:Add( m_staticText84, wx.wxGBPosition( 1, 1 ), wx.wxGBSpan( 1, 1 ), wx.wxALIGN_CENTER_VERTICAL + wx.wxALL, 5 )
+	
+	sp.txtSpindle31 = wx.wxTextCtrl( pnl_Pulleys, wx.wxID_ANY, "", wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxTE_CENTRE + wx.wxTE_READONLY )
+	sp.txtSpindle31:SetForegroundColour( wx.wxColour( 0, 0, 0 ) )
+	sp.txtSpindle31:SetBackgroundColour( wx.wxColour( 255, 255, 255 ) )
+	
+	szrSpPulleys:Add( sp.txtSpindle31, wx.wxGBPosition( 1, 2 ), wx.wxGBSpan( 1, 1 ), wx.wxALL, 5 )
+	
+	grdPulleys = wx.wxGrid( pnl_Pulleys, wx.wxID_ANY, wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+	
+	-- Grid
+	grdPulleys:CreateGrid( 25, 4 )
+	grdPulleys:EnableEditing( false )
+	grdPulleys:EnableGridLines( true )
+	grdPulleys:EnableDragGridSize( false )
+	grdPulleys:SetMargins( 25, 0 )
+	
+	-- Columns
+	grdPulleys:EnableDragColSize( true )
+	grdPulleys:SetColLabelSize( 30 )
+	grdPulleys:SetColLabelValue( 0, "Min RPM" )
+	grdPulleys:SetColLabelValue( 1, "Max RPM" )
+	grdPulleys:SetColLabelValue( 2, "Ratio" )
+	grdPulleys:SetColLabelValue( 3, "Reverse" )
+	grdPulleys:SetColLabelAlignment( wx.wxALIGN_CENTRE, wx.wxALIGN_CENTRE )
+	
+	-- Rows
+	grdPulleys:AutoSizeRows()
+	grdPulleys:EnableDragRowSize( true )
+	grdPulleys:SetRowLabelSize( 80 )
+	grdPulleys:SetRowLabelAlignment( wx.wxALIGN_CENTRE, wx.wxALIGN_CENTRE )
+	
+	-- Label Appearance
+	grdPulleys:SetLabelBackgroundColour( wx.wxColour( 255, 255, 255 ) )
+	
+	-- Cell Defaults
+	grdPulleys:SetDefaultCellBackgroundColour( wx.wxColour( 255, 255, 255 ) )
+	grdPulleys:SetDefaultCellAlignment( wx.wxALIGN_CENTRE, wx.wxALIGN_CENTRE )
+	szrSpPulleys:Add( grdPulleys, wx.wxGBPosition( 2, 1 ), wx.wxGBSpan( 1, 3 ), wx.wxALL, 5 )
+	
+	
+	pnl_Pulleys:SetSizer( szrSpPulleys )
+	pnl_Pulleys:Layout()
+	szrSpPulleys:Fit( pnl_Pulleys )
+	szrSpindle:Add( pnl_Pulleys, wx.wxGBPosition( 4, 0 ), wx.wxGBSpan( 1, 3 ), wx.wxEXPAND  + wx. wxALL, 5 )
+	
+	
+	m_scrolledWindow3:SetSizer( szrSpindle )
+	m_scrolledWindow3:Layout()
+	szrSpindle:Fit( m_scrolledWindow3 )
+	szrSpMain:Add( m_scrolledWindow3, 1, wx.wxEXPAND  + wx. wxALL, 5 )
+	
+	
+	tab_Spindle:SetSizer( szrSpMain )
+	tab_Spindle:Layout()
+	szrSpMain:Fit( tab_Spindle )
+	
+	nb_Main:AddPage( tab_Spindle, "Spindle", false )
+	
+	-- IO
+	tab_IO = wx.wxPanel( nb_Main, wx.wxID_ANY, wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxTAB_TRAVERSAL )
+	szrIOMain = wx.wxBoxSizer( wx.wxVERTICAL )
+	
+	szrIO = wx.wxBoxSizer( wx.wxHORIZONTAL )
+	
+	grdInputs = wx.wxGrid( tab_IO, wx.wxID_ANY, wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+	
+	-- Grid
+	grdInputs:CreateGrid( 53, 5 )
+	grdInputs:EnableEditing( false )
+	grdInputs:EnableGridLines( true )
+	grdInputs:EnableDragGridSize( false )
+	grdInputs:SetMargins( 25, 0 )
+	
+	-- Columns
+	grdInputs:SetColSize( 0, 100 )
+	grdInputs:SetColSize( 1, 50 )
+	grdInputs:SetColSize( 2, 50 )
+	grdInputs:SetColSize( 3, 50 )
+	grdInputs:SetColSize( 4, 50 )
+	grdInputs:EnableDragColSize( true )
+	grdInputs:SetColLabelSize( 30 )
+	grdInputs:SetColLabelValue( 0, "Input" )
+	grdInputs:SetColLabelValue( 1, "Active" )
+	grdInputs:SetColLabelValue( 2, "Port" )
+	grdInputs:SetColLabelValue( 3, "Pin" )
+	grdInputs:SetColLabelValue( 4, "Low Act" )
+	grdInputs:SetColLabelAlignment( wx.wxALIGN_CENTRE, wx.wxALIGN_CENTRE )
+	
+	-- Rows
+	grdInputs:EnableDragRowSize( true )
+	grdInputs:SetRowLabelSize( 1 )
+	grdInputs:SetRowLabelAlignment( wx.wxALIGN_CENTRE, wx.wxALIGN_CENTRE )
+	
+	-- Label Appearance
+	grdInputs:SetLabelBackgroundColour( wx.wxColour( 255, 255, 255 ) )
+	
+	-- Cell Defaults
+	grdInputs:SetDefaultCellBackgroundColour( wx.wxColour( 255, 255, 255 ) )
+	grdInputs:SetDefaultCellAlignment( wx.wxALIGN_LEFT, wx.wxALIGN_TOP )
+	szrIO:Add( grdInputs, 0, wx.wxALL + wx.wxEXPAND, 15 )
+	
+	grdOutputs = wx.wxGrid( tab_IO, wx.wxID_ANY, wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+	
+	-- Grid
+	grdOutputs:CreateGrid( 30, 5 )
+	grdOutputs:EnableEditing( false )
+	grdOutputs:EnableGridLines( true )
+	grdOutputs:EnableDragGridSize( false )
+	grdOutputs:SetMargins( 25, 0 )
+	
+	-- Columns
+	grdOutputs:SetColSize( 0, 100 )
+	grdOutputs:SetColSize( 1, 50 )
+	grdOutputs:SetColSize( 2, 50 )
+	grdOutputs:SetColSize( 3, 50 )
+	grdOutputs:SetColSize( 4, 50 )
+	grdOutputs:EnableDragColSize( true )
+	grdOutputs:SetColLabelSize( 30 )
+	grdOutputs:SetColLabelValue( 0, "Output" )
+	grdOutputs:SetColLabelValue( 1, "Active" )
+	grdOutputs:SetColLabelValue( 2, "Port" )
+	grdOutputs:SetColLabelValue( 3, "Pin" )
+	grdOutputs:SetColLabelValue( 4, "Low Act" )
+	grdOutputs:SetColLabelAlignment( wx.wxALIGN_CENTRE, wx.wxALIGN_CENTRE )
+	
+	-- Rows
+	grdOutputs:EnableDragRowSize( true )
+	grdOutputs:SetRowLabelSize( 1 )
+	grdOutputs:SetRowLabelAlignment( wx.wxALIGN_CENTRE, wx.wxALIGN_CENTRE )
+	
+	-- Label Appearance
+	grdOutputs:SetLabelBackgroundColour( wx.wxColour( 255, 255, 255 ) )
+	
+	-- Cell Defaults
+	grdOutputs:SetDefaultCellBackgroundColour( wx.wxColour( 255, 255, 255 ) )
+	grdOutputs:SetDefaultCellAlignment( wx.wxALIGN_LEFT, wx.wxALIGN_TOP )
+	szrIO:Add( grdOutputs, 0, wx.wxALL, 15 )
+	
+	
+	szrIOMain:Add( szrIO, 1, wx.wxALIGN_CENTER, 5 )
+	
+	
+	tab_IO:SetSizer( szrIOMain )
+	tab_IO:Layout()
+	szrIOMain:Fit( tab_IO )
+	nb_Main:AddPage(tab_IO, "Inputs/Outputs", false )
+	
+	--- XML
+	tab_XML = wx.wxPanel( nb_Main, wx.wxID_ANY, wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxTAB_TRAVERSAL )
+	szrXML = wx.wxBoxSizer( wx.wxVERTICAL )
+	
+	grdXML = wx.wxGrid( tab_XML, wx.wxID_ANY, wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxALWAYS_SHOW_SB )
+	
+	-- Grid
+	grdXML:CreateGrid( 0, 2 )
+	grdXML:EnableEditing( false )
+	grdXML:EnableGridLines( true )
+	grdXML:SetGridLineColour( wx.wxColour( 0, 0, 0 ) )
+	grdXML:EnableDragGridSize( false )
+	grdXML:SetMargins( 25, 0 )
+	
+	-- Columns
+	grdXML:SetColSize( 0, 350 )
+	grdXML:SetColSize( 1, 150 )
+	grdXML:EnableDragColSize( false )
+	grdXML:SetColLabelSize( 80 )
+	grdXML:SetColLabelValue( 0, "Key" )
+	grdXML:SetColLabelValue( 1, "Value" )
+	grdXML:SetColLabelAlignment( wx.wxALIGN_CENTRE, wx.wxALIGN_CENTRE )
+	
+	-- Rows
+	grdXML:AutoSizeRows()
+	grdXML:EnableDragRowSize( false )
+	grdXML:SetRowLabelSize( 1 )
+	grdXML:SetRowLabelAlignment( wx.wxALIGN_CENTRE, wx.wxALIGN_CENTRE )
+	
+	-- Label Appearance
+	grdXML:SetLabelBackgroundColour( wx.wxColour( 255, 255, 255 ) )
+	grdXML:SetLabelFont( wx.wxFont( 14, 74, 90, 92, false, "Arial" ) )
+	grdXML:SetLabelTextColour( wx.wxColour( 0, 0, 0 ) )
+	
+	-- Cell Defaults
+	grdXML:SetDefaultCellBackgroundColour( wx.wxColour( 255, 255, 255 ) )
+	grdXML:SetDefaultCellTextColour( wx.wxColour( 0, 0, 0 ) )
+	grdXML:SetDefaultCellAlignment( wx.wxALIGN_CENTRE, wx.wxALIGN_CENTRE )
+	szrXML:Add( grdXML, 0, wx.wxALIGN_CENTER + wx.wxALL, 5 )
+	
+	tab_XML:SetSizer( szrXML )
+	tab_XML:Layout()
+	szrXML:Fit( tab_XML )
+	nb_Main:AddPage( tab_XML, "XML", true )
+	
+	szrPanel:Add( nb_Main, wx.wxGBPosition( 1, 0 ), wx.wxGBSpan( 1, 8 ), wx.wxEXPAND  + wx. wxALL, 5 )
+	
+	
+	Panel:SetSizer( szrPanel )
+	Panel:Layout()
+	szrPanel:Fit( Panel )
+	
+	-- Connect Events
+	
+	btn_OpenXML:Connect( wx.wxEVT_COMMAND_BUTTON_CLICKED, function(event)
+	--implements btn_OpenXMLOnButtonClick
+		local file = wx.wxFileDialog(Panel, "Select XML File To Import", "", "", "XML files (*.xml)|*.xml", 
+								 wx.wxFD_OPEN,wx.wxDefaultPosition,wx.wxDefaultSize, "File Dialog" );
+			if(file:ShowModal() == wx.wxID_OK)then
+				local path = file:GetPath();
+				local dir;
+				local filename;
+				dir,filename = wx.wxFileName.SplitPath(path)
+				XML = readXML(path)
+				txt_Filename:SetValue(tostring(filename))
+				LoadXML(XML)
+			end 
+	end )
+	
+	-- End body
+	--*************************************************************
+	--*************************************************************
+	if(mcLuaPanelParent == nil)then
+        Panel:Fit()
+        mainframe:Connect(wx.wxEVT_CLOSE_WINDOW,function (event)  					  
+			--Use close wizards function to close the wizard and remove it from the table
+				if (_G["closeWizards"] ~= nil) then
+					closeWizards(wizname)
+				else
+					--mainframe:Close(true)
+					mainframe:Destroy()
+				end
+		end )
+		--Call open wizard function to show the frame and add the wizard to the table
+			if (_G["openWizard"] ~= nil) then
+				--Check that the openWizard function exits before calling it
+				--If not then just show the frame.
+				openWizard(wizname, mainframe)
+			else
+				mainframe:Show(true)
+			end
+    else
+		window = Panel:GetParent()
+		window:Connect(wx.wxID_ANY, wx.wxEVT_SIZE,
+		function(event)
+			local wsize = event:GetSize()
+			Panel:SetSize(wsize)
+			Panel:FitInside()
+		end)
+	end
+	--*************************************************************
+	--*************************************************************
+	-- Connect Events
+	
+end
+
+
+Main()

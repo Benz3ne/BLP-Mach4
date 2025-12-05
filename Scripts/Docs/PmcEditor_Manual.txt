@@ -1,0 +1,1103 @@
+Contents
+
+# PmcEditor User's Manual
+
+Version 1.01
+Authors: Jonathan Westhues, Steve Murphree
+©Copyright: Newfangled Solutions™ 2013-2016
+Rev:1.01
+2016-06-05
+
+## Contents
+
+- Introduction
+- Basics
+- Simulation
+- Outputting Code
+- Implementing the PMC in Mach4GUI
+- Instruction Reference
+- Codeing Style
+
+# PmcEditor User's Manual (Compiled)
+
+
+
+# Contents
+
+
+Contents
+
+# PmcEditor User's Manual
+
+Version 1.01
+Authors: Jonathan Westhues, Steve Murphree
+©Copyright: Newfangled Solutions™ 2013-2016
+Rev:1.01
+2016-06-05
+
+## Contents
+
+- Introduction
+- Basics
+- Simulation
+- Outputting Code
+- Implementing the PMC in Mach4GUI
+- Instruction Reference
+- Codeing Style
+
+
+
+# Introduction
+
+
+Introduction
+
+## Introduction
+
+PmcEditor generates LUA, ANSI C, or interpretable byte code for Mach 4 Core.
+
+PLCs are often programmed in `ladder logic.' A simple program might look like this:
+
+   ||                                                                    ||
+   ||    Xbutton1           Tdon           Rchatter           Yred       ||
+ 1 ||-------]/[---------[TON 1.000 s]-+-------]/[--------------( )-------||
+   ||                                 |                                  ||
+   ||    Xbutton2           Tdof      |                                  ||
+   ||-------]/[---------[TOF 2.000 s]-+                                  ||
+   ||                                                                    ||
+   ||                                                                    ||
+   ||                                                                    ||
+   ||    Rchatter            Ton             Tnew           Rchatter     ||
+ 2 ||-------]/[---------[TON 1.000 s]----[TOF 1.000 s]---------( )-------||
+   ||                                                                    ||
+   ||                                                                    ||
+   ||                                                                    ||
+   ||------[END]---------------------------------------------------------||
+   ||                                                                    ||
+   ||                                                                    ||
+
+TON is a turn-on delay; TOF is a turn-off delay. The --] [-- statements are inputs, which behave sort of like the contacts on a relay. The --( )-- statements are outputs, which behave sort of like the coil of a relay. Many good references for ladder logic are available on the Internet and elsewhere; details specific to this implementation are given below.
+
+A number of differences are apparent:
+
+- The program is presented in graphical format, not as a textual list of statements. Many people will initially find this easier to understand.
+
+- At the most basic level, programs look like circuit diagrams, with relay contacts (inputs) and coils (outputs). This is intuitive to programmers with knowledge of electric circuit theory.
+
+- The ladder logic compiler takes care of what gets calculated where. You do not have to write code to determine when the outputs have to get recalculated based on a change in the inputs or a timer event, and you do not have to specify the order in which these calculations must take place; the PLC tools do that for you.
+
+PmcEditor outputs ladder logic to source code. The following languages are supported:
+
+- ANSI C
+
+- LUA
+
+- Iterpretable Byte Code
+
+Using PmcEditor, you can draw a ladder diagram for your program. You can simulate the logic in real time in the editor. Then when you are convinced that it is correct you can assign Core Signals and Device I/O to the program inputs and outputs. Once you have assigned the Core Signals and Device I/O, you can output the language code you have chosen.
+
+PmcEditor is designed to be somewhat similar to most commercial PLC programming systems. There are some exceptions, and a lot of things aren't standard in industry anyways. Carefully read the description of each instruction, even if it looks familiar. This document assumes basic knowledge of ladder logic and of the structure of PLC software (the execution cycle: read inputs, compute, write outputs).
+
+
+
+# Basics
+
+
+Basics
+
+## Basics
+
+PmcEditor starts with an empty program. 
+    PmcEditor uses its own internal format for the program; it cannot import 
+    logic from any other tool.
+
+The intial program will have one one empty rung. You could add an instruction to it; for example you could add a set of contacts (Instruction -> Insert Contacts) named `Xnew'. `X' means that the contacts will be tied to a device input or core output signal. You could assign an input to it later, after renaming the contacts. The first letter of a name indicates what kind of object it is.  For example:
+
+- Xname -- tied to a core output or a device input/LI>
+- Yname -- tied to a core input or a device output
+
+- Rname -- `internal relay': a bit in memory
+
+- Tname -- a timer; turn-on delay, turn-off delay, or retentive
+
+- Cname -- a counter, either count-up or count-down
+
+- Aname -- a read from a core or device register
+
+- name  -- a general-purpose (integer) `internal variable'
+
+Choose the rest of the name so that it describes what the object does,
+    and so that it is unique within the program. The same name always refers
+    to the same object within the program. For example, it would be an error
+    to have a turn-on delay (TON) called `Tdelay' and a turn-off delay (TOF)
+    called `Tdelay' in the same program, since each counter needs its own
+    memory. On the other hand, it would be correct to have a retentive timer
+    (RTO) called `Tdelay' and a reset instruction (RES) associated with
+    `Tdelay', since it that case you want both instructions to work with
+    the same timer.
+
+    Variable names can consist of letters, numbers, and underscores
+    (_). A variable name must not start with a number. Variable names are
+    case-sensitive.
+
+    The general variable instructions (MOV, ADD, EQU, etc.) can work on
+    variables with any name. This means that they can access timer and
+    counter accumulators. This may sometimes be useful; for example, you
+    could check if the count of a timer is in a particular range.
+
+    
+    Variables are always floating point numbers. Variables are always treated as signed. You can 
+    specify literals as normal decimal numbers (0, 1234.001, -56). You can also
+    specify ASCII character values ('A', 'z') by putting the character in 
+    single-quotes. You can use an ASCII character code in most places that 
+    you could use a decimal number.
+
+    At the bottom of the screen you will see a list of all the objects in 
+    the program. This list is automatically generated from the program; 
+    there is no need to keep it up to date by hand. Most objects do not 
+    need any configuration. `Xname', `Yname', and `Aname' objects must be 
+    assigned to a core or device object, however. 
+
+    You can modify the program by inserting or deleting instructions. The 
+    cursor in the program display blinks to indicate the currently selected 
+    instruction and the current insertion point. If it is not blinking then 
+    press  or click on an instruction. Now you can delete the current 
+    instruction, or you can insert a new instruction to the right or left 
+    (in series with) or above or below (in parallel with) the selected 
+    instruction. Some operations are not allowed. For example, no instructions 
+    are allowed to the right of a coil.
+
+    The program starts with just one rung. You can add more rungs by selecting 
+    Insert Rung Before/After in the Logic menu. You could get the same effect 
+    by placing many complicated subcircuits in parallel within one rung, 
+    but it is more clear to use multiple rungs.
+
+    Once you have written a program, you can test it in simulation, and then 
+    you can generate the output code.
+
+
+
+# Simulation
+
+
+Simulation
+
+## Simulation
+
+    To enter simulation mode, choose Simulate -> Simulation Mode or press 
+    <Ctrl+M>. The program is shown differently in simulation mode. There is 
+    no longer a cursor. The instructions that are energized show up bright 
+    red; the instructions that are not appear greyed. Press the space bar to 
+    run the PLC one cycle. To cycle continuously in real time, choose 
+    Simulate -> Start Real-Time Simulation, or press <Ctrl+R>. The display of 
+    the program will be updated in real time as the program state changes.
+
+    You can set the state of the inputs to the program by double-clicking 
+    them in the list at the bottom of the screen, or by double-clicking an
+    `Xname' contacts instruction in the program. If you change the state of 
+    an input pin then that change will not be reflected in how the program 
+    is displayed until the PLC cycles; this will happen automatically if 
+    you are running a real time simulation, or when you press the space bar.
+
+
+
+# Outputting Code
+
+
+Outputting Code
+
+## Outputting Code
+
+    Ultimately the point is to generate source code for various languages 
+    that implement the ladder logic. First you 
+    must assign Core Signals and Device I/O objects to each `Xname' or `Yname' object. Do this by 
+    double-clicking the object name in the list at the bottom of the screen. 
+    A dialog will pop up where you can choose an unallocated pin from a list.
+
+    Then you must choose the cycle time for which to run the PMC module. This 
+    is set under the Settings->PMC Configuration... menu. In general you 
+    should not need to change the cycle time; 10 ms is a good value for most 
+    applications. 
+
+    Now you can generate code from your program. Choose Generate->Generate, 
+    or Generate->Generate As... if you have previously generated this program 
+    and you want to specify a different output file name. If there are no 
+    errors then PmcEditor will generate the source code.
+
+
+
+# Implementing the PMC in Mach4GUI
+
+
+Implementing the PMC in Mach4GUI
+
+## Implementing the PMC in Mach4GUI
+
+### Implementing a PMC module for the first time
+
+PMC objects should be saved and generated in the <machdir>\Pmc directory.   
+
+Once a PMC module has been generated, it can then be used in the Mach4GUI.  To do this, edit the screen and choose the very top screen element in the screen tree manager.  Next, find the property called "PMC Objects".  Clicking on the elipses button will display a list of defined PMC objects.  You can choose one of more PMC objects.
+
+### Modifying the PMC object
+
+Once a PMC module has been chosen in the Mach4GUI screen, it is no longer necessary to edit the screen set.  The PMC object can simply be modified and regenerated and the changes will automatically be used.
+
+NOTE: PMC object modification is only allowed when the control is in the disabled state.
+
+
+
+# Instruction Reference
+
+
+Instruction Reference
+
+## Instruction Reference
+
+The Instruction Reference documentation has been devided up into categories to help quickly locate instruction information for a given task.
+
+- Contacts
+- Coils
+- Turn-On/Off Delays
+- Retentive Timer
+- Reset
+- One-Shots
+- Open/Short Circuits
+- Master Control Relay
+- Move
+- Arithmetic Operations
+- Compare Operations
+- Counters
+- Shift Register
+- Look Up Table
+- Piecewise Linear Table
+- Register Read
+- Register Write
+- Stock Actions
+- MPG Actions
+
+
+
+# Contacts
+
+
+Contacts
+
+## Contacts
+
+### Contact, Normally Open
+
+                                Xname           Rname          Yname
+                             ----] [----     ----] [----    ----] [----
+
+    If the signal going into the instruction is false, then the output 
+    signal is false. If the signal going into the instruction is true, 
+    then the output signal is true if and only if the given input pin, 
+    output pin, or internal relay is true, else it is false. This 
+    instruction can examine the state of an input pin, an output pin, 
+    or an internal relay.
+
+### Contact, Normally Closed
+
+                                Xname           Rname          Yname
+                             ----]/[----     ----]/[----    ----]/[----
+
+    If the signal going into the instruction is false, then the output
+    signal is false. If the signal going into the instruction is true,
+    then the output signal is true if and only if the given input,
+    output, or internal relay is false, else it is false. This
+    instruction can examine the state of an input, an output,
+    or an internal relay. This is the opposite of a normally open contact.
+
+
+
+# Coils
+
+
+Coils
+
+## Coils
+
+### Coil, Normal
+
+                                Rname           Yname
+                             ----( )----     ----( )----
+
+    If the signal going into the instruction is false, then the given
+    internal relay or output pin is cleared false. If the signal going
+    into this instruction is true, then the given internal relay or output
+    pin is set true. It is not meaningful to assign an input variable to a
+    coil. This instruction must be the rightmost instruction in its rung.
+
+### Coil, Negated
+
+                                Rname           Yname
+                             ----(/)----     ----(/)----
+
+    If the signal going into the instruction is true, then the given
+    internal relay or output pin is cleared false. If the signal going
+    into this instruction is false, then the given internal relay or
+    output is set true. It is not meaningful to assign an input
+    variable to a coil.  This is the opposite of a normal coil. This
+    instruction must be the rightmost instruction in its rung.
+
+### Coil, Set-Only
+
+                                Rname           Yname
+                             ----(S)----     ----(S)----
+
+    If the signal going into the instruction is true, then the given
+    internal relay or output pin is set true. Otherwise the internal
+    relay or output state is not changed. This instruction can only
+    change the state of a coil from false to true, so it is typically
+    used in combination with a reset-only coil. This instruction must
+    be the rightmost instruction in its rung.
+
+### Coil, Reset-Only
+
+                                Rname           Yname
+                             ----(R)----     ----(R)----
+
+    If the signal going into the instruction is true, then the given
+    internal relay or output is cleared false. Otherwise the
+    internal relay or output state is not changed. This instruction
+    instruction can only change the state of a coil from true to false,
+    so it is typically used in combination with a set-only coil. This
+    instruction must be the rightmost instruction in its rung.
+
+
+
+# Delays
+
+
+Delays
+
+## Delays
+
+### Turn-On Delay
+
+                                Tdon 
+                           -[TON 1.000 s]-
+
+    When the signal going into the instruction goes from false to true,
+    the output signal stays false for 1.000 s before going true. When the
+    signal going into the instruction goes from true to false, the output
+    signal goes false immediately. The timer is reset every time the input
+    goes false; the input must stay true for 1000 consecutive milliseconds
+    before the output will go true. The delay is configurable.
+
+    The `Tname' variable counts up from zero in units of scan times. The
+    TON instruction outputs true when the counter variable is greater
+    than or equal to the given delay. It is possible to manipulate the
+    counter variable elsewhere, for example with a MOV instruction.
+
+### Turn-Off Delay
+
+                                Tdoff 
+                           -[TOF 1.000 s]-
+
+    When the signal going into the instruction goes from true to false,
+    the output signal stays true for 1.000 s before going false. When
+    the signal going into the instruction goes from false to true,
+    the output signal goes true immediately. The timer is reset every
+    time the input goes false; the input must stay false for 1000
+    consecutive milliseconds before the output will go false. The delay
+    is configurable.
+
+    The `Tname' variable counts up from zero in units of scan times. The
+    TON instruction outputs true when the counter variable is greater
+    than or equal to the given delay. It is possible to manipulate the
+    counter variable elsewhere, for example with a MOV instruction.
+
+
+
+# Retentive Timer
+
+
+Retentive Timer
+
+## Retentive Timer
+
+                                Trto  
+                           -[RTO 1.000 s]-
+
+    This instruction keeps track of how long its input has been true. If
+    its input has been true for at least 1.000 s, then the output is
+    true. Otherwise the output is false. The input need not have been
+    true for 1000 consecutive milliseconds; if the input goes true
+    for 0.6 s, then false for 2.0 s, and then true for 0.4 s, then the
+    output will go true. After the output goes true it will stay true
+    even after the input goes false, as long as the input has been true
+    for longer than 1.000 s. This timer must therefore be reset manually,
+    using the reset instruction.
+
+    The `Tname' variable counts up from zero in units of scan times. The
+    TON instruction outputs true when the counter variable is greater
+    than or equal to the given delay. It is possible to manipulate the
+    counter variable elsewhere, for example with a MOV instruction.
+
+
+
+# Reset
+
+
+Reset
+
+## Reset
+
+ 
+                               Trto             Citems
+                           ----{RES}----     ----{RES}----
+
+    This instruction resets a timer or a counter. TON and TOF timers are
+    automatically reset when their input goes false or true, so RES is
+    not required for these timers. RTO timers and CTU/CTD counters are
+    not reset automatically, so they must be reset by hand using a RES
+    instruction. When the input is true, the counter or timer is reset;
+    when the input is false, no action is taken. This instruction must
+    be the rightmost instruction in its rung.
+
+
+
+# One Shots
+
+
+One Shots
+
+## One Shots
+
+### One-Shot Rising
+
+ 
+                                   _
+                           --[OSR_/ ]--
+ 
+ 
+    This instruction normally outputs false. If the instruction's input
+    is true during this scan and it was false during the previous scan
+    then the output is true. It therefore generates a pulse one scan
+    wide on each rising edge of its input signal. This instruction is
+    useful if you want to trigger events off the rising edge of a signal.
+
+### One-Shot Faling
+
+ 
+                                 _
+                           --[OSF \_]--
+ 
+ 
+    This instruction normally outputs false. If the instruction's input
+    is false during this scan and it was true during the previous scan
+    then the output is true. It therefore generates a pulse one scan
+    wide on each falling edge of its input signal. This instruction is
+    useful if you want to trigger events off the falling edge of a signal.
+
+
+
+# Open/Short Circuits
+
+
+Open/Short Circuits
+
+## Open/Short Circuits
+
+                           ----+     +----      ----+----+----
+
+    The output condition of a short-circuit is always equal to its
+    input condition. The output condition of an open-circuit is always
+    false. These are mostly useful for debugging.
+
+
+
+# Master Control Relay
+
+
+Master Control Relay
+
+## Master Control Relay
+
+                           -{MASTER RLY}-
+
+    By default, the rung-in condition of every rung is true. If a master
+    control relay instruction is executed with a rung-in condition of
+    false, then the rung-in condition for all following rungs becomes
+    false. This will continue until the next master control relay
+    instruction is reached (regardless of the rung-in condition of that
+    instruction). These instructions must therefore be used in pairs:
+    one to (maybe conditionally) start the possibly-disabled section,
+    and one to end it.
+
+
+
+# Move
+
+
+Move
+
+## Move
+
+                            {destvar :=  }      {Tret :=     }
+                           -{ 123     MOV}-    -{ srcvar  MOV}-
+
+    When the input to this instruction is true, it sets the given
+    destination variable equal to the given source variable or
+    constant. When the input to this instruction is false nothing
+    happens. You can assign to any variable with the move instruction;
+    this includes timer and counter state variables, which can be
+    distinguished by the leading `T' or `C'. For example, an instruction
+    moving 0 into `Tretentive' is equivalent to a reset (RES) instruction
+    for that timer. This instruction must be the rightmost instruction
+    in its rung.
+
+
+
+# Arithmetic Operations
+
+
+Arithmetic Operations
+
+## Arithmetic Operations
+
+                             {ADD  kay  :=}       {SUB  Ccnt :=}",
+                            -{ 'a' + 10   }-     -{ Ccnt - 10  }-",
+
+                             {MUL  dest :=}       {DIV  dv :=  }",
+                            -{ var * -990 }-     -{ dv / -10000}-",
+
+    When the input to this instruction is true, it sets the given
+    destination variable equal to the given expression. The operands
+    can be either variables (including timer and counter variables)
+    or constants. These instructions use 16 bit signed math. Remember
+    that the result is evaluated every cycle when the input condition
+    true. If you are incrementing or decrementing a variable (i.e. if
+    the destination variable is also one of the operands) then you
+    probably don't want that; typically you would use a one-shot so that
+    it is evaluated only on the rising or falling edge of the input
+    condition. Divide truncates; 8 / 3 = 2. This instruction must be
+    the rightmost instruction in its rung.
+
+
+
+# Compare Operations
+
+
+Compare Operations
+
+## Compare Operations
+
+                        [var ==]        [var >]        [1 >=]
+                       -[ var2 ]-      -[ 1   ]-      -[ Ton]-
+
+                        [var /=]       [-4 <   ]       [1 <=]
+                       -[ var2 ]-     -[ vartwo]-     -[ Cup]-
+
+    If the input to this instruction is false then the output is false. If
+    the input is true then the output is true if and only if the given
+    condition is true. This instruction can be used to compare (equals,
+    is greater than, is greater than or equal to, does not equal,
+    is less than, is less than or equal to) a variable to a variable,
+    or to compare a variable to a signed constant.
+
+
+
+# Counters
+
+
+Counters
+
+## Counters
+
+### Up/Down Counters
+
+                               Cname          Cname
+                           --[CTU >=5]--  --[CTD >=5]--
+
+    A counter increments (CTU, count up) or decrements (CTD, count
+    down) the associated count on every rising edge of the rung input
+    condition (i.e. what the rung input condition goes from false to
+    true). The output condition from the counter is true if the counter
+    variable is greater than or equal to 5, and false otherwise. The
+    rung output condition may be true even if the input condition is
+    false; it only depends on the counter variable. You can have CTU
+    and CTD instructions with the same name, in order to increment and
+    decrement the same counter. The RES instruction can reset a counter,
+    or you can perform general variable operations on the count variable.
+
+### Circular Counters
+
+                               Cname
+                           --{CTC 0:7}--
+
+    A circular counter works like a normal CTU counter, except that
+    after reaching its upper limit, it resets its counter variable
+    back to 0. For example, the counter shown above would count 0, 1,
+    2, 4, 5, 6, 7, 0, 1, 2, 3, 4, 5, 6, 7, 0, 2,.... This is useful in
+    combination with conditional statements on the variable `Cname';
+    you can use this like a sequencer. CTC counters clock on the rising
+    edge of the rung input condition condition. This instruction must
+    be the rightmost instruction in its rung.
+
+
+
+# Shift Register
+
+
+Shift Register
+
+## Shift Register
+
+                            {SHIFT REG   }
+                           -{ reg0..3    }-
+
+    A shift register is associated with a set of variables. For example,
+    this shift register is associated with the variables `reg0', `reg1',
+    `reg2', and `reg3'. The input to the shift register is `reg0'. On
+    every rising edge of the rung-in condition, the shift register will
+    shift right. That means that it assigns `reg3 := reg2', `reg2 :=
+    reg1'. and `reg1 := reg0'. `reg0' is left unchanged. A large shift
+    register can easily consume a lot of memory. This instruction must
+    be the rightmost instruction in its rung.
+
+
+
+# Look Up Table
+
+
+Look Up Table
+
+## Look Up Table
+
+                            {dest :=     }
+                           -{ LUT[i]     }-
+
+    A look-up table is an ordered set of n values. When the rung-in
+    condition is true, the integer variable `dest' is set equal to the
+    entry in the lookup table corresponding to the integer variable
+    `i'. The index starts from zero, so `i' must be between 0 and
+    (n-1). The behaviour of this instruction is not defined if the
+    index is outside this range. This instruction must be the rightmost
+    instruction in its rung.
+
+
+
+# Piecewise Linear Table
+
+
+Piecewise Linear Table
+
+## Piecewise Linear Table
+
+> PIECEWISE LINEAR TABLE    {yvar :=     }
+                           -{ PWL[xvar]  }-
+
+    This is a good way to approximate a complicated function or
+    curve. It might, for example, be useful if you are trying to apply
+    a calibration curve to convert a raw output voltage from a sensor
+    into more convenient units.
+
+    Assume that you are trying to approximate a function that converts
+    an integer input variable, x, to an integer output variable, y. You
+    know the function at several points; for example, you might know that
+
+        f(0)   = 2
+        f(5)   = 10
+        f(10)  = 50
+        f(100) = 100
+
+This means that the points"
+
+        (x0, y0)   = (  0,   2)
+        (x1, y1)   = (  5,  10)
+        (x2, y2)   = ( 10,  50)
+        (x3, y3)   = (100, 100)
+
+    lie on that curve. You can enter those 4 points into a table
+    associated with the piecewise linear instruction. The piecewise linear
+    instruction will look at the value of xvar, and set the value of
+    yvar. It will set yvar in such a way that the piecewise linear curve
+    will pass through all of the points that you give it; for example,
+    if you set xvar = 10, then the instruction will set yvar = 50.
+
+    If you give the instruction a value of xvar that lies between two
+    of the values of x for which you have given it points, then the
+    instruction will set yvar so that (xvar, yvar) lies on the
+    straight line connecting those two points in the table.  For example, xvar =
+    55 gives an output of yvar = 75. (The two points in the table are
+    (10, 50) and (100, 100). 55 is half-way between 10 and 100, and 75
+    is half-way between 50 and 100, so (55, 75) lies on the line that
+    connects those two points.)
+
+    The points must be specified in ascending order by x coordinate. It
+    may not be possible to perform mathematical operations required for
+    certain look-up tables using 16-bit integer math; if this is the
+    case, then PmcEditor will warn you. For example, this look up table
+    will produce an error:"
+
+        (x0, y0)    = (  0,   0)
+        (x1, y1)    = (300, 300)
+
+    You can fix these errors by making the distance between points in
+    the table smaller. For example, this table is equivalent to the one
+    given above, and it does not produce an error:
+
+        (x0, y0)    = (  0,   0)
+        (x1, y1)    = (150, 150)
+        (x2, y2)    = (300, 300)
+
+    It should hardly ever be necessary to use more than five or six
+    points. Adding more points makes your code larger and slower to
+    execute. The behaviour if you pass a value of `xvar' greater than
+    the greatest x coordinate in the table or less than the smallest x
+    coordinate in the table is undefined. This instruction must be the
+    rightmost instruction in its rung.",
+
+
+
+# Register Read
+
+
+Register Read
+
+## Register Read
+
+                                  Aname
+                           --{READ REGISTER}--
+
+    If the input condition to this instruction",
+    is true, then a single sample from the defined register is acquired and
+    stored in the variable `Aname'. This variable can subsequently be
+    manipulated with general variable operations (less than, greater than,
+    arithmetic, and so on). Assign a pin to the `Axxx' variable in the
+    same way that you would assign a pin to a digital input or output,
+    by double-clicking it in the list at the bottom of the screen. If
+    the input condition to this rung is false then the variable `Aname'
+    is left unchanged.
+
+
+
+# Register Write
+
+
+Register Write
+
+## Register Write
+
+                                   var
+                           --{WRITE REGISTER}-
+
+    If the input condition to this instruction
+    is true, then a single write to the defined register is done with the 
+    contents of the supplied in the variable `var'.
+    If the input condition to this rung is false then the register is left 
+    unchanged.
+
+
+
+# Stock Actions
+
+
+Stock Actions
+
+## Stock Actions
+
+Stock Actions provide a means for a rung to implement a an action similar to the Button Codes in Mach4GUI.  If the rung condition is true, then the action will be initiated.  Double clicking on the action will show a dialog with which the action can be chosen from a drop down list.
+
+## WARNING:
+
+It is important to note that any stock action must be preceeded by a one-shot rising (OSR) or a one-shot falling (OSF), otherwise, the action will be repeated while the rung condition is true.
+
+The following actions are provided at this time:
+
+- Cycle Start
+
+- Cycle Stop
+
+- Feed Hold
+
+- Tool Path Regen
+
+- Tool Path Jog Follow On
+
+- Tool Path Jog Follow Off
+
+- Tool Path Jog Follow Toggle
+
+- Enable On
+
+- Enable Off
+
+- Enable Toggle
+
+- Distance To Go Toggle
+
+- Machine Coordinates Toggle
+
+- Soft Limits On
+
+- Soft Limits Off
+
+- Soft Limits Toggle
+
+- Block Delete On
+
+- Block Delete Off
+
+- Block Delete Toggle
+
+- Block Delete 1 On
+
+- Block Delete 1 Off
+
+- Block Delete 1 Toggle
+
+- Block Delete 2 On
+
+- Block Delete 2 Off
+
+- Block Delete 2 Toggle
+
+- Block Delete 3 On
+
+- Block Delete 3 Off
+
+- Block Delete 3 Toggle
+
+- Block Delete 4 On
+
+- Block Delete 4 Off
+
+- Block Delete 4 Toggle
+
+- Block Delete 5 On
+
+- Block Delete 5 Off
+
+- Block Delete 5 Toggle
+
+- Block Delete 6 On
+
+- Block Delete 6 Off
+
+- Block Delete 6 Toggle
+
+- Block Delete 7 On
+
+- Block Delete 7 Off
+
+- Block Delete 7 Toggle
+
+- Block Delete 8 On
+
+- Block Delete 8 Off
+
+- Block Delete 8 Toggle
+
+- Block Delete 9 On
+
+- Block Delete 9 Off
+
+- Block Delete 9 Toggle
+
+- Single Block On
+
+- Single Block Off
+
+- Single Block Toggle
+
+- Optional Stop On
+
+- Optional Stop Off
+
+- Optional Stop Toggle
+
+- Flood On
+
+- Flood Off
+
+- Flood Toggle
+
+- Mist On
+
+- Mist Off
+
+- Mist Toggle
+
+- Limit OV On
+
+- Limit OV Off
+
+- Limit OV Toggle
+
+- Jog Mode Toggle
+
+- Jog Mode Step
+
+- Jog Mode Continuous
+
+- Cycle Jog Increment
+
+- Jog Inc. 1
+
+- Jog Inc. 2
+
+- Jog Inc. 3
+
+- Jog Inc. 4
+
+- Jog Inc. 5
+
+- Jog Inc. 6
+
+- Jog Inc. 7
+
+- Jog Inc. 8
+
+- Jog Inc. 9
+
+- Jog Inc. 10
+
+- Tool Path Display Mode
+
+- Spindle CW
+
+- Spindle CCW
+
+- Spindle Off
+
+- Zero X, Y, Z, A, B, and C
+
+- Home X, Y, Z, A, B, and C
+
+- Jog X, Y, Z, A, B, and C positive
+
+- Jog X, Y, Z, A, B, and C negative
+
+- Jog X, Y, Z, A, B, and C off
+
+
+
+# MPG Actions
+
+
+MPG Actions
+
+## MPG Actions
+
+MPG Actions provide a means for a rung to implement an MPG action similar to using the MachAPI mcMpg* function calls. If the rung condition is true, then the action will be initiated.  Double clicking on the action will show a dialog with which the MPG action can be chosen from a drop down list. Two parameters are provided:
+
+- MPG Number: This parameter specifies the MPG for the desired action.
+
+- Value: This parameter specifies the value to be used by the action.
+
+Both parameters can be specified as a literal constant or an existing internal variable.
+
+## WARNING:
+
+It is important to note that any MPG action must be preceeded by a one-shot rising (OSR) or a one-shot falling (OSF), otherwise, the action will be repeated while the rung condition is true.
+
+The following MPG actions are provided at this time:
+
+- Set MPG Axis
+
+- Set MPG Increment
+
+- Set MPG Rate
+
+- Set MPG Accel
+
+- Set MPG Enabled
+
+- Set MPG Reversed
+
+
+
+# Coding Style
+
+
+Coding Style
+
+### Coding Style
+
+    
+PmcEditor allows multiple coils in parallel in a single rung. This means that you can do things like this:
+
+   ||       Xa               Ya        ||
+ 1 ||-------] [--------------( )-------||
+   ||                                  ||
+   ||       Xb               Yb        ||
+   ||-------] [------+-------( )-------||
+   ||                |                 ||
+   ||                |       Yc        ||
+   ||                +-------( )-------||
+   ||                                  ||
+
+Instead of this:
+
+   ||       Xa               Ya        ||
+ 1 ||-------] [--------------( )-------||
+   ||                                  ||
+   ||                                  ||
+   ||                                  ||
+   ||                                  ||
+   ||       Xb               Yb        ||
+ 2 ||-------] [--------------( )-------||
+   ||                                  ||
+   ||                                  ||
+   ||                                  ||
+   ||                                  ||
+   ||       Xb               Yc        ||
+ 3 ||-------] [--------------( )-------||
+   ||                                  ||
+
+    This means that in theory you could write any program as one giant rung, 
+    and there is no need to use multiple rungs at all. In practice that 
+    would be a bad idea, because as rungs become more complex they become 
+    more difficult to edit without deleting and redrawing a lot of logic.
+
+    Still, it is often a good idea to group related logic together as a single 
+    rung. This generates nearly identical code to if you made separate rungs, 
+    but it shows that they are related when you look at them on the ladder 
+    diagram.
+
+    In general, it is considered poor form to write code in such a way that 
+    its output depends on the order of the rungs. For example, this code 
+    isn't very good if both Xa and Xb might ever be true:
+
+   ||       Xa         {v  :=       }  ||
+ 1 ||-------] [--------{ 12      MOV}--||
+   ||                                  ||
+   ||       Xb         {v  :=       }  ||
+   ||-------] [--------{ 23      MOV}--||
+   ||                                  ||
+   ||                                  ||
+   ||                                  ||
+   ||                                  ||
+   ||      [v >]             Yc        ||
+ 2 ||------[ 15]-------------( )-------||
+   ||                                  ||
+
+    I will break this rule if in doing so I can make a piece of code 
+    significantly more compact, though. For example, here is how I would 
+    convert a 4-bit binary quantity on Xb3:0 into an integer:
+
+   ||                                   {v  :=       }  ||
+ 3 ||-----------------------------------{ 0       MOV}--||
+   ||                                                   ||
+   ||       Xb0                  {ADD  v  :=}           ||
+   ||-------] [------------------{ v + 1    }-----------||
+   ||                                                   ||
+   ||       Xb1                  {ADD  v  :=}           ||
+   ||-------] [------------------{ v + 2    }-----------||
+   ||                                                   ||
+   ||       Xb2                  {ADD  v  :=}           ||
+   ||-------] [------------------{ v + 4    }-----------||
+   ||                                                   ||
+   ||       Xb3                  {ADD  v  :=}           ||
+   ||-------] [------------------{ v + 8    }-----------||
+   ||                                                   ||
+
+    If the MOV statement were moved to the bottom of the rung instead of the 
+    top, then the value of v when it is read elsewhere in the program would 
+    be 0. The output of this code therefore depends on the order in which 
+    the instructions are evaluated. Considering how cumbersome it would be 
+    to code this any other way, I accept that.

@@ -1,0 +1,12 @@
+function m112()
+	
+	inst = mc.mcGetInstance()
+
+	local hSig, rc = mc.mcSignalGetHandle(inst, mc.OSIG_OUTPUT51)
+	mc.mcSignalSetState(hSig, 1)
+	
+end
+
+if (mc.mcInEditor() == 1) then
+	m112()
+end

@@ -1,0 +1,203 @@
+--[[ Comprehensive Probe Debug - Testing v1.0
+Dependencies: mc
+
+INSTALLATION INSTRUCTIONS:
+Save as m3998.mcs in your profile's Macros folder
+Test from MDI: M3998
+
+Purpose: Comprehensive debug to find why probe doesn't move
+Tests regular motion, probe motion, and all inhibit conditions
+]]--
+
+function m3998()
+    local inst = mc.mcGetInstance()
+    local startTime = os.clock()
+    
+    -- Log function with timestamp
+    local function LOG(msg)
+        local elapsed = os.clock() - startTime
+        mc.mcCntlSetLastError(inst, string.format("[%.3fs] %s", elapsed, msg))
+        wx.wxMilliSleep(30)
+    end
+    
+    LOG("=== COMPREHENSIVE PROBE DEBUG START ===")
+    
+    -- 1. Machine State
+    local state = mc.mcCntlGetState(inst)
+    LOG("Machine state: " .. tostring(state) .. " (0=IDLE, 100=FRUN, 200=UNKNOWN)")
+    
+    -- 2. Feed Rate Override Check
+    local fro = mc.mcCntlGetFRO(inst)
+    LOG(string.format("Feed Rate Override: %d%%", fro))
+    
+    if fro == 0 then
+        LOG("ERROR: FRO is 0% - no motion will occur!")
+        LOG(">>> Set FRO above 0% and try again!")
+        return
+    end
+    
+    -- 3. Axis Enable Check
+    local xEnabled = mc.mcAxisIsEnabled(inst, mc.X_AXIS)
+    LOG(string.format("X axis enabled: %s", tostring(xEnabled)))
+    
+    if xEnabled ~= 1 then
+        LOG("ERROR: X axis is not enabled!")
+        return
+    end
+    
+    -- 4. Motion Inhibit Check
+    local inhibitHandle = mc.mcSignalGetHandle(inst, mc.ISIG_MOTION_INHIBIT)
+    local motionInhibit = "N/A"
+    if inhibitHandle and inhibitHandle > 0 then
+        motionInhibit = tostring(mc.mcSignalGetState(inhibitHandle))
+    end
+    LOG("Motion inhibit signal: " .. motionInhibit)
+    
+    -- 5. Probe Signal Check
+    local probeHandle = mc.mcSignalGetHandle(inst, mc.ISIG_PROBE)
+    if not probeHandle or probeHandle <= 0 then
+        LOG("ERROR: Probe signal not configured!")
+        return
+    end
+    
+    local probeState = mc.mcSignalGetState(probeHandle)
+    LOG("Probe signal state: " .. tostring(probeState) .. " (0=open, 1=triggered)")
+    
+    -- Monitor probe state continuously
+    local function checkProbe()
+        return mc.mcSignalGetState(probeHandle)
+    end
+    
+    -- 6. Set modes
+    LOG("Setting G90 G94...")
+    local rc = mc.mcCntlGcodeExecuteWait(inst, "G90 G94")
+    LOG("G90 G94 return code: " .. tostring(rc))
+    
+    -- 7. Get initial position
+    local startX = mc.mcAxisGetPos(inst, mc.X_AXIS)
+    LOG(string.format("Starting position: X%.4f", startX))
+    
+    -- ==== TEST 1: Regular G1 Move ====
+    LOG("")
+    LOG("=== TEST 1: Regular G1 Move ===")
+    
+    local g1Target = startX + 0.100  -- Move 0.1" positive
+    local g1Cmd = string.format("G1 X%.4f F20", g1Target)
+    
+    LOG("Command: " .. g1Cmd)
+    LOG("Probe before G1: " .. tostring(checkProbe()))
+    
+    rc = mc.mcCntlGcodeExecuteWait(inst, g1Cmd)
+    
+    local afterG1 = mc.mcAxisGetPos(inst, mc.X_AXIS)
+    LOG(string.format("G1 return code: %d", rc))
+    LOG(string.format("Position after G1: X%.4f (moved %.4f)", afterG1, afterG1 - startX))
+    LOG("Probe after G1: " .. tostring(checkProbe()))
+    
+    if math.abs(afterG1 - startX) < 0.001 then
+        LOG("ERROR: G1 didn't move! Motion is blocked")
+        LOG(">>> State 200 blocks ALL motion!")
+        -- Continue anyway to test probe behavior
+    else
+        LOG("SUCCESS: G1 motion works")
+        
+        -- Move back
+        LOG("Moving back to start...")
+        mc.mcCntlGcodeExecuteWait(inst, string.format("G1 X%.4f F50", startX))
+        wx.wxMilliSleep(500)
+    end
+    
+    -- ==== TEST 2: G31 Probe (not G31.1) ====
+    LOG("")
+    LOG("=== TEST 2: G31 Probe Move ===")
+    
+    local beforeProbe = mc.mcAxisGetPos(inst, mc.X_AXIS)
+    local g31Target = beforeProbe + 0.500  -- Probe 0.5"
+    local g31Cmd = string.format("G31 X%.4f F10", g31Target)
+    
+    LOG(string.format("Starting at: X%.4f", beforeProbe))
+    LOG("Command: " .. g31Cmd)
+    LOG("Probe before G31: " .. tostring(checkProbe()))
+    
+    -- Clear old probe data
+    local oldProbe = mc.mcCntlGetPoundVar(inst, 5061)
+    
+    rc = mc.mcCntlGcodeExecuteWait(inst, g31Cmd)
+    
+    local afterG31 = mc.mcAxisGetPos(inst, mc.X_AXIS)
+    local probePos = mc.mcCntlGetPoundVar(inst, 5061)
+    
+    LOG(string.format("G31 return code: %d", rc))
+    LOG(string.format("Position after G31: X%.4f (moved %.4f)", afterG31, afterG31 - beforeProbe))
+    LOG(string.format("Probe position #5061: %.4f", probePos))
+    LOG("Probe after G31: " .. tostring(checkProbe()))
+    
+    if math.abs(afterG31 - beforeProbe) < 0.001 then
+        LOG("ERROR: G31 didn't move!")
+    else
+        LOG("SUCCESS: G31 moved")
+        -- Move back
+        mc.mcCntlGcodeExecuteWait(inst, string.format("G1 X%.4f F50", startX))
+        wx.wxMilliSleep(500)
+    end
+    
+    -- ==== TEST 3: G31.1 Probe ====
+    LOG("")
+    LOG("=== TEST 3: G31.1 Probe Move ===")
+    
+    local beforeProbe1 = mc.mcAxisGetPos(inst, mc.X_AXIS)
+    local g311Target = beforeProbe1 + 0.500
+    local g311Cmd = string.format("G31.1 X%.4f F10", g311Target)
+    
+    LOG(string.format("Starting at: X%.4f", beforeProbe1))
+    LOG("Command: " .. g311Cmd)
+    LOG("Probe before G31.1: " .. tostring(checkProbe()))
+    
+    rc = mc.mcCntlGcodeExecuteWait(inst, g311Cmd)
+    
+    local afterG311 = mc.mcAxisGetPos(inst, mc.X_AXIS)
+    local probePos1 = mc.mcCntlGetPoundVar(inst, 5061)
+    
+    LOG(string.format("G31.1 return code: %d", rc))
+    LOG(string.format("Position after G31.1: X%.4f (moved %.4f)", afterG311, afterG311 - beforeProbe1))
+    LOG(string.format("Probe position #5061: %.4f", probePos1))
+    LOG("Probe after G31.1: " .. tostring(checkProbe()))
+    
+    if math.abs(afterG311 - beforeProbe1) < 0.001 then
+        LOG("ERROR: G31.1 didn't move!")
+    else
+        LOG("SUCCESS: G31.1 moved")
+    end
+    
+    -- ==== TEST 4: Incremental Mode Test ====
+    LOG("")
+    LOG("=== TEST 4: Incremental G91 Test ===")
+    
+    LOG("Setting G91 mode...")
+    mc.mcCntlGcodeExecuteWait(inst, "G91")
+    
+    local beforeInc = mc.mcAxisGetPos(inst, mc.X_AXIS)
+    LOG(string.format("Starting at: X%.4f", beforeInc))
+    LOG("Command: G1 X0.050 F20 (incremental)")
+    
+    rc = mc.mcCntlGcodeExecuteWait(inst, "G1 X0.050 F20")
+    
+    local afterInc = mc.mcAxisGetPos(inst, mc.X_AXIS)
+    LOG(string.format("Position after: X%.4f (moved %.4f)", afterInc, afterInc - beforeInc))
+    
+    -- ==== SUMMARY ====
+    LOG("")
+    LOG("=== SUMMARY ===")
+    LOG("State 200 status:")
+    LOG("- Feed rate override: " .. tostring(fro) .. "%")
+    LOG("- X axis enabled: " .. tostring(xEnabled))
+    LOG("- Probe signal OK: " .. tostring(probeHandle > 0))
+    LOG("- Probe state: " .. tostring(probeState))
+    
+    -- Final state check
+    local finalState = mc.mcCntlGetState(inst)
+    LOG("Final machine state: " .. tostring(finalState))
+    
+    local totalTime = os.clock() - startTime
+    LOG(string.format("=== DEBUG COMPLETE in %.3f seconds ===", totalTime))
+end

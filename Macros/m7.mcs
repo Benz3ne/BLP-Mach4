@@ -1,0 +1,5 @@
+function m7()
+    local inst = mc.mcGetInstance()
+    local hSig = mc.mcSignalGetHandle(inst, mc.OSIG_MISTON)
+    mc.mcSignalSetState(hSig, 1)
+end

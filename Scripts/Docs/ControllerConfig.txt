@@ -1,0 +1,680 @@
+Mach4 CNC Controller
+ Software Installation and
+ Con iguration Guide
+ 10/26/22
+ 1 Of 25
+Copyright © 2014 Newfangled Solutions, Artsoft USA, All Rights Reserved
+ The following are registered trademarks of Microsoft Corporation: Microsoft, Windows. Any 
+other trademarks used in this manual are the property of the respective trademark holder.
+ Table of Contents
+ Chapter 1 Introduc on to CNC Systems.......................................................................................................4
+ Before You Begin.....................................................................................................................................4
+ Introduc on............................................................................................................................................4
+ Mach4 Layout.........................................................................................................................................5
+ Chapter 2 Installing Mach4 So ware...........................................................................................................6
+ Installa on..............................................................................................................................................6
+ Downloading...........................................................................................................................................6
+ Installing.................................................................................................................................................7
+ Run the installer.....................................................................................................................................7
+ Se ng up the Profile..............................................................................................................................7
+ Create Shortcut to Profile.......................................................................................................................9
+ Chapter 3 Se ng up the soware...............................................................................................................9
+ Step by step se ng up of the machine...................................................................................................9
+ Plugins  and their func on....................................................................................................................10
+ Adding and removing Plugins...............................................................................................................10
+ Configuring  Plugins..............................................................................................................................11
+ Select Mo on device............................................................................................................................11
+ Other Plugins........................................................................................................................................12
+ Chapter 4 Machine Se ngs.......................................................................................................................12
+ Default Modal State..............................................................................................................................12
+ 2 Of 25
+Motor Tuning........................................................................................................................................14
+ Counts Per Unit.....................................................................................................................................15
+ Velocity.................................................................................................................................................16
+ Accelera on..........................................................................................................................................17
+ Backlash................................................................................................................................................17
+ Reverse.................................................................................................................................................17
+ Enable Delay.........................................................................................................................................17
+ Axis Mapping........................................................................................................................................18
+ Homing and Limits................................................................................................................................18
+ Home Direc on.....................................................................................................................................18
+ Home Order..........................................................................................................................................19
+ Home Offset.........................................................................................................................................19
+ Home Speed.........................................................................................................................................19
+ Home In Place.......................................................................................................................................20
+ So Enable............................................................................................................................................20
+ So Max / So Min...............................................................................................................................20
+ Signals in General.................................................................................................................................20
+ Input Signals.........................................................................................................................................23
+ Output Signals......................................................................................................................................24
+ Spindle..................................................................................................................................................26
+ Max Motor RPM...................................................................................................................................26
+ Motor as Spindle ..................................................................................................................................27
+ Tool Path Se ngs..................................................................................................................................27
+ Machine Limits.....................................................................................................................................27
+ 3 Of 25
+Chapter 1 Introduction to CNC Systems
+ This chapter introduces you to terminology used in the rest of this manual and explains the purpose 
+of the different components in a computer numerically controlled (CNC) system. CNC machines are in 
+many industries and becoming more popular in manufacturing lines. The tradi onal machine types are 
+Mills, Routers, Lathes and Plasma cu ers. The non tradi onal things that can be done with a CNC system 
+can be but not limited to laser measurement, pick and place, quil ng, assembly, laser cu ng, rapid 
+prototype, pain ng and so on. Because of the popularity of CNC's in non tradi onal CNC industries 
+Mach4 has been made to be extremely configurable and expandable. The ability to add and remove 
+modules will be covered in this manual but the screen and scrip ng customiza on will be covered in 
+their respec ve manuals.
+ Before You Begin....
+ Any machine tool is poten ally dangerous. Computer controlled machines are poten ally more 
+dangerous than manual ones because, for example, a computer is quite prepared to rotate an 8" 
+unbalanced cast iron four-jaw chuck at 3000 rpm, to plunge a panel-fielding router cu er deep into a 
+piece of oak, or to mill away the clamps holding your work to the table. Because we do not know the 
+details of your machine or local condi ons we can accept no responsibility for the performance of any 
+machine or any damage or injury caused by its use. It is your responsibility to ensure that you 
+understand the implica ons of what you design and build and to comply with any legisla on and codes 
+of prac ce applicable to your country or state. If you are in any doubt, be sure to seek guidance from a 
+professionally qualified expert rather than risk injury to yourself or to others.
+ Introduction
+ This document tells how to install and setup Mach4 mo on control so ware. The founda on of 
+Mach4 is the core called Mach4Core. Mach4Core can be setup in many configura ons for the following 
+machine configura ons general automa on, Mill, Router, Lathe, Plasma, Pick and Place, etc... A separate 
+document explains how to operate Mach4 with the specific machine types. The user interface has no 
+rela on to the core or mo on and/or IO devices used.  
+YOU WILL NEED TO READ THIS DOCUMENTATION! Mach4 is a very complex so ware package that 
+cannot be simply made "to work" without proper configura on. The install and play with the se ngs 
+approach may work for other so ware packages but this is not the case with Mach4. The me spent 
+reading the manual will save many hours of aggrava on and will result in a be er running machine. This 
+manual will give the steps in a logical order that must be followed.
+ Mach4 Layout
+ Mach4 is built on a central core called Mach4Core.dll and is what connects all the parts of Mach4 
+together. The following diagram (see Drawing 1) shows how all the components are connected:
+ 4 Of 25
+Mach4Core.dll
+ 3rd Party plugin
+ mcRegFile.dll
+ Registers in Mach4
+ mcKeyboard.dll
+ Keyboard Input
+ mcModbus.dll
+ Modbus Master
+ Sim.dll
+ Motion Simulation
+ plugin
+ mcLua.dll
+ Lua Scripting
+ All IO, Mo on and addon devices are plugins allowing them to be setup and configured in Mach4. The
+ plugins supplied by Newfangled Solu ons in the installer are added as appendixes to the end of this 
+document. Any plugins that are not being used should be removed from the system to lower the 
+overhead of Mach4 on the computer. Development partners of Newfangled Solu ons have access to 
+Mach4's SDK allowing them to manufacture plugins for other devices and/or func ons. The setup, 
+configura on, and any diagnos cs will not be covered in this manual for their devices.
+ Chapter 2 Installing Mach4 Software
+ If Mach4's installer is not on the machine, a copy can be found at www.machsupport.com in the 
+downloads sec on of the web page.  The machine tool does not need to be  connected to the web to 
+install Mach4.
+ If the machine is setup by an OEM or manufactured as a complete system, many if not all of the steps 
+in the following chapter may have already been done for you. The machine se ngs are all saved in the 
+profile directory with its own named directory. The named directories can be added and removed from 
+the profiles dialog but it is useful to know where the se ngs are. The named directory for each machine 
+contains all the machine se ngs in it's machine.ini file. The machine.ini file is backed up every me 
+mach4 is started so the user can roll back se ngs if there was an error made during so ware 
+5 Of 25
+configura on. The other directories in the named profile directory contain the macros, tool table, fixture 
+table, ini backups, screw maps and so on. If a new computer is being setup to replace the an exis ng PC 
+with Mach4 a simple copy of the profile named directory can be done to move over all the machine 
+se ngs.
+ Installation
+ Mach4 is distributed by Newfangled Solu ons over the internet. The so ware is available as a single 
+installer from the web-page with a download size of about 17MB. A er install Mach4 will be in demo 
+mode with a limita on of how long Gcode will execute. The me the soware can be run in demo is 
+about 20 min and then it will randomly stop in the middle of a run. Newfangled Solu ons recommends 
+that Mach4 is setup and tested before purchasing a license. Pricing and op ons are available at 
+www.machsupport.com
+ .
+ Downloading
+ Download the installa on package from www.machsupport.com
+ . Click on the download link and 
+save the self-installing file on the desktop or in a convenient folder. Mach4 needs to be install as 
+administrator, this can be done by right clicking on the self-installing file and telling it to “Run as 
+Administrator”. If installing in a remote loca on the installa on file can be saved and moved to a 
+machine that has no web access. The file will require a CD or USB drive to have adequate storage 
+volume.
+ Installing
+ This sec on will guide the process of installing Mach4 so ware. If Mach4 has been previously 
+installed on the machine, Mach4 can be installed on top of a previous installa on. There is no need to 
+uninstall before reinstalling.
+ If a machine is connected:
+ The machine that is connected to the computer should be set in a condi on that will not allow 
+mo on or IO to be triggered. If the machine can be disconnected please disconnect. If the machine 
+can't be disconnected please press the E-stop bu on to put the machine into an E-stop condi on.
+ Run the installer
+ Running the installer should be done as Administrator to allow Mach4 to be installed correctly. The 
+package will be installed by  default in the C:/Mach4 directory. It is recommended that you keep the 
+installa on directory as C:/Mach4 so the support staff can be er assist you with  your future support 
+6 Of 25
+needs. The basic install will load the appropriate files needed for each machine type (Lathe. Mill and 
+Plasma).
+ Setting up the Profile
+ To test the installa on double click on the Mach4 Icon that was placed on the desktop by the Mach4 
+installer. The icon will launch the MachGUI.exe executable and allow the selec on of a profile. It is 
+recommended that a new profile is setup for the machine that is being configured.  A new profile can be 
+generated by pressing the "Create Profile" bu on (see Figure 1),but this will create a blank profile. If a 
+similar setup is available the "Copy Profile" bu on (see Figure 1) can be used to copy all the profile 
+se ngs and create the profile.
+ A "Copy Profile" is very powerful as it will copy all the machine se ngs such as the tool data, 
+f
+ ixture data, ini backups, Macros, and all machine se ngs. This can be used later to make a test profile 
+to allow changes to be made without harming the running machine profile. The profile can be removed 
+a er tes ng is finished with the "Delete Profile" bu on. The profile se ngs can also be restored to a 
+previous session if a bad se ng has been made.   The "Restore Backup" bu on (see Figure 1) will launch 
+the Restore Backup dialog (see Figure 2). The machine.ini can be selected by looking at the Date and 
+Time if the last known running configura on.
+ 7 Of 25
+Create Shortcut to Profile
+ A shortcut can be created to allow the an immediate launch of the so ware with a selected profile. 
+By adding the following " /p Mach4Mill" to the end of the target string (see Figure 3) allows 
+MachGUI.exe to load and immediately load the "Mach4Mill" profile.
+ Any other profile can be loaded by changing the profile name a er the /p in the target string.
+ 8 Of 25
+Chapter 3 Setting up the software
+ Step by step setting up of the machine
+ In this sec on the machine specific se ngs will be done to transform the so ware into a func oning 
+machine controller. The first step was to create a new profile to save the machine se ngs. This was done
+ as part of the installa on process to protect the machine se ngs. If this was not done please review the 
+“Se ng up the Profile” sec on of this manual.
+ By the end of this chapter a typical machine should be setup and capable of mo on and IO (inputs and 
+outputs). In order to setup the machine the first step is to install all the plugins that you need for the 
+machine. Examples of plugins that may be needed could be Parallel Port and Modbus.
+ Note: If the soware is locked the configura on se ngs may not be available. If the so ware is locked 
+non of the configura on dialogs will be available.
+ Plugins  and their function
+ The plugins in Mach4 are the building blocks of the system. The plugins all use the Mach4core.dll as a 
+base but have the power to add func onality to the system. Plugins can perform the following func ons 
+Scip ng, Mo on, IO, File conversions, File loading, Mo on Genera on and countless other func ons. 
+The ability to add such func onality is fundamental in the setup of the machine. The most important 
+plugin is the mo on control plugin. A careful selec on of plugins needs to be done to add the 
+appropriate func onality for the machine to be configured.
+ Adding and removing Plugins
+ To add a plugin from a plugin archive file  m4plugw for windows, m4plugl for linux, and m4plugm for 
+mac. To load a plugin archive navigate to the "Configure Plugin" Dialog (see Figure 5) by naviga ng 
+Configure/Plugins (see Figure 4)
+ A plugin must be enabled to allow the plugin to func on. The soware must be restarted a er enabling
+ or disabling to allow the plugin func on to change its state. To remove a plugin highlight the row of the
+ plugin and press the "Remove" bu on (see Figure 5).
+ 9 Of 25
+Configuring  Plugins
+ The configura on of the plugins can be done from the "Configure Plugins" dialog (see Figure 5). Not 
+all plugins can be configured as they have no se ngs that can be customized. For the plugins that can be
+ configured a "configure" plugin bu on is available to the right of the plugin descrip on. When the 
+configure bu on is pressed it will launch the configura on dialog supplied by the Plugin author. The 
+configura on of the device must be done before the devices IO can be accessed or used by Mach4. The 
+configura on of the plugins incorporated in the installer will be covered in appendixes to this document.
+ Select Motion device
+ The first device that needs to be setup is the mo on device. To select the device go to 
+"Configure/Select Mo on Dev." (see Figure 4). The "Select Mo on Device " dialog (see Figure 6) allows 
+the appropriate mo on device to be selected. The selected mo on device tells the core what device can 
+drive the motors and the high speed IO.  The all other mo on devices are set to be deac vated and will 
+not allow the IO or mo on to be controlled.  The system must be restarted a er mo on device has been 
+selected to allow the mo on device plugin to do its startup ini aliza on.  A er the restart, the mo on 
+device needs to be configured. To configure the mo on device please use the Mo on device supplied 
+manual and con nue se ng up the soware once it is complete.
+ 10 Of 25
+Other Plugins
+ The rest of the IO devices can be setup at this me if the se ngs are known. Some plugins that are 
+not fundamental to the machine can be setup at a later me. It is the responsibility of the installer to 
+determine what is needed to get the machine running. An example of a plugin that would need to be 
+setup and configured would be if a PLC was installed to enable the servo amps and machine. In this case 
+no tes ng can be done without Modbus communica on to the PLC. To many machine configura ons can
+ be done for this manual to take them into account so careful planning on the part of the installer is the 
+only way to get a system setup.
+ Chapter 4 Machine Settings
+ Default Modal State
+ The default state of the soware is set at start-up or when the reset bu on is pressed. The following 
+op ons can be set and should only be set once. If the CV mode or some other se ng needs to be 
+changed in a Gcode or for a short period of me, MDI should be used. The configura on dialogs are only 
+used for se ng the start up state
+ All configura on se ngs can be found in the "Mach Configura on" dialog (see Figure 7). The following is 
+a descrip on of the se ngs that can be changed in the dialog (see Table 1).
+ Se ng
+ Descrip on
+ Units Mode
+ Traverse Mode
+ Inch G20 / G21 Millimeters, The default units the machine is setup in such as
+ Rapid G00 / Feed G01
+ 11 Of 25
+Mo on Mode Exact Stop G61 / Constant Velocity G64
+ Look Ahead Lines Number of lines the interpreter can chain together to get to the programmed 
+Feedrate
+ Distance Mode Absolute G90 / Incremental G91, Distance mode used by default
+ Arc Center Mode Absolute G90.1 / Incremental G91.1, Distance mode for the IJK circle centers. R 
+type centers are not effected.
+ Feed Mode Feed Per Rev G95 / Feed Per Min G94, feed mode used by linear and arc feed 
+moved. Feed per rev must have true spindle RPM to be used.
+ Ac ve Plane XY Plane G17 / XZ Plane G18 / YZ Plane G19, The plane selec on used for Drill 
+cycles, Arcs and cu er comp
+ Cycle Retract Ini al Z G98 / Rapid Plane G99, Selects the can cycle posi on for the moves in 
+the working axis. The working axis is perpendicular to the current ac ve plane.
+ Spindle Mode Constant RPM G97 / Constance surface Speed G96, Selects the default spindle 
+speed mode.
+ Ini aliza on Codes The init codes are run when the program starts and also when the reset is 
+pressed
+ Coolant Delay Time to wait for the Coolant to turn on
+ Mist Delay Time to wait for the Mist to turn on
+ Jog Increments Increments used for Incjog register
+ Gcode File 
+Extensions
+ The Gcode extensions for files to be executed. This sets the open able extensions
+ of the file open dialog.
+ Include Comments
+ in Message
+ Enabling the selec on will add all comments  in the Gcode file to the messages 
+log.
+ Deref Axis In E
+stop Enabling  sets the axis homing to be false when in E-stop is ac ve
+ Cycle Stop is 
+Controlled Stop
+ Enabling will set the axis to do a controlled decelera on when a Cycle Stop is 
+commanded. A very slight delay will be seen as the axis comes to a stop.
+ Table 1: General Se ngs
+Motor Tuning
+ Motor tuning is one of the most important se ngs in configuring a machine. The se ngs available in 
+the motor tuning dialog (see Figure 8) will allow the motor to be setup for the appropriate Counts per 
+Unit, Max Velocity, Accelera on, Backlash, Direc on Reversal and delay for enable signal. A detailed 
+descrip on of each of the se ngs will be given in the following sec on.
+ Example 1: CNC Router with rack and pinion drive
+ Stepper Motor with 2000 Steps per Rev
+ Belt Reduc on (Small Pulley 15 teeth(Input Gear), Large Pulley is 40 teeth(Output Gear))
+ Pitch Ra o of the Pinion gear is .765 “
+ (
+ Out putGear
+ I n putGear
+ )
+ *CountPerRev
+ PitchDia
+ (
+ 15
+ 40
+ )
+ *
+ 2000
+ . 765
+ =
+ 6971.67756
+ =
+ Count s perI nch
+ CountsPerInch
+ Example 2: CNC Lathe with a lead screw
+ Lead of screw .25 inch Per Rev
+ Belt Reduc on 15 tooth (Input Gear), 30 tooth (Output Gear)
+ Servo drive with 5000 encoder counts per rev
+ 13 Of 25
+( OutputGear
+ InputGear )*EncoderCountperRev
+ ScrewPitch =CountsPerInch
+ ( 15
+ 30 )*5000
+ .25 =40,000CountsPerInch
+ As a rule of thumb an inch machine should have the steps per unit greater then 5000 (200 for MM). A 
+value of 5000 will give a resolu on of .0002 inches. A greater number of steps per unit will give be er 
+performance as well as finer resolu on. The only issue with a very high count per unit is that the max 
+velocity can become limited. The mo on controller may only be able do deal with a limited number of 
+counts or steps per sec. Please check your mo on controllers documenta on to see get the max 
+frequency of the motors. If you would like to predict the max frequency this can also be done with 
+mathema cs.
+ MaxVelocity*CountsPerUnit
+ 60 =OutputFrequency
+ In the next examples we will consider the max velocity to be 200 Inches per minute
+ 40,000 counts per unit 200*40,000
+ 60 =133,333.333Hz=133.33kHz
+ 6971.67756 counts per unit 200*6971.67756
+ 60 =23,238.93Hz=32.24kHz
+ Velocity
+ The Velocity in the dialog is the maximum rate in units per min. This is also the velocity that will be 
+used for rapid moves when running Gcode.
+ Se ng a Stepper:
+ On a stepper machine to set the max velocity a series of test need to be made. The Steps per Unit 
+must be set before the axis can be tested. Set a value of a max velocity that seems to be reasonable and 
+test with a jog at 100% jog rate. If the axis is able to move without missing steps (most mes you will 
+hear a “buzzing” or “squealing” sound when steps are missed, repeat this process un l the upper limit is 
+found. Once the max velocity is found the max velocity should then be set to 20% - 30% less. To insure 
+that there are no missed steps during mo on.
+ Se ng a Servo:
+ To set the max velocity of a servo machine a small series of tests can be preformed or it can be done 
+mathema cally with some calcula ons. When tes ng the max rate of a servo and the max velocity is 
+exceeded the servo may fault from being out of posi on (digital servo) or will not get to max velocity and
+ make an abrupt stop. If ether one of the following happen the velocity must be lowered un l the 
+behavior is fixed.  Once the motor is fixed the velocity should be lowered by 5% to insure that the best 
+performance can be obtained.
+ 14 Of 25
+Acceleration
+ The max accelera on sets how quickly the motor can get to speed. The higher the accelera on the 
+faster the cu ng can be done. The higher the accelera on the quicker an axis can reverse and go around
+ corners. Cycle mes can be lowered by running higher accelera ons and lowering the max velocity. The 
+accelera on should not be raised to the point that it causes motor stalling, vibra on in the frame, or 
+other unwanted vibra on.
+ Backlash
+ Backlash is used to take out mechanical wind up in the drive system. The misconcep on is that 
+backlash can be used to fix “slop” in a screw/ ball-nut or slop in a rack and pinion. This can be used to 
+help fix the machine but is not the proper way to correct the problem. The only way to truly fix the issue 
+is to fix the mechanical issue. The backlash should never exceed .005 inches or .1 mm .
+ Reverse
+ The reverse sec on is used to reverse the mo on of the motor.
+ Enable Delay
+ Enable delay will allow a the enable signals to turn on with a delay. The delay can be used to stage the
+ enabling of the amps. This can be used to lower the inrush current by enabling the amps one by one.
+ Axis Mapping
+ The axis mapping dialog (see Figure 9) is used to set what motors are used for an axis as well as the 
+homing order and max limits for the axis. The motors can be assigned to an axis with a maximum of 6 
+motors per axis. The axis will use the lowest max velocity and the lowest accelera on. This is done to 
+allow slave motors to not have the same motor se ngs as the other motors associated to he axis. The 
+steps per unit also do not need to be the same for each motor that is part of the axis.
+ 15 Of 25
+Home Direction
+ This sets the direc on to home the axis (see Figure 10).  Pos for homing in the posi ve direc on. Neg 
+for homing in the nega ve direc on.
+ Home Order
+ The sequence the axis home in can be controlled by se ng the “Home Order” (see Figure 10). The 
+f
+ irst axis to home will be axis with the number 0 and then subsequent axis will home with the next 
+greatest home order value. For example, if you would like to home the Z axis first then the X and Y at the 
+same me the values would be as follows:
+ X=2
+ Y=2
+ Z=1
+ 16 Of 25
+to shi the home posi on if the home switch is not located at the end of travel.
+ Home Speed
+ The home speed is the rate the machine moves to detect the home switch (see Figure 10). The home 
+switch will set the machine zero posi on with the addi on of any home offset. The Home Speed is set as 
+a percentage of the max velocity of the axis. Example :
+ MaxVel = 200 Units Per Min
+ HomeSpeed = 20%
+ MaxVel*( HomeSpeed
+ 100 )=40UnitsPerMin
+ 200*( 20
+ 100 )=40UnitsPerMin
+ Home In Place
+ The Home in Place selec on tells the axis to set the machine zero where it is when a home axis is 
+requested (see Figure 10). This feature is used on machines that have no home switches or an axis that 
+has no home switch. On a machine with no home switches the axis can be moved to the end of the 
+travel and lined up with an indicator mark. With the machine at the home posi on the home can be 
+triggered for that axis se ng the machine posi on. This will allow the so limits to be used and fixture 
+offsets.
+ 17 Of 25
+Soft Enable
+ The state of the So Enable tells the core if the axis should be checked against the upper and lower 
+so limits (see Figure 10). With the so limits ac ve the axis will decelerate to the Max or Min limit if it 
+is jogging and will prevent any incremental jogs past the limits. When running Gcode any moves panned 
+past the limits will not be done and the machine will be put into a stop condi on and a so limit error 
+will be displayed.
+ Soft Max / Soft Min
+ The max and min se ngs are the most posi ve and nega ve machine posi ons for the axis (see 
+Figure 10). The most simplis c way to get to get the values is to use the machine posi on DRO's. The 
+process is to home the machine, jog each axis to the most posi ve posi on in each axis and enter as the 
+posi ve so limit. Then repeat the process in the nega ve direc on and set the min so limit.
+ Signals in General
+ The signals are used to represent the internal state of items needed by the controller or items needed
+ to trigger IO for special func ons. The signals can be triggered by Inputs, Outputs, Plugins, or Lua. When 
+a signal changes state, a state change event is propagated throughout the system and will be seen by all 
+plugins, and Lua event scripts. Later in the customiza on of Mach4 the u liza on of Mach4's signals will 
+be seen. In the sec on the setup of triggering IO with signals will be shown. When se ng up an IO point 
+the device's plugin must be first setup. A device could be a mo on controller, bussed IO (modbus), Input 
+device (keyboard), Special Func ons in plugins, etc.. The “Device” is the first selec on and displays all 
+the registered IO devices to the system (see Figure 11)
+when the Input assigned to it changes state, and Outputs are triggered by their associated Output 
+signals. The high / low state can be inverted by selec ng the Ac ve low state.
+ 19 Of 25
+Input Signals
+ The input signals are used to connect Inputs from devices to Input Signals in the core. Some of the 
+most important signals are the Homing and Limit inputs. The Homing and Limits are set per motor NOT 
+per axis. The axis use motors to show what motors drive the axis and to display the state of the limits 
+and homes. As an example if Motor 1 and Motor 5 where used on the X axis and the + Limit was hit the X
+ axis would show posi ve limit as being ac ve. The inputs of the motors are or'ed to the axis states. 
+Below is a complete list of the Input signals (See Table 2).
+ Input Signal Descrip on
+ Input #0 To
+ Input #63 User inputs that can be mapped to any func on
+ Motor 0 Home To
+ Motor 31 Home The home input of the motor with the associated number
+ Motor 0 ++ To
+ Motor 31 ++ Posi ve limit for the motor
+ Motor 0 – To
+ Motor 31 -- Nega ve limit for the motor
+ Digi ze Probe input for G31 commands
+ Index Once per rev input for ge ng the RPM of the spindle
+ Limit Override Override the limits to allow jogging when on a limit switch
+ E-Stop
+ Used to tell the core that the system is in E-stop. This input is NOT to 
+issue an an E-stop but to tell that the one has occurred with the proper 
+e-stop hardware (Master control relay disabled for example).
+ THC On
+ THC (Torch Height Control) is enabled allowing the head to be jogged up 
+and down while Gcode mo on is ac ve to keep a proper gap from the 
+plate to the p.
+ THC Up Move the Torch p Up when THC is ac ve , Disabled it THC On is off
+ THC Down Move the Torch p Down when THC is ac ve, Disabled it THC On is off
+ Timing More then one input per rev to get spindle speed (legacy input and may 
+not be in all mo on devices).
+ Jog Axis +/-Jog X+, Jog X-,Jog Y+... Command axis to jog in the +/- direc on
+ Spindle At Speed Input to tell the the spindle is at the commanded Speed. This will take 
+the place of the spindle speed up delay if enabled.
+ Spindle At Zero Input to tell the spindle has reached zero Speed. This will take the place 
+of the Spindle decelera on me if enabled.
+ Table 2: Input Signals
+ 20 Of 25
+Output Signals
+ The output signals are used to e the device outputs to the output signals. The output signals can be 
+used to drive outputs directly for things such as Spindle outputs, Coolant, indicator lights on panels and 
+so on.
+ Output Signal
+ Descrip on
+ X ++
+ Ac vated when one of the motors that makes up the X axis has a  posi ve limit 
+switch pressed.
+ X -
+Ac vated when one of the motors that makes up the X axis has a  nega ve limit
+ switch pressed.
+ X Home
+ Ac vated when one of the motors that makes up the X axis has a  Home switch 
+pressed.
+ Y ++
+ Ac vated when one of the motors that makes up the Y axis has a  posi ve limit 
+switch pressed.
+ Y -
+Ac vated when one of the motors that makes up the Y axis has a  nega ve limit
+ switch pressed.
+ Y Home
+ Ac vated when one of the motors that makes up the Y axis has a  Home switch 
+pressed.
+ Z ++
+ Ac vated when one of the motors that makes up the Z axis has a  posi ve limit 
+switch pressed.
+ Z -
+Ac vated when one of the motors that makes up the Z axis has a  nega ve limit
+ switch pressed.
+ Z Home
+ Ac vated when one of the motors that makes up the Z axis has a  Home switch 
+pressed.
+ A ++
+ Ac vated when one of the motors that makes up the A axis has a  posi ve limit 
+switch pressed.
+ A -
+Ac vated when one of the motors that makes up the A axis has a  nega ve limit
+ switch pressed.
+ A Home
+ Ac vated when one of the motors that makes up the A axis has a  Home switch 
+pressed.
+ B ++
+ Ac vated when one of the motors that makes up the B axis has a  posi ve limit 
+switch pressed.
+ B -
+Ac vated when one of the motors that makes up the B axis has a  nega ve limit
+ switch pressed.
+ B Home
+ Ac vated when one of the motors that makes up the B axis has a  Home switch 
+pressed.
+ C ++
+ Ac vated when one of the motors that makes up the C axis has a  posi ve limit 
+switch pressed.
+ C -
+Ac vated when one of the motors that makes up the C axis has a  nega ve limit
+ switch pressed.
+ C Home
+ Ac vated when one of the motors that makes up the C axis has a  Home switch 
+pressed.
+ Enable #0 →
+ Enable #31
+ Enable will be ac ve when the machine is enabled. The enables can be turned 
+on with a delay set under the motor tuning dialog. If the axis that uses the 
+motor is not enabled the motor will not get an enable signal
+ Output #0 →
+ Output #63
+ Output #0 → #63 are used for OEM and user output signals
+ Gcode Running
+ Output is ac ve when running Gcode, used for indicator lights to show a file is 
+21 Of 25
+Output Signal
+ Descrip on
+ Feed Hold
+ Block Delete
+ Single Block
+ Reverse Run
+ Opt Stop
+ Machine Enabled
+ Tool Change
+ Dist To Go
+ Machine coord
+ So limits On
+ Jog Inc
+ Jog Cont
+ Jog Enabled
+ Jog MPG
+ X Homed
+ Y Homed
+ Z Homed
+ A Homed
+ B Homed
+ C Homed
+ Dwell
+ running
+ Output is ac ve when in a Feed Hold state
+ Output is ac ve when Block delete is ac ve
+ Output is ac ve when Single Block is ac ve
+ Output is ac ve when Reverse Run is ac ve (reverse run is to run a file 
+backwards)
+ Output is ac ve when op onal stop is ac ve (stop on M01's in Gcode file)
+ Output is ac ve when the machine is in an enabled state
+ Output is ac ve when a tool change is ac ve or wai ng for a Cycle start when 
+in manual toolchange
+ Output ac ve when selectable DRO is set to display Distance To Go (distance 
+from end point of the current move)
+ Output ac ve when selectable DRO is set to display Machine Posi on (posi on 
+from the home switch)
+ Output ac ve when the so limits are ac ve
+ Output ac ve when the cores user Jog mode is set to Incremental jog mode
+ Output ac ve when the cores user Jog mode is set to con nuous jog mode
+ Output ac ve when the cores user Jog mode is enabled
+ Output ac ve when the cores user Jog mode is set to Manual Pulse Generator 
+(MPG) jog mode
+ Output ac ve when a home cycle has been completed for the X axis
+ Output ac ve when a home cycle has been completed for the Y axis
+ Output ac ve when a home cycle has been completed for the Z axis
+ Output ac ve when a home cycle has been completed for the A axis
+ Output ac ve when a home cycle has been completed for the B axis
+ Output ac ve when a home cycle has been completed for the C axis
+ Output ac ve when a Dwell is ac ve (G4 command in Gcode)
+ Output toggles when the toolpath is set to report the mouse posi on and Core 
+is set to report clicks. See Lua Script manual to set the core into Toolpath 
+capture mode
+ Output ac ve when the Limit override is acitve
+ Output when the Charge Pump #1 should be ac ve
+ Output when the Charge Pump #2 should be ac ve
+ Output ac ve when mo on is about to be done to set drive to be in high 
+current mode
+ Output ac ve when the spindle is on
+ Output ac ve when the spindle is running in forward direc on
+ Output ac ve when the spindle is running in the reverse direc on
+ Output ac ve when the Coolant is set to be on
+ Output ac ve when the Mist is set to be on
+ Output ac ve with the digi ze input is ac ve
+ Toolpath Mouse 
+Down
+ Limit Override
+ Charge Pump #1
+ Charge Pump #2
+ Current Hi/Low
+ Spindle On
+ Spindle Fwd
+ Spindle Rev
+ Coolant On
+ Mist On
+ Digi ze Trigger
+ Table 3: Output Se ngs
+ 22 Of 25
+Spindle
+ The Spindle dialog allows the configura on and setup of up to 20 spindle rages. The spindle ranges can 
+be gears and or belt se ngs to allow for a change in the range of speeds available.
+ Output Signal
+ Descrip on
+ MinRPM
+ The minimum RPM the spindle in the selected range
+ MaxRPM
+ The maximum RPM the spindle in the selected range
+ Accel Time
+ The me to accelerate the spindle in the selected range. If the “Spindle At 
+Speed” signal is enabled the Accel Time is not need and should be set to zero. 
+Any value in the Accel Time field will be done a er the Spindle At Speed signal 
+has been toggled.
+ Decel Time
+ The me to decelerate the spindle in the selected range. If the “Spindle At 
+Zero” signal is enabled the Decel Time is not need and should be set to zero. 
+Any value in the Decel Time field will be done a er the Spindle At Zero signal 
+has been toggled.
+ Feedback Ra o
+ By default the Feedback ra o is 1, a value of one is used in an applica on 
+where the feed back device is mounted on the spindle. If the feedback device is
+ mounted on the motor or some other part of the gear train the feedback ra o 
+can be used to get the correct speed.
+ Reversed
+ Reversed selec on allows the spindle motor to reverse the direc on based on 
+the reversed check box. This selec on is used when a gear or ra o causes a 
+reverse in the spindle direc on. It is common for knee type mills to reverse 
+direc on from high to low range.
+ Max Motor RPM
+ The maximum RPM of the spindle motor. The reason for the maximum RPM is to allow for proper 
+scaling of the motors RPM on all ranges. The motor RPM is used by mo on devices, plugins, VFD's, Lua 
+etc for planning the proper motor RPM to get the requested spindle RPM.
+ Motor as Spindle
+ With this selec on a stepper motor, servo motor, or VFD that can be setup as a motor in the mo on 
+device. The motor will be treated as an out of band axis and will use the motors accelera on se ngs.
+ Tool Path Settings
+ The toolpath has some parameters that can be changed to allow be er visualiza on of the toolpath. 
+The colors of the toolpath can be changed to allow for a be er “looking” toolpath. But more importantly
+ is the ability to change the color of the toolpath to aid color blind users.  
+Machine Limits
+ 23 Of 25
+The machine limits can be show in the toolpath, showing where the machine can traverse to by 
+displaying do ed lines.
+ Extended Functionality
+ To get more extended func onality and or customiza on, Plugins and or scripts will need to be added
+ and configured. The Customiza on and scrip ng manual covers topics such as on screen bu ons to 
+trigger outputs, Tool changers, Bu ons to move the machine to a specific loca on, hardware bu ons for 
+operator interfaces, etc. Some of the plugins are covered in the appendixes for your convenience. If the 
+plugin of interest is not covered in the appendix please visit www.machsupport.com
+ and look under 
+Mach4 plugins for more informa on.
+ 24 Of 25
+Appendix A mcKeyboard (how to get keyboard input)
+ Purpose:
+ Reading keyboard inputs and ge ng all key presses even if Mach4 is not in focus.
+ Descrip on:
+ Mach4 has no na ve way of ge ng the key presses to the “jog” bu ons or any other bu ons for
+ that ma er. Mach4 is designed to use inputs to trigger event. This is a fundamental difference 
+from most so ware packages and allows custom operator panels to be made with the 
+maximum amount of func onality. McKeyboard will consume any key presses that it is mapped 
+to while it is enabled.
+ Opera on:
+ The disabling of the keyboard can be done many ways. The first way is to click on the CNC 
+Keyboard Icon in the taskbar and when disabled a red X will appear on the keyboard icon.  
+Setup:
+ Test:
+ 25 Of 25

@@ -1,0 +1,616 @@
+m2000 This is for the image file to laser raster
+m2001 This is for multiple laser rastering commands  (this only works in GCode not in the MDI window)
+m2002 This starts the laser raster
+m2003 This is for multiple laser vector commands   (this only works in GCode not in the MDI window)
+m2004 This enables laser vectoring
+m2005 This disables laser vectoring
+m2010 For Probing see here, for PID see here.  (this only works in GCode not in the MDI window)
+m2020 This is for THC works, see here for the WarpRunner, here for the TMC3in1 and the bottom of this article for Up/Down height control.
+ 
+
+New in ESS285, temporarily (until you restart Mach) invert ESS output pin Active High/Low state while running GCode:
+
+1. Execute a G4P0.5 delay (this only needs to be as large as your ESS buffer size).
+
+2. Go into the registry and change all of the desired registers in "ESS/Pins/ESS/Pins/Port#-Pin#_InvertActiveHighLowConfig" =1
+
+3. Execute m2010(UPDATE_REGISTRY_OUTPUT_PIN_INVERSIONS=1)
+
+4. Execute a G4P0.5 delay (this only needs to be as large as your ESS buffer size).
+
+The log file should show this if you invert output pin 2-16:
+
+m2010_InvertActiveHighLowState.png
+
+ 
+
+ 
+
+Laser Setup
+Jim Neeb @ JN WoodWorks made a great video showing you how to set up and run the ESS in Laser Rastering mode and the images it can produce. We would like to sincerely thank him for his assistance in testing our plugin and in producing this video.  Here is his Google drive with a bunch of shared files too.
+
+ 
+
+Lasers can be very dangerous, especially to your eyesight.  The appropriate Laser goggles are a MUST!  Please refer to your Laser's manual, manufacture, or vendor to determine the appropriate Laser eye protection and other safety requirements.
+
+Please make sure that you read and understand our Safety page too!
+
+Starting with ESS Mach4 plugin build 221 (but please use build 283 or newer), we now have a dedicated Laser PWM signal, support for a Laser Gate signal and software specifically for Laser Vector and Laser Raster modes.
+
+Laser Vector mode, relies on using GCode to control the motion of the laser head (or the laser emission point on your Z axis).  You will activate the Laser output before starting a cut, and then deactivate the Laser output when fishing a cut, all in GCode.
+
+Laser Raster mode uses a little bit of GCode to position the starting point of the raster, but after that, it consumes the data from a bitmap image, and burns the image pixel by pixel based off of the 8 bit color data in the image.
+
+The traditional method of using the Spindle PWM output for a laser is no longer necessary nor the best choice, a Spindle and Laser may now be used in the same GCode program since they are separate devices.
+
+ 
+
+If you can't get your laser PWM power level to change, make sure to check these common issues:
+
+1. Make sure that the lua macros have been added to your profile's macros folder (see the next section).
+
+2. You are using the  M2001(PWM_MAX = 90) and M2001(PWM_Min = 5)  commands in your GCode. You can use values other than the 90 and 5, but those are good values to start testing with.
+
+3. Use 80% power for your initial testing. 
+
+Set the laser PWM Frequency (Hz) for both Raster and especially Vector to at least 1050 Hz (you can go much higher if you wish).  at 1000 Hz, you can only reliably get up to 96% power.   At 1050 Hz or higher, you can get up to 100% power.  This will be fixed in ESS build 284 or higher.
+
+ 
+
+4. Your BOB's pins are numbered like this
+
+Correct pin numbering
+
+and not like this
+
+Wrong pin numbering.
+
+ 
+
+Requires
+
+ESS Plugin.   Open the Zip file and place the "Warp9Mach4.m4pw" and the  "Warp9Mach4.sig" files in "C:\Mach4Hobby\Plugins\" folder.  Overwrite the existing files if prompted.
+
+ESS Mach4 plugin 250 or newer, but 283 is HIGHLY recommended Also Mach4 4809 is highly recommended.
+ 
+
+Lua Macros and Command Scripts:
+
+Download these lua macros, unzip them, and place these macros in your "C:\Mach4Hobby\Profiles\YOUR_PROFILE_NAME\Macros\" folder.  These macros will be discussed in the next section.  When the Macros are run, they should send information to the log file.  If you don't see anything in the log file, then you most likely are using an old version of the ESS plugin OR you do not have LUA and Regfile plugins enabled in step 1 (below).    (You may need to right click on the link and then click Save As.)
+ 
+
+Screen Set:
+
+ESS Laser Screen Set v 3.5  Place this file in the "C:\Mach4Hobby\Screens\" folder. <- Recommended for Latest versions of Mach4 (identical to v3.0 except uses mcTrace calls)
+ESS Laser Screen Set v 3.0  Place this file in the "C:\Mach4Hobby\Screens\" folder. <- Recommended for Older versions of Mach4 (identical to v3.5 except uses Trace calls)
+ESS Laser Screen Set v 1.0  Place this file in the "C:\Mach4Hobby\Screens\" folder.  <- Old
+If the screenset won't open, or you see "Trace" messages, or has error messages  please read here.
+ Macros:
+
+You can find the SmoothStepper laser macros here.
+Background Information:
+
+Why did we make the laser use these other features instead of just M3/M5 like in Mach3? 
+
+The main reason is safety - if a laser turns on unexpectedly, it is very dangerous. 
+The next reason is that M62P#s allow the precise starting of the laser with the starting of a G00, G01, G02 or G03 based motion command and the precise termination of the laser burn with a M63P# and the next motion command.
+Finally, there are a lot of machines that now do spindle work and/or laser work and/or plasma THC work.  Since these are three very different processes potentially running within the same GCode file, the MUST be controlled separately from a safety and effective working standpoint.
+ 
+
+How to turn the laser on:
+
+In Mach4, the ESS will only enable it's laser for 3 scenarios (assuming you have set up the config correctly):
+
+
+You checked the box in the ESS laser config to allow test firing, then on the screen set pressed test enable, and then hold down on the test fire button. This will end when you let go of the test fire button.
+For laser vector mode you issued the m2003 commands to set up your base values, then the m2004 to enable laser vector mode, and then issued a m62 P# that turned on your laser PWM output.  This will end with a M63P# to shut off the laser or a M2005 disables the laser.
+For laser Raster mode you specified the file you wanted with m2000, did the m2001 config commands, and then did m2002 to start the laser raster. This will end when the laser image finishes.
+ 
+
+Setting Up The Configuration:
+
+1. To set up a Laser, go to Mach4 Menu -> Configure ->Control..>(was Mach4) -> Plugins.  Make sure that the Core, LUA, Regfile and ESS plugins are enabled.  At the time of this writing we recommend Mach4 v 4162 and ESS v 246 or NEWER.
+
+ Laser Plugins
+
+ 
+
+2. Now, go to Mach4 Menu -> Configure ->Plugins... -> ESS ### -> Pins Config Tab:
+
+Determine which output pin will be your Laser PWM output pin (I picked 2-17).  
+Determine which output pin will be your Laser Gate output pin (I picked 2-16).  If your Laser does not use a Gate signal, YOU WILL STILL NEED TO ASSIGN ONE, but you may pick any unused output on the ESS, since you will not need to (or be able to) wire it up.
+Pins Config
+
+3. In the Mach4 Menu -> Configure -> Plugins... -> ESS ### -> Output Signals Tab:
+
+Set the "Laser PWM" signal to the Laser PWM output pin selected in the last step. 
+Scroll down to the Output Numbers area, and select an unused one.  I picked Output #20, and assigned it to the Laser Gate output pin selected in the last step.
+Laser PWM
+
+Laser Gate
+
+4. In the Mach4 Menu -> Configure -> Plugins... -> ESS ### -> Laser Tab - Laser Settings:
+
+Set the Laser Gate Output # to the Output signal selected in the last step.  This step is required for the ESS's FPGA to generate a PWM output signal.
+Set the Raster PWM frequency and Vector PWM Frequency that you want the ESS to send to your laser in each of those those modes. Set the laser PWM Frequency (Hz) for both Raster and especially Vector to at least 1050 Hz (you can go much higher if you wish).  at 1000 Hz, you can only reliably get up to 96% power.   At 1050 Hz or higher, you can get up to 100% power.  This will be fixed in ESS build 284 or higher.   For Rastering you need to go higher to get multiple PWM cycles per pixel.
+Synrad Lasers may be damaged if the PWM frequency is above 20 kHz, other Lasers may be as well.  To set the PWM frequency above 20 kHz, you must check the box for "Allow PWM frequencies over 20 kHz".  If you do this, YOU MAY DAMAGE YOUR LASER, which will be entirely your fault and your responsibility!
+If you are not connecting the Laser Gate pin to your laser, you may leave all the Gate Delay and Gate Duration settings alone.  If you are using the Laser Gate, consult with your Laser's manual for the best settings. 
+The Gate Delay Percentage represents the OFF time of the Gate signal
+The Gate Duration Percentage represents the ON time of the Gate Signal.
+These signals are synchronized with the pixel's PWM value that is currently being burned.  The purpose of the Gate signal is to force your Laser to emit/discharge at the appropriate time to burn the correct pixel. 
+Gate Delay and Duration values will affect the intensity and/or color of the burned area.
+Delay allows time for the new PWM value to be read by the Laser, and will cause the next Duration Discharge to be at the correct intensity. 
+Duration is the amount of time that the Laser is emitting.  If you double the duration value, you will likely double the emitted power (not counting for non-linearity or maxing it out).
+The total Gate Delay + Gate Duration percentages must sum up to 100% or less.   If the total is larger than 100% , the delay value will be automatically reduced to reach 100%.
+If the total Gate Delay + Gate Duration value is less than 100%, more off time will be added after the Duration percentage has completed, to reach 100%.
+The Synrad 5 kHz mode will "tickle" the Gate signal, when the PWM value is below a specific threshold (nearly off or off). This tickling will keep the Laser ready to emit when the next PWM value requiring an emission is received.
+The Air Assist button on the screen set, will control whichever output # (0-63) that you assign to it in section 3.
+Laser Tab 1
+
+Laser Tab 2
+
+5. In the Mach4 Menu -> Configure -> Plugins... -> ESS ### -> Laser Tab - Default Image Settings in RASTER mode.  These fields are populated into Mach4 registers at startup, and not modified by the config settings until the next startup. You may override these settings by calling Macros from your GCode or in Mach4:
+
+Depending on the starting corner of your image, you may need to check "Flip Image Horizontally" to get the orientation and lettering to appear correct.  This will flip or mirror your image left to right.
+Depending on the starting corner of your image, you may need to check "Flip Image Vertically"to get the orientation and lettering to appear correct.  This will flip or mirror your image top to bottom.
+In an image, pure white (or the pixel value of 255) will burn with full intensity, and pure black (or the pixel value of 0) will not burn at all.  To switch this, check "Invert Image Intensities".
+"Compensate for X Acceleration Distance" means that the plugin will calculate the distance it takes to get up to the commanded velocity, which is where the pixels will be burned.  The plugin will automatically move in the opposite direction before it starts to burn the first line of the image, so that the first image pixel will occur at the starting point of the Laser Raster.  If you are using the "_Laser_Raster_Velocities.txt" file to manually adjust the Pre-Comp offset, that will be in addition to this automatically calculated value.
+If "Skip the Laser Raster Start Window" is unchecked, you will be prompted with a confirmation window before the Laser Raster Starts.  Check this, if you do not want to see the confirmation window.
+"Laser Raster Even Rows Only" may be checked, and then only the Even Numbered rows (all in the same direction) will be burned.  This is useful if you wish to check the overlap distance of your laser beam, or if you are having alignment issues with your Odd Numbered rows (i.e. a single vertical line is being rastered as two vertical lines - in this case, you would need to adjust your Motor Delay Distance).
+ 
+
+ 
+
+ 
+
+  
+
+Laser Vectoring Lines
+You can find the SmoothStepper laser macros here.
+
+Notes for laser rastering on a rotational axis:
+
+Section 4 of the setup (laser power speed compensation) may not work correctly when a rotational axis (A/B/C) is commanded, and the laser will be running at 0% power since the instantaneous feed rate is not be calculated correctly in ESS build 283. Please disable speed compensation (uncheck both boxes) or only select linear speed comp when testing this problem.
+G93 (Inverse Time Feed) mode may provide better results with a rotational axis than G94 (Feed per Minute) mode.  remember that G93 REQUIRES a F value in every line of GCode that has a G# feed move (i.e. G1, G2, ...)
+ 
+
+With the Spindle you would use a command similar to M3 S1000 to turn the spindle on and then set the speed to 1000 RPM, M5 would be used to turn it off again.  Since these commands are used by the Spindle, we won't reuse them for the Laser.  Instead, the following lua scripts will be used to control the Laser's PWM and gate signals (using Mach4's ESS Registers):
+
+1. m2003 (this only works in GCode not in the MDI window) uses the comments area immediately after on a single line of GCode to configure Laser's PWM parameters:
+
+m2003 (LASER_VECTOR_PWM_PERCENTAGE=33.33) <- This will set the PWM Duty Cycle from 0% to 100%
+m2003 (LASER_VECTOR_FREQUENCY=20000) <- This will set the PWM frequency to 20 kHz
+m2003 (LASER_VECTOR_GATE_DELAY=0.5) *** <- This will set the Gate Delay to 0.5  Value must be between 0.0 and 1.0 This will update "ESS/Laser/Vector/Gate_Delay" on the next m2004 command and affect the laser's gate then. If this is not used, the values from ESS laser vector config tab will be used instead.
+m2003 (LASER_VECTOR_GATE_DURATION=0.5) ***<- This will set the Gate Duration to 0.5 Value must be between 0.0 and 1.0 This will update "ESS/Laser/Vector/Gate_Duration" on the next m2004 command and affect the laser's gate then. If this is not used, the values from ESS laser vector config tab will be used instead.
+m2003(M63_DELAY_ENABLE=1) <- Servos have following lag that steppers do not.  Turn this OFF with a 0 and ON with a 1
+m2003(M63_DELAY_MS=50) <- This will keep the laser lasing for an additional 50 ms after the GCode told the ESS to shut the Laser Gate off with a M63 P#
+m2003(LASER_AIR_ASSIST_TOGGLE) <- This will toggle the Laser Air Assist output on or off.  This would typically be used in a screen set button. Normally you would turn the laser air assist output On with a M62 or M64 P# and Off with a M63 or M65 P#
+*** Notes on Vector Gate Delay and Duration: The period of your Laser Vector base frequency's PWM Duty will to be 1.  The Gate Delay and Duration values MUST sum up to be 1.0 as well. The ESS plugin will ensure that these values are between 0 and 1.0  If the Delay and Duration values sum up to be larger than 1.0, the plugin will keep the Gate Duration value and reduce the delay value so that they do sum up to 1.0
+
+2. m2004 will be used to Enable the Laser for Vector Mode (but not activate it).  This macro also processes any recent changes made by m2003 commands, and is required to make changes to the parameters.
+
+3. m62p#  will activate the laser.  Replace the # with your Gate Output Signal number, which would be 20 from the settings above:  m62p20  This command when followed by a GCode motion command (G0, G1, G2 or G3) will activate the laser (assuming it was enabled), and have the activation synchronized with the start of the motion command.
+
+4. m63p#  will deactivate the laser.  Replace the # with your Gate Output Signal number, which would be 20 from the settings above:  m63p20  This command when followed by a GCode motion command (G0, G1, G2 or G3) will deactivate the laser (assuming it was enabled), and have the laser shutoff synchronized with the start of the new motion command.
+
+5. m2005 will be used to Disable the Laser for Vector Mode.  It will shut off the Laser PWM signal and the Laser Gate Signal.
+
+A simple square can be lased with this code:
+
+ 
+
+(Start of GCode)
+G01 X0 Y0 Z1 F50
+
+m2003 (LASER_VECTOR_PWM_PERCENTAGE=33.3)
+m2003 (LASER_VECTOR_FREQUENCY=20000)
+m2003 (LASER_VECTOR_GATE_DELAY=0.5)
+m2003 (LASER_VECTOR_GATE_DURATION=0.5)
+
+m2004 (This will Enable the Vector Laser)
+
+G01 X1 Y1 Z1
+
+M62 P20   (This will turn ON the Laser Gate and PWM with the next motion command)
+
+G01 X2 Y1
+G01 X2 Y2
+G01 X1 Y2
+G01 X1 Y1
+
+M63 P20   (This will turn OFF the Laser Gate and PWM with the next motion command)
+
+(Move to the next position, and then start a new laser cut if desired...)
+
+
+
+
+
+(When done and ready to quit)
+
+M2005 (This will Disable the Vector Laser)
+
+G01 X0 Y0 Z1
+
+(End of GCode)
+ 
+
+ 
+
+ 
+
+ 
+
+  
+
+Laser S commands -> M67 for images
+This requires Mach4 4809 (or newer) and ESS 283 or newer for proper performance.
+
+If you are burning vector lines and need to change the power level for each line, M67 mode will work well for you.
+
+If you are rastering something like a vector logo or image that only has up to 100 power level changes max, this will work well for you. 
+
+If you are trying to burn something like the Fox image (shown three sections later in Laser Raster Alignment), where there are thousands of tonality adjustments (individual pixels changing power levels) it will break the constant velocity motion chain, making things run very slow and producing over burned pixels or hot spots. While this feature does work for rastering a photograph, it is slower and more prone to image errors than if you were to use ESS Rastering in the next article.  Why? Because it requires many more acceleration cycles and also requires optimal CV performance.
+
+M67 is a macro command that is processed directly by Mach4 and is not downloadable, just like m62, m63, m64, and m65.
+
+Vectric (and other CAMs) allow you to convert an image into GCode and raster it with S commands.   However those S commands will break Constant Velocity (CV) in the Mach4 planner and cause all sorts of issues with detailed images.  That is why you can issue M67 commands instead of S commands, and the M67 commands will not break CV.    I personally still prefer using the Bitmap rastering in the next section since it will produce better results directly off of a bitmap image, but if the M67 approach does what you need, great!
+
+For more specifics, please view the original forum post here.
+
+ M67 Analog Output Capabilities (or real time PWM changes like with Vectric S commands on every line).
+
+For Analog Out 0, Spindle PWM, you need to have the ESS config set up so the spindle would work with a M3 S1000 command. There does not need to be anything special in the GCode for the Spindle PWM to work with a m67 E0 Q###
+For Analog Out 1, Laser PWM, you need to have the ESS config set up so that the ESS can run normal laser vector GCode files. In addition, you MUST provide a m2004 macro to allow the Laser PWM to activate, and you should really have a m2003 (LASER_VECTOR_PWM_PERCENTAGE=0.0) command to make sure the laser power is off before you start running. You should end the GCode with a m2005 and another m2003 (LASER_VECTOR_PWM_PERCENTAGE=0.0) command to make sure the laser power is off.
+
+Also please keep in mind that every M67 command MUST have a G0/G1/G2 command immediately follow it that will produce at least 1 step of motion. (However, you can stack multiple M62/M63/M67 commands.) If there is not at least 1 step of motion, Mach4 will ignore the m62/m63/m67 command.
+
+
+M67 E0 Q# and S# control the same Spindle PWM generator. You should not mix the two command styles in the same Gcode program due to making it more confusing to debug, but you may if you have a good reason to.
+
+The S# will only update the Spindle PWM at the beginning of every ESS plugin main loop, which happens ever 1/40th of a second (replace the 40 with your ESS plugin frequency). This change does not go through the ESS motion FIFO buffer, so it will happen before the X/Y motion it was commanded with (typically about 1/10th of a second sooner than you would expect).
+
+The M67 E0 Q### will update the Spindle PWM speed as soon as the motion data is pulled out from Mach4, but that means several M67 E0 Q### commands can collapse onto each other, and only the last one will survive. This change does not go through the ESS motion FIFO buffer, so it will happen before the X/Y motion it was commanded with (typically about 1/10th of a second sooner than you would expect).
+
+This means that the Spindle PWM should only be used as an analog output if you are making fewer than 10 intensity/speed changes per second, and that you are okay with the changes happening about 1/10th of a second before the motion.
+
+Just because it uses the output signal Spindle PWM, does not mean that you can't use Analog Out 0 for something else like a 3D printer or a laser....
+
+
+
+
+M67 E1Q# and m2003 (LASER_VECTOR_PWM_PERCENTAGE=#) command control the same Laser PWM generator. You should not intermix mix the two command styles in the same GCode program since the m2003 (LASER_VECTOR_PWM_PERCENTAGE=#) is only processed at the start of each plugin main loop which happens ever 1/40th of a second (replace the 40 with your ESS plugin frequency). This means that the m2003 (LASER_VECTOR_PWM_PERCENTAGE=#) is NOT synchronized with motion! The only exception to this is that you should have m2003 (LASER_VECTOR_PWM_PERCENTAGE=0.0) at the beginning and end of your GCode to ensure that the laser power is turned off until the M67 E1Q# turns the Laser PWM power on at the appropriate place in the GCode.
+
+You should not intermix Laser vector PWM M62P# and M63P3 numbers with M67 E1Q# commands in the same GCode.
+
+The M67 E1Q# Analog Out 1 Laser PWM values are passed with the motion data through the ESS's FIFO, and will correspond precisely with the motion commanded. This also can be changed with every motion time slice which is 1/1024th of a second. The Analog Output 1 Laser PWM is much faster and more precise than Analog out 0's Spindle PWM.
+
+Just because this uses the output signal Laser PWM, does not mean that you can't use Analog Out a for something else like a 3D printer or a second spindle....
+
+
+
+
+Here is some sample GCode:
+
+G90
+(Run the SPINDLE PWM first)
+G00 x0 y0
+
+m67 E0 Q75  (This will turn the Spindle PWM output ON at 75%)
+g0 x4
+m67 E0 Q25 (This will turn the Spindle PWM output ON at 25%)
+g0 x0.1
+m67 E0 Q0 (This will turn the Spindle PWM output OFF = 0%)
+g0 x0.0
+
+M00 (stop so user has to press Cycle Start to continue)
+
+(Now setup to Run the LASER PWM )
+m2003 (LASER_VECTOR_PWM_PERCENTAGE=0.0)
+(The next three m2003 lines are optional and not required if you have your Laser Config tab set up right)
+m2003 (LASER_VECTOR_FREQUENCY=5000)
+m2003 (LASER_VECTOR_GATE_DELAY=15)
+m2003 (LASER_VECTOR_GATE_DURATION=85)  
+m2004 (This will Enable the Vector Laser PWM - REQUIRED!)
+
+G00 x0 y0
+m67 E1 Q66.6  (This will turn the Laser PWM output ON at 66.6%)
+g0 x4
+m67 E1 Q33.3 (This will turn the Laser PWM output ON at 33.3%)
+g0 x0.1
+m67 E1 Q0 (This will turn the Laser PWM output OFF = 0%)
+g0 x0.0
+M2005 (This will Disable the Vector Laser)
+
+M30
+
+
+
+Here is the log file and the other related settings:
+
+
+
+
+
+ 
+
+
+
+
+
+
+
+Here are the details for this window from C:\Mach4\Docs\AnalogSettingsDescription.txt
+
+Analog description in the controller configuration
+
+Numerator: The total voltage swing.  e.g. 0v to 10v is 10, -10v to 10v is 20.
+Denominator: The total width of the DAC/ADC.  e.g. 10 bit is 1024, 12 bit is 4096, 14 bit = 16384, 16 bit = 65536, etc...
+Offset: Used for bidirectional DAC/ADC devices, e.g. -10v to 10v where 0 raw value is -10v and +10v = the width of the device.
+
+DAC Examples: (DAC is Digital to Analog which is an analog output)
+
+10 bit DAC 0v to 10v:  
+
+The total voltage swing is 10v, so the numerator is 10.  10 bits has a max value of 1024, so the denominator is 1024.  The DAC is not bidirectional so the offset is 0.  The clculation is as follows:
+
+(Desired Volt / (Num/Den)) + Off = DAC Value
+
+(10 / (10/1024)) + 0 = 1024.  So to get an analog voltage of 10v, the DAC will be loaded with 1024.  
+( 5 / (10/1024)) + 0 = 512.   So to get an analog voltage of 5v, the DAC will be loaded with 512.
+( 1 / (10/1024)) + 0 = 102.4. So to get an analog voltage of ~1v, the DAC will be loaded with 102.
+
+14 bit DAC -10v to +10v:
+
+The total voltage swing is 20v, so the numerator is 20.  14 bits has a max value of 16384, so the denominator is 16384.  The DAC is bidirectional so the offset will be half of the total width, so 8192.  
+The clculation is as follows:
+
+(10 / (20/16384)) + 8192 = 16384
+( 0 / (20/16384)) + 8192 = 8192
+(-10 / (20/16384)) + 8192 = 0
+
+It is not important to actually know how the value is calculated.  It is more important to just put the correct values in for the numerator, the denominator, and the offset.  But the formula may help you to understand what is going on behind the scenes.
+
+
+ADC Examples: (ADC is Analog to Digital which is an analog input)
+
+How inputs are setup is really no different than how the outputs are setup.  But the calculation is diffeent.  
+
+10 bit ADC 0v to 10v:  
+
+The total voltage swing is 10v, so the numerator is 10.  10 bits has a max value of 1024, so the denominator is 1024.  The DAC is not bidirectional so the offset is 0.  The clculation is as follows:
+
+(ADC Value - Offset) * (Num / Den) = Volts
+
+(1024 - 0) * (10 / 1024) = 10v
+(512 - 0) * (10 / 1024) = 5v
+(102 - 0) * (10 / 1024) = .99609375 (~1v)
+(0 - 0) * (10 / 1024) = 0v
+
+ 
+
+ 
+
+Laser Rastering Bitmap Images Directly
+Jim Neeb @ JN WoodWorks made a great video showing you how to set up and run the ESS in Laser Rastering mode and the images it can produce. We would like to sincerely thank him for his assistance in testing our plugin and in producing this video.
+
+The intent is to give the user a significant level of flexibility with regards to controlling the laser raster settings, which means that there are many macro commands available for the user.   If you don't want to utilize all of them, you can just copy and paste the code provided below, and after some initial tweaking, just reuse the same GCode every time for every image.  All you need to do is change the image you are pointing to.
+
+As of build 285 (and for even a while before), you can raster at any velocity and DPI you want to as long as your laser and motors can keep up with it. 
+
+Here are the lua script commands used to set up the Laser Raster. You can find the SmoothStepper laser macros here:
+
+1. m2000 (C:\image.bmp)    This command will look for the image.bmp picture in your C drive.   You can point to any folder location you wish, and use any image name that you wish.  The requirement is that the image be a 256 color (8 bit) gray scale bitmap or a 24 bit RGB bitmap without an alpha channel.  I have used the GIMP Photo Editing software to create and modify my test images, but most other image editors will work as well. 
+
+A good file path and name would be something like this:  C:\Mach4Hobby\LaserFiles\ButterflyImage_600x900.bmp   This file path is in the Mach4 folder.  Also there are no spaces, dashes or other special characters in the file name (the underbar is safe to use).   In linux systems (amonsg others) and in certain software packages, special characters like dashes (-) can cause all sorts of havok in a file path or name, and I would recommend that you avoid using spaces, dashes or other special characters at all times with file names like these.
+
+2. m2001 (Comment), this only works in GCode not in the MDI window:
+
+m2001 (UNITS=IN) This will tell the software that all your commanded values will be in Inches.  This must be the same as the default units for your profile in Mach4's  General Tab for Machine Setup Units.  If your default units are metric, you must call m2001 (UNITS=MM) for the software to run.
+m2001 (FEEDRATE=900.9) you may specify your desired feedrate.  However for Build 221, it will be ignored and the appropriate, calculated, feedrate will be used.
+m2001 (RASTER_X_AXIS_ACCELERATION_PERCENTAGE=100.0)  New in ESS build 285.  100.0 is in percentage and will use the Mach4 motor tuning acceleration value(s) for the X axis.  This allows you to slow your axis acceleration rate down to 0.1% or increase it to 1000.0% of what is specified in motor tuning, so that the rastering motion will accelerate differently than normal GCode motion and jogging. This can either reduce vibrations in your equipment or decrease the time to raster an image. This value is only consumed from the registry when m2002 is processed.
+m2001 (RASTER_Y_AXIS_ACCELERATION_PERCENTAGE=100.0)    New in ESS build 285.  100.0 is in percentage and will use the Mach4 motor tuning acceleration value(s) for the Y axis.  This allows you to slow your axis acceleration rate down to 0.1% or increase it to 1000.0% of what is specified in motor tuning, so that the rastering motion will accelerate differently than normal GCode motion and jogging. This can either reduce vibrations in your equipment or decrease the time to raster an image. This value is only consumed from the registry when m2002 is processed.
+m2001 (IMAGE_STARTING_CORNER=#) The Laser Raster will start from the commanded corner and work to the opposite corner.  Replace the # with 1, 2, 3 or 4.  ***NOTE*** if your Mach4 Motor Tuning tab has the "Reverse?" checked for a motor, that will flip all of these starting corners!  Never check the motor tuning "Reverse?" box - instead change the active high low value for that Motor's Dir Pin on the ESS Config -> pins tab.
+* #=1 starts in the image's LOWER LEFT corner and moves to the image's Upper Right corner. Moves +X and +Y. >^
+
+* #=2 starts in the image's LOWER RIGHT corner and moves to the image's Upper Left corner. Moves -X and +Y. ^<
+
+* #=3 starts in the image's UPPER RIGHT corner and moves to the image's Lower Left corner. Moves -X and -Y. v<
+
+* #=4 starts in the image's UPPER LEFT corner and moves to the image's Lower Right corner. Moves +X and -Y. >v
+
+m2001 (IMAGE_COLOR_CHANNEL= #) If you are using a 256 color gray scale image, this command is not important.  If you are using an 24 bit RGB image, this command allows you to select which color channel the image data will be taken from.  1 means the Red color channel.2 means the Green color channel.   3 means the Blue color channel.  4 means the average of all three color channels.
+m2001 (IMAGE_INVERT_INTENSITIES=0) 0 Means that pure white (or the pixel value of 255) will burn with full intensity, and pure black (or the pixel value of 0) will not burn at all.  1 means that pure black (or the pixel value of 0) will burn with full intensity, and pure white (or the pixel value of 255) will not burn at all. This will override the default setting in the Laser tab for  "Invert Image Intensities".
+m2001 (IMAGE_FLIP_X=0) Depending on the starting corner of your image, you may need to set this to 1 to get the orientation and lettering to appear correct, by flipping or mirroring your image left to right.  This will override the default setting in the Laser tab for "Flip Image Horizontally".
+m2001 (IMAGE_FLIP_Y=0) Depending on the starting corner of your image, you may need to set this to 1 to get the orientation and lettering to appear correct, by flipping or mirroring your image top to bottom.  This will override the default setting in the Laser tab for "Flip Image Vertically".
+m2001 (PWM_MAX=100) This will set the Maximum PWM Duty Cycle corresponding to a pixel intensity value of 255 (full burn value). Depending on the speed of the raster, a 100% value may be too high.
+m2001 (PWM_MIN=15) This will set the Minimum PWM Duty Cycle corresponding to a pixel intensity value of 0 (no burn value). Depending on the speed of the raster, a 0% value may be too low.  This is ideally set just low enough that it does not burn the surface of the material, but a pixel value of 1 will.
+m2001 (PWM_ZERO=0) This will set the Zero PWM Duty Cycle
+m2001 (SHOW_WINDOW_TO_START=1) When set to 1, you will be prompted with a confirmation window before the Laser Raster Starts.  Set this to 0 if you do not want to see the confirmation window. This will override the default setting in the Laser tab for "Skip the Laser Raster Start Window".
+m2001 (COMP_FOR_ACCEL_DIST_X=1) If set to 1, the X axis will move away from the starting point of the image, the distance of the acceleration ramp. When the image is burned, the starting corner of it should be right where Mach left the X-Y axis.   The post comp moves after the image burns will bring us right back to where Mach left us.   Setting this to 0 means that the X axis will NOT make pre-comp move, and then the image will be offset by the acceleration distance.
+m2001 (SHOW_IMAGE_CORNER_POSITIONS=1) This is not implemented, and will do nothing. But you shouldn't use it now, because I may use it in the future. 
+
+3. m2002 (This starts the Laser Raster) This will tell the software to start the laser raster process.  Make sure to have a G04 P0.5 pause JUST BEFORE AND AFTER THIS COMMAND!
+
+ 
+
+When the laser raster process starts, a log file is created and updated at "C:\Mach4Hobby\Plugins\_PROCESSING LASER COMMANDS LOG.txt".  This file will explain what is happening and what, if anything, went wrong.
+
+If you are using servo motors, they will likely have following error.  This is compensated for in the "C:\Mach4Hobby\Plugins\_Laser_Raster_Velocities.txt" file.  The file is created after your first Laser Rastering attempt, and is internally documented.
+
+ 
+
+Here is an example GCode file to raster an image:
+
+ 
+
+(Start of GCode)
+
+G0 X2 Y2 (Starting corner for the image)
+
+M2000 (C:\GCode\Test.bmp)
+
+M2001(UNITS = IN)
+M2001(FEEDRATE = 600.000000)
+M2001(IMAGE_STARTING_CORNER = 3)
+M2001(IMAGE_COLOR_CHANNEL = 1)
+M2001(IMAGE_INVERT_INTENSITIES = 1)
+M2001(IMAGE_FLIP_X = 0)
+M2001(IMAGE_FLIP_Y = 0)
+M2001(PWM_MAX = 90)
+M2001(PWM_Min = 5)
+M2001(SHOW_WINDOW_TO_START = 1)
+
+G4 P0.5 (Pause so the previous macro commands can be fully processed!!!! THIS IS CRITICAL!)
+M2002(This starts the Laser Raster)
+G4 P0.5 (Pause on this line while the raster happens. THIS IS CRITICAL!)
+
+G0 X0 Y0
+
+(End of GCode)
+ 
+
+ 
+
+ 
+
+ 
+
+Laser Image Files
+Here is a known good Image file and the GCode file that runs it.  You will need to change the path in the GCode file to point to the image location on your PC.
+
+ 
+
+Not all photo editing software is created equally.  In fact some of it is quite horrid and cannot even output the headers correctly for image files!  When the header files in the image are mangled, you will get error messages similar to:
+
+"The image offset is 1078 bytes declared vs 54 bytes calculated"
+
+or
+
+“This image has 0 bytes declared vs 207740 bytes calculated!”
+
+In these cases, please try GIMP.  It is free and open source software, that is simple to use but also very powerful, and best yet, it works.
+
+ 
+
+Once GIMP is installed, open your image file into it, and then export the image (to the same or a different name).  As you do the export process, please make sure to:
+
+Expand "Select File Type (By Extension)" and select "Windows BMP Image"    -    "bmp" for Bitmap, and then click on export. 
+Under Compatibility Options, CHECK the box for "Do not write color space information"
+Select 24 bits "R8 G8 B8)"
+ 
+
+Gimp Export
+
+Gimp Export File Type
+
+ 
+
+Gimp Export Options
+
+ 
+
+ 
+
+ 
+
+Laser Raster Line Alignment
+For Laser Rastering, each row starts by accelerating up to the commanded velocity (feed rate) at which point the SmoothStepper will start issuing the PWM values for each pixel.  Once all of the pixel data for the row has been used (over the distance commanded for the row in the image), the X axis motion then decelerates to a stop so the Y line distance can be moved before the next row is rastered in the opposite direction.  If you motors or axes have lag (this could even be just a little backlash pullout) you will have a horizontal offset in your rastered image.  You can easily see if this is the issue by selecting the option in the Laser tab for "Laser Raster Even Rows Only", and the alignment issue will be gone on your next image. Please make sure you uncheck this option after you have verified that this is the issue.
+
+To fix this issue, you will need to adjust your "Motor Delay Distance" in C:\Mach4Hobby\Plugins\_Laser_Raster_Velocities.txt  
+
+Your delay distance will need to be essentially 50% of the distance you are off by in your original alignment at that velocity or feed rate.  The faster your feed rate, the larger your Motor Delay distance will need to be.  It is best to enter specific distance values for all of your common feed rates, but the software will interpolate the distance based off of higher and lower values.  Once these changes have been made your image should be in perfect alignment.  More information regarding the setup is inside the "_Laser_Raster_Velocities.txt" file itself.  Please make sure to include one or two distance lines for feed rates faster than you expect to use so you are covered on the high end if you forget.
+
+First try with Laser Raster Line Alignment Issues
+
+Fox Bad
+
+ 
+
+
+Second and Third tries with Laser Raster Line Alignment Issues, and success on the Fourth attempt.
+
+Fox Good
+
+ 
+
+The image above shows that the alignment was corrected with the proper motor delay distance.  However, the quality of the image still suffers a little bit due to insufficient resolution; increasing the DPI would help to improve the quality of the image.
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+IPG Fiber Laser
+An IPG Fiber laser has the power level clocked in 8 bits wide on the rising edge of a latch (pin 9).   How do you make that happen?
+
+For a post processor exporting GCode:
+
+Set up a fake C axis, with a step per of 1001, a high velocity and high acceleration.  You should get almost a rectangle on the resulting graph.  Why a fake C axis? Because then we can issues a bunch of incremental steps that will let our M62/M63 motion commands execute right with the start of a step on the C axis - even though no C axis physically exists.  You will need to use an unused ESS motor (5, 4 or 3 typically) as a dummy motor for the C axis.
+
+M62 P# will turn an output ON (at the beginning of the next motion command) and M63 P# will turn that output OFF (at the beginning of the next motion command), if followed by a G0, G1, G2 or G3  motion command that moves at least one step.  You may combine multiple M62s and M63s together on separate rows or a single line.
+
+Assuming that you are using pins D8 to D1  on the laser as output numbers 8 to 1, and the latch as output 9, your post processor GCode should look like this for a power change (I will do a bunch of M6*s for the 8 bits, but they would need to be M62s to turn bits on and  M63s to shut bits off):
+
+ 
+
+G91 (Switch to incremental position mode)
+
+M62 P8 (turn bit 8 on)
+
+M63 P7 (turn bit 7 off)
+
+M6* P6 (turn bit 6 on/off)
+
+M6* P5 (turn bit 5 on/off)
+
+M6* P4 (turn bit 4 on/off)
+
+M6* P3 (turn bit 3 on/off)
+
+M6* P2 (turn bit 2 on/off)
+
+M6* P1 (turn bit 1 on/off)
+
+G00 C 0.001 (A move of 1 step to make the M62/M63 commands operate)
+
+M62 P9 (turn latch on with rising edge)
+
+G00 C 0.001 (A move of 1 step to make M62 enable the latch)
+
+M63 P9 (turn latch off)
+
+G00 C 0.001 (A move of 1 step to make M63 disable the latch)
+
+G90 (Switch back to absolute position mode)
+
+ 
+
+That is the end of the GCode that should be produced by your post processor for a power change.
+
+ 
+
+Your post processor would need to convert your desired power level into an 8 bit power level that is then assign to each bit.  I will leave that as an exercise for you.
+
+ 
+
+Lua code in a screen set button:
+
+For a power change when you are not running GCode, you would need to make a screen set button apply lua code.  Here is an example for Go To Work Zero that will show you how to modify a button: http://documentation.warp9td.com/Hardware/ESS/Software_Mach4/lua/lua_Go_To_Zero.htm
+
+ 
+
+mc.mcCntlMdiExecute(inst, "G04 P0.3 \n M64P8 M65P7 M6@P6 M6@P5 M6@P4 M6@P3 M6@P2 M6@P1 \n G04 P0.1 \n M64 P9 \n G04 P0.1 \n M65 P9 \n G04 P0.1")
+
+ 
+
+That has a G4 provide a 0.3 second pause so we know that the ESS command buffer will empty.  Then it uses M64s to turn outputs ON instantly and M65s to turn outputs OFF instantly.  A G04 pause of 0.1 seconds then enable the latch, pause and disable the latch with a final pause.
+
+ 
+
+You would need to convert your desired power level from a screen set DRO into an 8 bit power level that you then assign to each bit.  I will leave that as an exercise for you.

@@ -1,0 +1,6 @@
+
+function m312()
+    local inst = mc.mcGetInstance()
+    mc.mcCntlSetPoundVar(inst, 199, 1)  -- Set direction +X
+    mc.mcCntlGcodeExecuteWait(inst, "M311")
+end

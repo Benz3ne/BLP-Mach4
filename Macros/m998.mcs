@@ -1,0 +1,18 @@
+function m998()
+    local inst = mc.mcGetInstance()
+    
+    mc.mcCntlSetLastError(inst, "M998: Using MdiExecute to call M999")
+    
+    -- Use MdiExecute instead
+    local rc = mc.mcCntlMdiExecute(inst, "M999")
+    
+    -- MdiExecute doesn't wait, so add a delay
+    wx.wxMilliSleep(500)
+    
+    mc.mcCntlSetLastError(inst, "M998: After MdiExecute (rc=" .. tostring(rc) .. ")")
+    
+    -- Important: MdiExecute works best as the LAST line
+    -- If you need more code, use mc.mcMotionSync to wait
+    
+    return 0
+end

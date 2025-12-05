@@ -1,0 +1,54 @@
+-- ===== PLC Trampoline (safe + verbose on error) =====
+local inst = mc.mcGetInstance()
+
+-- Initialize only once
+if not _G.PLC_INITIALIZED then
+    -- Get paths
+    local profile = mc.mcProfileGetName(inst)
+    local machDir = mc.mcCntlGetMachDir(inst)
+    _G.ROOT = machDir .. [[\Profiles\]] .. profile .. [[\Scripts]]
+    local PLCF = _G.ROOT .. [[\PLC.lua]]
+    
+    -- Error logging setup (only define once)
+    _G._PLC_LOG = function(...)
+        local stamp = os.date("%Y-%m-%d_%H-%M-%S")
+        local downloads = (os.getenv("USERPROFILE") or os.getenv("PUBLIC") or _G.ROOT) .. "\\Downloads"
+        local log_path = downloads .. "\\Mach4_PLC_Error_" .. stamp .. ".txt"
+        local f = io.open(log_path, "w")
+        if f then
+            f:write("PLC Error at " .. os.date("%Y-%m-%d %H:%M:%S") .. "\r\n")
+            f:write("File: " .. PLCF .. "\r\n\r\n")
+            for i = 1, select("#", ...) do 
+                f:write(tostring(select(i, ...)) .. "\r\n")
+            end
+            f:close()
+        end
+    end
+    
+    -- Load and define PLC function (once)
+    local loader, lerr = loadfile(PLCF)
+    if not loader then
+        _G._PLC_LOG("LOAD ERROR:", lerr)
+        _G.PLC_FAILED = true
+    else
+        local ok, err = pcall(loader)
+        if not ok then
+            _G._PLC_LOG("EVAL ERROR:", err, debug.traceback())
+            _G.PLC_FAILED = true
+        else
+            _G.PLC_INITIALIZED = true
+        end
+    end
+end
+
+-- Run PLC each cycle (if loaded successfully)
+if _G.PLC_INITIALIZED and type(_G.PLC) == "function" then
+    local ok, err = pcall(_G.PLC, inst)
+    if not ok then
+        _G._PLC_LOG("RUNTIME ERROR:", err, debug.traceback())
+        -- Don't call PLC again after error to prevent crash loop
+        _G.PLC_FAILED = true
+        _G.PLC_INITIALIZED = false
+    end
+end
+-- ===== end PLC Trampoline =====

@@ -1,0 +1,5 @@
+function m206()
+    local inst = mc.mcGetInstance()
+    ProbeScripts.CalibrateProbeDiameter(inst)
+    return mc.MERROR_NOERROR
+end

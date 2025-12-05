@@ -1,0 +1,550 @@
+-----------------------------------------------------------------------------
+-- Name:        Diagnostic Wizard
+-- Author:      Dalton Delorme 
+-- Modified by: 
+-- Created:     12/13/2022
+-- Copyright:   (c) 2018 Newfangled Solutions. All rights reserved.
+-- Licence:     BSD license
+-- Changes: 	Intitial Build
+-----------------------------------------------------------------------------
+--***************************
+
+--local m_Testing = true -- comment out to use ecat
+
+--Set wizard name for table index
+wizname = "Bat Wizard"
+--***************************
+local stopwatch = wx.wxStopWatch()
+if (inst == nil) then
+	inst = mc.mcGetInstance()
+end
+local selected = {}
+local pollingInterval = 250--ms
+local Points = {}
+local axisColors = {wx.wxColour(0,0,0), wx.wxColour(0,255,0), wx.wxColour(0,0,255), wx.wxColour(100,255,255)}
+local autoScale = true
+local axisScaling = {}
+local Head = 0
+local oldHead = 0
+local CurrentMode = true -- prevents a scenario where the data was setup for one scale mode then points are generated out of scale because the scale mode switched.
+local allData = {}
+local Wrapped = false
+local timed = false
+local timedLength = 1000
+
+local lDown, lUp
+local ClientDC
+
+local xRange = 2.75 
+local zRange = 36
+
+local totalVolume = 0
+
+function deepcopy(orig, copies)
+    copies = copies or {}
+    local orig_type = type(orig)
+    local copy
+    if orig_type == 'table' then
+        if copies[orig] then
+            copy = copies[orig]
+        else
+            copy = {}
+            copies[orig] = copy
+            for orig_key, orig_value in next, orig, nil do
+                copy[deepcopy(orig_key, copies)] = deepcopy(orig_value, copies)
+            end
+            setmetatable(copy, deepcopy(getmetatable(orig), copies))
+        end
+    else -- number, string, boolean, etc
+        copy = orig
+    end
+    return copy
+end
+function IsAnInt(num) 
+	return type(num) == "number" and math.floor(num) == num
+end
+function escapeCSV(s)
+	s = tostring(s)
+  if string.find(s, '[,"]') then
+	s = '"' .. string.gsub(s, '"', '""') .. '"'
+  end
+	s = '"' .. s:gsub("%s+", "") .. '"'  
+	return s
+end
+function ResizeWithRatio(Ratio, TargetSize)
+	local ratioy = TargetSize.y / Ratio.y
+	local ratiox = TargetSize.x / Ratio.x
+	local newX, newY = Ratio.x * ratioy, Ratio.y * ratioy
+	if Ratio.y > Ratio.x then
+		if ratioy > ratiox then
+			newX, newY = Ratio.x * ratiox, Ratio.y * ratiox
+		end
+	elseif newX > TargetSize.x then
+		newX, newY = Ratio.x * ratiox, Ratio.y * ratiox
+	end
+	return newX, newY
+end
+local TotalArea = 0
+function OnPaint(event) 
+	if Points[1] ~= nil then
+	if event ~= nil then
+		dc = wx.wxPaintDC(UI.m_panel1)
+	else
+		dc = wx.wxClientDC(UI.m_panel1)
+	end
+	totalVolume = 0
+	TotalArea = 0
+	--UI.m_panel1:Move( (width/2) - (Width/2), Point.y, wx.wxSIZE_USE_EXISTING)
+	local width, height = dc:GetSize()
+	local Width, Height = ResizeWithRatio({["x"] = xRange, ["y"] = zRange}, {["x"] = width, ["y"] = height})
+	-- X Scaling
+	local leftOffset = 5
+	-- Y Scaling
+	local heightOffBottomMod = 20
+	local heightOffTopMod = 10
+	local yLine = (height-heightOffBottomMod)
+	-- Keep the aspect ratio of a bat
+	--local Width, Height = width, height--ResizeWithRatio({["x"] = xRange, ["y"] = zRange}, {["x"] = (width - (leftOffset +5)), ["y"] = (yLine - heightOffTopMod)})
+	-- Set the Scales
+	Xscale = ((Width) / xRange)
+	Yscale = (Height / zRange) -- The Z Axis
+	
+	XCenter = width / 2
+	dc:SetPen( wx.wxPen(axisColors[1], 1 , wx.wxPENSTYLE_SOLID));
+	
+	-- Point Stats
+	local HeightDifference = 0
+	--Draw Outline
+	for points=1, #Points, 1 do --iterate through lists of Point cords
+		if Points[points+1] ~= nil then
+			--print("XStart")
+			--print(math.floor(XCenter - Points[points].D/2 * Xscale))
+			--print("YStart")
+			--print(math.floor(Height - Points[points].Z * Yscale))
+			dc:DrawLine( math.floor(XCenter - Points[points].D/2 * Xscale), math.floor(Height - Points[points].Z * Yscale), math.floor(XCenter - Points[points+1].D/2 * Xscale), math.floor(Height - Points[points+1].Z * Yscale));
+			dc:DrawLine(math.floor( XCenter + Points[points].D/2 * Xscale), math.floor(Height - Points[points].Z * Yscale), math.floor(XCenter + Points[points+1].D/2 * Xscale), math.floor(Height - Points[points+1].Z * Yscale));
+			HeightDifference = Points[points+1].Z - Points[points].Z
+			totalVolume = totalVolume + ((1/3) * math.pi * HeightDifference * (Points[points+1].D + (Points[points+1].D/2) * Points[points].D + (Points[points].D/2)))
+			TotalArea = TotalArea + (((Points[points].D + Points[points+1].D)/2)*HeightDifference)
+		end
+		if points == 1 or points == #Points then
+			--print("XStart")
+			--print(math.floor(XCenter - Points[points].D/2 * Xscale))
+			--print("YStart")
+			--print(math.floor(Height - Points[points].Z * Yscale))
+			--print("End")
+			--print("X-")
+			--print(math.floor(XCenter - (Points[points].D/2) * Xscale))
+			--print("Y-")
+			--print( math.floor(Height - Points[points].Z * Yscale))
+			--print("X+")
+			--print(math.floor(XCenter + (Points[points].D/2) * Xscale))
+			--print("End")
+			if points == #Points then
+			--dc:SetPen( wx.wxPen(axisColors[3], 1 , wx.wxPENSTYLE_SOLID));
+			end
+			dc:DrawLine( math.floor(XCenter + Points[points].D/2 * Xscale), math.floor(Height - Points[points].Z * Yscale), math.floor(XCenter - (Points[points].D/2) * Xscale)-1, math.floor(Height - Points[points].Z * Yscale));
+			--XCenter + (Points[points].D/2) * Xscale
+			dc:DrawLine( math.floor(XCenter + (Points[points].D/2) * Xscale), math.floor(Height - Points[points].Z * Yscale), math.floor(XCenter - (Points[points].D/2) * Xscale), math.floor(Height - Points[points].Z * Yscale));
+		end
+	end
+	
+	-- Fill in
+	local brush = wx.wxBrush(axisColors[1], wx.wxBRUSHSTYLE_SOLID)
+	dc:SetBrush(brush)
+	local x, y = XCenter, math.floor(Height - ((Points[#Points].Z + Points[1].Z)/2)* Yscale)
+	if #Points > 1 then 
+		dc:FloodFill(x, y, axisColors[1], wx.wxFLOOD_BORDER)
+	end
+	-- Draw Center of Mass
+	--local brush = wx.wxBrush(axisColors[2], wx.wxBRUSHSTYLE_SOLID)
+	--dc:SetBrush(brush)
+	--local Area = 0
+	--local OldArea = 0
+	--for points=1, #Points, 1 do --iterate through lists of Point cords
+	--	if Points[points+1] ~= nil then
+	--		OldArea = Area
+	--		Area = Area + (((Points[points].D + Points[points+1].D)/2)*HeightDifference)
+	--		if Area > TotalArea/2 then
+	--			local zPos = LinearInterpolation(TotalArea/2, OldArea, Area, Points[points-1].Z, Points[points].Z)--Points[points].Z--
+	--			--print(zPos)
+	--		--	dc:DrawCircle (XCenter, Height - zPos * Yscale, 10)
+	--			break
+	--		end
+	--	end
+	--end
+	--
+	--End
+	
+	dc:delete()
+	end
+end
+function LinearInterpolation(x, x1, x2, y1, y2) -- is the known point of the cordinate
+	local ans = y1 + (x-x1) * (y2 - y1) / (x2 - x1)
+	return ans
+end
+function colorChanged(event, num, index)
+	local newColor = event:GetColour()
+	local window = szrInputs:FindItemAtPosition(wx.wxGBPosition( 0, num )):GetWindow()
+	window:SetForegroundColour(newColor)
+	window:Refresh()
+	axisColors[index] = newColor
+	OnPaint()
+end
+function ParseString(str)
+	if str:sub(1,1) == "," then
+		str = str:sub(2)
+	end
+	local tkz = wx.wxStringTokenizer(str, (","));
+	local probePoints = {}
+	local ZPos, Diameter
+	while (tkz:HasMoreTokens()) do
+		local token = tkz:GetNextToken()
+		if tostring(token) ~= nil then
+			ZPos = token
+			token = tkz:GetNextToken()
+			Diameter = token
+			table.insert(probePoints, {["Z"] = tonumber(ZPos), ["D"] = tonumber(Diameter)})
+		end
+	end
+	Points = probePoints
+	return 0
+end
+function FakeParseString(str)
+	local tkz = wx.wxStringTokenizer(str, ("\n"));
+	local probePoints = ""
+	local ZPos, Diameter
+	while (tkz:HasMoreTokens()) do
+		local token = tkz:GetNextToken()
+		if tostring(token) ~= nil then
+			probePoints = probePoints .. token .. ","
+		end
+	end
+	return probePoints:sub(0, -2)
+end
+function LoadFileString(filename)
+	local myfile = io.open(filename , "r")
+	local str = myfile:read("*all")
+	myfile:close();
+	return str--FakeParseString(str)
+end
+local SavePath = mc.mcCntlGetMachDir(inst) .. "/TraceIntermediary/ProbeIntermediary.txt"
+local ProbePointsString = LoadFileString(SavePath)--mc.mcRegGetValueString(ProbePointsHdl)
+if ProbePointsString == nil then
+	return
+end
+ProbePointsString = ParseString(ProbePointsString)
+--function LoadFileString(filename)
+--	local myfile = io.open(filename , "r")
+--	local str = myfile:read("*all")
+--	myfile:close();
+--	return FakeParseString(str)
+--end
+--local ProbePointsString = LoadFileString("C:/src/red_test -2.csv")--"37.13,1.5,36.5,1.5,36.485,1.6397,36.452,1.735,36.419,1.8186,36.386,1.8854,36.353,1.9287,36.32,1.9613,36.287,1.9883,36.254,2.0065,36.221,2.0227,36.188,2.0226,36.122,2.008,36.089,1.9935,36.056,1.9755,36.023,1.9509,35.99,1.9238,35.957,1.8912,35.924,1.8491,35.891,1.787,35.858,1.7019,35.825,1.6745,35.792,1.6505,35.726,1.6081,35.693,1.5865,35.66,1.5647,35.627,1.545,35.594,1.5267,35.561,1.5085,35.528,1.4917,35.495,1.4758,35.462,1.4597,35.429,1.4449,35.396,1.4297,35.363,1.4145,35.33,1.4003,35.297,1.3865,35.264,1.3728,35.231,1.3608,35.198,1.3485,35.165,1.338,35.132,1.3274,35.099,1.3165,35.066,1.3071,35.033,1.2968,35,1.2869,34.5,1.1838,34,1.1196,33.5,1.0787,33,1.0433,32.5,1.0135,32,0.9876,31.5,0.9674,31,0.9551,30.5,0.9478,30,0.9453,29.5,0.9473,29,0.9535,28.5,0.9583,28,0.9652,27.5,0.9731,27,0.9809,26.5,0.9908,26,1.0005,25.5,1.0138,25,1.0276,24.5,1.0452,24,1.0646,23.5,1.095,23,1.1206,22.5,1.154,22,1.1812,21.5,1.2149,21,1.2575,20.5,1.3047,20,1.3578,19.5,1.4158,19,1.4758,18.5,1.5401,18,1.6074,17.5,1.6794,17,1.7542,16.5,1.8375,16,1.9242,15.5,2.0115,15,2.0954,14.5,2.1778,14,2.2502,13.5,2.3068,13,2.3503,12.5,2.3878,12,2.4374,11.5,2.4659,11,2.4915,10.5,2.5132,10,2.531,9.5,2.5454,9,2.5547,8.5,2.563,8,2.5603,7.5,2.558,7,2.5603,6.5,2.562,6,2.5624,5.5,2.5621,5,2.5613,4.5,2.5623,4,2.5621,3.5,2.5561,3.48,2.5551,3.4475,2.5541,3.415,2.5528,3.3825,2.5518,3.35,2.5496,3.3175,2.548,3.285,2.5462,3.2525,2.5436,3.22,2.5406,3.1875,2.5381,3.155,2.5346,3.1225,2.5312,3.09,2.5314,3.0575,2.5219,3.025,2.5202,2.9925,2.5093,2.96,2.5013,2.9275,2.4911,2.895,2.4808,2.8625,2.468,2.83,2.4519,2.7975,2.4331,2.765,2.4116,2.7325,2.3858,2.7,2.3518,2.6675,2.3129,2.635, 2.2609,2.6025,2.194,2.57,2.1168,2.5375,2.0307,2.505,1.931,2.4725,1.7979,1,1.7979,0.5,2.5,0,2.5"
+local ProbePoints = {}
+function Main()
+	MachDirectory = mc.mcCntlGetMachDir(inst)
+	Profile = mc.mcProfileGetName(inst)
+	ScriptDirectory = MachDirectory .. "\\Modules\\"
+	UI = {}
+	if(mcLuaPanelParent == nil)then
+		-- create MyFrame1
+		UI.MyFrame1 = wx.wxFrame (wx.NULL, wx.wxID_ANY, wizname, wx.wxDefaultPosition, wx.wxSize(500, 500), wx.wxDEFAULT_FRAME_STYLE+wx.wxTAB_TRAVERSAL)
+		UI.MyFrame1:SetSizeHints( wx.wxDefaultSize, wx.wxDefaultSize )
+		UI.MyFrame1:SetBackgroundColour( wx.wxColour( 255, 255, 255 ) )
+		UI.MyFrame1:Connect( wx.wxEVT_CLOSE_WINDOW, function(event)
+			UI.PanelParent:Destroy()
+			UI.PanelParent = nil
+			UI.MyFrame1:Destroy()
+		end )  
+		UI.PanelParent = wx.wxPanel( UI.MyFrame1, wx.wxID_ANY, wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxTAB_TRAVERSAL )
+	else
+		UI.PanelParent = mcLuaPanelParent
+	end
+	--*************************************************************
+	--*************************************************************
+
+	-- Body of panel layout here
+	
+	UI.bSizer1 = wx.wxBoxSizer( wx.wxVERTICAL )
+
+	UI.szrScope = wx.wxBoxSizer( wx.wxHORIZONTAL )
+
+	UI.PanelSizer = wx.wxBoxSizer( wx.wxHORIZONTAL )
+
+	UI.szrScope:Add( 0, 0, 1, wx.wxEXPAND, 5 )
+	--UI.szrScope:Add( 0, 0, 1, wx.wxEXPAND, 5 )
+
+	UI.m_panel1 = wx.wxPanel( UI.PanelParent, wx.wxID_ANY, wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxFULL_REPAINT_ON_RESIZE)
+	UI.PanelSizer:Add( UI.m_panel1, 1, wx.wxEXPAND, 0 )
+
+	UI.szrScope:Add( UI.PanelSizer, 1, wx.wxEXPAND, 0 )
+
+	
+	UI.bSizer2 = wx.wxBoxSizer( wx.wxVERTICAL )
+
+	UI.m_textCtrl1 = wx.wxTextCtrl( UI.PanelParent, wx.wxID_ANY, "", wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+	UI.bSizer2:Add( UI.m_textCtrl1, 0, wx.wxALL, 5 )
+
+	UI.m_button1 = wx.wxButton( UI.PanelParent, wx.wxID_ANY, "Edit Diameter\nOFF", wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+	UI.bSizer2:Add( UI.m_button1, 0, wx.wxALL, 5 )
+	
+	UI.m_button2 = wx.wxButton( UI.PanelParent, wx.wxID_ANY, "Reset Highlight", wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+	UI.bSizer2:Add( UI.m_button2, 0, wx.wxALL, 5 )
+
+	UI.szrScope:Add( UI.bSizer2, 0, wx.wxEXPAND, 0 )
+
+	UI.szrScope:Add( 0, 0, 1, wx.wxEXPAND, 0 )
+
+	UI.PanelParent:SetSizer( UI.szrScope )
+	UI.PanelParent:Layout()
+	--UI.szrScope:Fit( UI.PanelParent )
+	UI.bSizer1:Add( UI.PanelParent, 1, wx.wxEXPAND, 0)
+
+	--UI.PanelParent:SetSizer( UI.szrScope )
+	--UI.PanelParent:Layout()
+	
+	--UI.bSizer1 = wx.wxBoxSizer( wx.wxHORIZONTAL )
+	--
+	--
+	--szrScope = wx.wxBoxSizer( wx.wxVERTICAL )
+	--
+	--UI.m_panel1 = wx.wxPanel( UI.PanelParent, wx.wxID_ANY, wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxTAB_TRAVERSAL + wx.wxFULL_REPAINT_ON_RESIZE)--wx.wxSize(700,350)
+	--szrScope:Add( UI.m_panel1, 1, 0, 0 )
+	--
+	--UI.bSizer2 = wx.wxBoxSizer( wx.wxVERTICAL )
+	--
+	--UI.m_button2 = wx.wxButton( UI.PanelParent, wx.wxID_ANY, "Edit Points", wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+	--UI.bSizer2:Add( UI.m_button2, 0, wx.wxEXPAND, 5 )
+	--
+	--UI.m_textCtrl1 = wx.wxTextCtrl( UI.PanelParent, wx.wxID_ANY, "TEst", wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+	--UI.bSizer2:Add( UI.m_textCtrl1, 0, wx.wxEXPAND, 5 )
+	--
+	--
+	--UI.PanelParent:SetSizer(szrScope)
+	--UI.PanelParent:Layout()
+	--UI.bSizer1:Add( UI.PanelParent, 1, wx.wxEXPAND, 0 )
+	
+	timer = wx.wxTimer(UI.PanelParent)
+	--[[
+	UI.PanelParent:Connect( wx.wxEVT_SIZE, function(event)
+		newSize = UI.PanelParent:GetClientSize()
+		local width, height = newSize:GetWidth() - UI.bSizer2:GetSize():GetWidth(), newSize:GetHeight()
+		--local Point = UI.PanelParent:GetPosition()
+		local Width, Height = ResizeWithRatio({["x"] = xRange, ["y"] = zRange}, {["x"] = width, ["y"] = height})
+		--UI.m_panel1:Move( (width/2) - (Width/2), Point.y, wx.wxSIZE_USE_EXISTING)
+		--UI.PanelParent:Layout()
+		print(Width)
+		print(Height)
+		UI.m_panel1:SetClientSize(Width, Height)
+	end )
+	--]]
+	UI.m_panel1:Connect( wx.wxEVT_PAINT, function(event)
+		OnPaint(event)
+	end )	
+	local trackPositions = false
+	
+	UI.m_button1:Connect( wx.wxEVT_COMMAND_BUTTON_CLICKED, function(event)
+		if trackPositions == false then
+			trackPositions = true
+			UI.m_button1:SetLabel("Edit Diameter\nON")
+		else
+			trackPositions = false
+			UI.m_button1:SetLabel("Edit Diameter\nOFF")
+		end
+		
+		event:Skip()
+	end )
+	UI.m_button2:Connect( wx.wxEVT_COMMAND_BUTTON_CLICKED, function(event)
+		ClientDC:Clear()
+		ClientDC:delete()
+		UI.m_panel1:Refresh()
+		lDown, lUp = nil, nil
+	end )
+	function GetPositionOfMouseEvents(bottomP, topP)
+		--Get the top and bottom Points
+		TopY = math.max(yPoint1, yPoint2)
+		BottomY = math.min(yPoint1, yPoint2)
+		local MinZPos, MaxZPos
+		local function FindEventPositionInPoints(Pos, width)
+			if Points[Pos] == nil or width < 1 then
+				return
+			end
+			width = width/2
+			if MinZPos == nil and bottomP > 0 then
+				if Points[Pos].Z > BottomY then
+					if Points[Pos-1] ~= nil and Points[Pos-1].Z < BottomY then
+						MinZPos = Pos
+					else
+						FindEventPositionInPoints(math.floor(Pos - width), width)
+					end
+				else -- Points[Pos].Z < BottomY
+					if Points[Pos+1] ~= nil and Points[Pos+1].Z > BottomY then
+						MinZPos = Pos
+					else
+						FindEventPositionInPoints(math.floor(Pos + width), width)
+					end
+				end
+			end
+			if MaxZPos == nil then
+				if Points[Pos].Z > TopY then
+					if Points[Pos-1] ~= nil and Points[Pos-1].Z < TopY then
+						MaxZPos = Pos
+					else
+						FindEventPositionInPoints(math.floor(Pos - width), width)
+					end
+				else -- Points[Pos].Z < TopY
+					if Points[Pos+1] ~= nil and Points[Pos+1].Z > TopY then
+						MaxZPos = Pos
+					else
+						FindEventPositionInPoints(math.floor(Pos + width), width)
+					end
+				end
+			end
+		end
+		FindEventPositionInPoints(startPos, startPos)
+		if startPos == nil then
+			startPos = math.floor(#Points/2)
+		end
+		if MinZPos == nil then
+			MinZPos = 1
+		end
+		if MaxZPos == nil then
+			MaxZPos = #Points
+		end
+		return MinZPos, MaxZPos
+	end
+	--for points=1, #Points, 1 do
+	--	if MinZPos == nil then
+	--		if Points[points].Z > BottomY then
+	--			MinZPos = points
+	--		end
+	--	else
+	--		if Points[points].Z < TopY then
+	--			MaxZPos = points
+	--		end
+	--	end
+	--end
+	
+	
+	
+	UI.m_panel1:Connect( wx.wxEVT_MOTION, function(event)
+		if lDown == nil or lUp ~= nil then
+			return
+		end
+		-- Get position of mouse
+		lMove = event:GetPosition()
+		-- Get the current size of the panel
+		local size = UI.m_panel1:GetSize()
+		--local Width, Height = size:GetWidth(), size:GetHeight()
+		--local width, height = dc:GetSize()
+		local Width, Height = ResizeWithRatio({["x"] = xRange, ["y"] = zRange}, {["x"] = size:GetWidth(), ["y"] = size:GetHeight()})
+		--Scale
+		local Yscale = (Height / zRange) 
+		local Xscale = ((Width) / xRange)
+		-- Get points target Zs in the points table
+		yPoint2 = zRange - (lMove.y / Yscale)
+		yPoint1 = zRange - (lDown.y / Yscale)
+		-- Get Position of mouse points in the Points table
+		local MinZPos, MaxZPos = GetPositionOfMouseEvents(yPoint1, yPoint2)
+		-- Draw lines for the mouse position
+		-- Fill in
+		local brush = wx.wxBrush(wx.wxColour(255,255,255), wx.wxBRUSHSTYLE_SOLID)
+		local PenSize = 5
+		ClientDC:SetBrush(brush)
+		ClientDC:FloodFill(math.floor(XCenter - Points[MinZPos].D/2 * Xscale) - PenSize, math.floor(Height - Points[MinZPos].Z * Yscale), axisColors[1], wx.wxFLOOD_BORDER)
+		if Points[MinZPos] and Points[MaxZPos] then
+			ClientDC:SetPen( wx.wxPen(axisColors[4], PenSize, wx.wxPENSTYLE_SOLID));			
+			for points=MinZPos, MaxZPos-1, 1 do --iterate through lists of Point cords
+				if Points[points+1] ~= nil then
+					ClientDC:DrawLine(math.floor(XCenter - Points[points].D/2 * Xscale) - PenSize, math.floor(Height - Points[points].Z * Yscale), math.floor(XCenter - Points[points+1].D/2 * Xscale) - PenSize, math.floor(Height - Points[points+1].Z * Yscale));
+					ClientDC:DrawLine(math.floor(XCenter + Points[points].D/2 * Xscale) + PenSize, math.floor(Height - Points[points].Z * Yscale), math.floor(XCenter + Points[points+1].D/2 * Xscale) + PenSize, math.floor(Height - Points[points+1].Z * Yscale));
+				end
+			end
+		end
+	end )
+	--.x and .y to get the points
+	UI.m_panel1:Connect( wx.wxEVT_LEFT_DOWN, function(event)
+		if trackPositions == true then
+			lDown = event:GetPosition()
+			ClientDC = wx.wxClientDC(UI.m_panel1)
+		end
+	end )
+
+	UI.m_panel1:Connect( wx.wxEVT_LEFT_UP, function(event)
+		if lDown ~= nil then
+			lUp = event:GetPosition()
+		end
+	end )
+	UI.m_textCtrl1:Connect( wx.wxEVT_COMMAND_TEXT_UPDATED, function(event)
+		-- Get new Diameter
+		local DiameterModifier = tonumber(UI.m_textCtrl1:GetLineText(0))
+		if DiameterModifier == nil then
+			return
+		end
+		if lUp == nil and DiameterModifier ~= 0 then
+			return
+		end
+		local size = UI.m_panel1:GetSize()
+		local Width, Height = size:GetWidth(), size:GetHeight()--ResizeWithRatio({["x"] = xRange, ["y"] = zRange}, {["x"] = (width - (leftOffset +5)), ["y"] = (yLine - heightOffTopMod)})
+		-- Set the Scales
+		Yscale = (Height / zRange) -- The Z Axis
+		yPoint1 = zRange - (lDown.y / Yscale)
+		yPoint2 = zRange - (lUp.y / Yscale)
+		local MinZPos, MaxZPos = GetPositionOfMouseEvents(yPoint1, yPoint2)	
+		local newVal
+		for points=MinZPos, MaxZPos, 1 do --iterate through lists of Point cords
+			newVal = Points[points].D + DiameterModifier
+			if newVal > 0 then
+				Points[points].D = newVal
+			end
+		end
+		UI.m_panel1:Refresh()
+	end )
+	
+	local updates = 0
+	local ProbeStrTemp = ""
+	UI.PanelParent:Connect(wx.wxEVT_TIMER, function(event)
+		--local startTime = stopwatch:Time()
+		ProbeStrTemp = LoadFileString(SavePath)--mc.mcRegGetValueString(ProbePointsHdl)
+		if ProbeStrTemp ~= ProbePointsString then
+			ProbePointsString = ProbeStrTemp
+			local rc = ParseString(ProbePointsString)
+			if rc ~= 0 then
+				timer:Start(pollingInterval - (stopwatch:Time()%pollingInterval), wx.wxTIMER_ONE_SHOT )
+				return
+			end
+			UI.m_panel1:Layout()
+			UI.m_panel1:Refresh()
+		end
+		timer:Start(pollingInterval - (stopwatch:Time()%pollingInterval), wx.wxTIMER_ONE_SHOT )
+	end)
+	timer:Start(pollingInterval - (stopwatch:Time()%pollingInterval), wx.wxTIMER_ONE_SHOT )
+	--]]
+--	 Connect Events
+	if(mcLuaPanelParent == nil)then
+		UI.MyFrame1:SetSizer(UI.bSizer1)
+		UI.MyFrame1:Connect( wx.wxEVT_CLOSE_WINDOW, function(event)
+			timer:Stop()
+			UI.PanelParent:Destroy()
+			UI.PanelParent = nil
+			UI.MyFrame1:Destroy()
+		end )  
+	
+		UI.MyFrame1:Layout()
+		UI.MyFrame1:Centre( wx.wxBOTH )
+		UI.MyFrame1:Show(true)
+	else
+		local mcParent = mcLuaPanelParent:GetParent()
+		mcParent:SetSizer(UI.bSizer1)
+		mcParent:Layout()
+		mcParent:Fit()
+	end
+	
+end
+	
+	
+	
+Main()
+
+wx.wxGetApp():MainLoop()

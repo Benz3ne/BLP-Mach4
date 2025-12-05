@@ -1,0 +1,107 @@
+-- Replace the from and to addresses, as well as the mail server IP address, 
+-- with something useful.
+
+package.path = package.path .. ";./Modules/?.lua;"
+package.cpath = package.cpath .. ";./Modules/?.dll;"
+
+function email()
+
+    -- load the smtp support
+    local smtp = require("/socket.smtp")
+
+    -- Connects to server "localhost" and sends a message to users
+    -- "fulano@example.com",  "beltrano@example.com", 
+    -- and "sicrano@example.com".
+    -- Note that "fulano" is the primary recipient, "beltrano" receives a
+    -- carbon copy and neither of them knows that "sicrano" received a blind
+    -- carbon copy of the message.
+    from = "<mailfrom@sendingdomain.com>"
+
+    rcpt = {
+        "<someuser@somedomain.com>"
+    }
+
+    mesgt = {
+        headers = {
+            to = "Some User <someuser@somedomain.com>",
+            subject = "email test"
+        },
+        body = "This is a message from M300."
+    }
+
+    r, e = smtp.send{
+        from = from,
+        rcpt = rcpt, 
+        source = smtp.message(mesgt),
+        server = "192.168.1.25" -- mail server to use...  defaults to port 25.
+    }
+    r = r
+end    
+
+email()
+
+
+package.path = package.path .. ";./Modules/?.lua;"
+package.cpath = package.cpath .. ";./Modules/?.dll;"
+
+mysql = require("luasql.mysql")
+-- do some mysql stuff here...
+
+
+package.path = package.path .. ";./Modules/?.lua;"
+package.cpath = package.cpath .. ";./Modules/?.dll;"
+--package.cpath = "C:/src/Mach4/Modules/?.dll;"
+rs232 = require("luars232")
+socket = require("socket")
+-- Linux
+-- port_name = "/dev/ttyS0"
+
+-- (Open)BSD
+-- port_name = "/dev/cua00"
+
+-- Windows
+port_name = "COM7"
+
+local out = io.stderr
+
+-- open port
+local e, p = rs232.open(port_name)
+if e ~= rs232.RS232_ERR_NOERROR then
+	-- handle error
+	out:write(string.format("can't open serial port '%s', error: '%s'\n",
+			port_name, rs232.error_tostring(e)))
+	return
+end
+
+-- set port settings
+assert(p:set_baud_rate(rs232.RS232_BAUD_57600) == rs232.RS232_ERR_NOERROR)
+assert(p:set_data_bits(rs232.RS232_DATA_8) == rs232.RS232_ERR_NOERROR)
+assert(p:set_parity(rs232.RS232_PARITY_NONE) == rs232.RS232_ERR_NOERROR)
+assert(p:set_stop_bits(rs232.RS232_STOP_1) == rs232.RS232_ERR_NOERROR)
+assert(p:set_flow_control(rs232.RS232_FLOW_OFF)  == rs232.RS232_ERR_NOERROR)
+
+--out:write(string.format("OK, port open with values '%s'\n", tostring(p)))
+
+			
+-- write without timeout
+err, len_written = p:write("TEST\n")
+assert(e == rs232.RS232_ERR_NOERROR)
+
+-- write with timeout 100 msec
+local timeout = 100 -- in miliseconds
+err, len_written = p:write("test\n", timeout)
+assert(e == rs232.RS232_ERR_NOERROR)
+
+-- read with timeout
+local read_len = 1 -- read one byte
+timeout = 50000 -- in miliseconds
+local err, data_read, size = p:read(read_len, timeout)
+assert(e == rs232.RS232_ERR_NOERROR)
+
+-- close
+assert(p:close() == rs232.RS232_ERR_NOERROR)
+
+
+lc = require "luacom"
+
+print 'test'

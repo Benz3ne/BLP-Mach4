@@ -1,0 +1,5 @@
+function m204()
+    local inst = mc.mcGetInstance()
+    ProbeScripts.ProbeInsideCenter(inst)
+    return mc.MERROR_NOERROR
+end

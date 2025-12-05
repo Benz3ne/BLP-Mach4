@@ -1,0 +1,5 @@
+function m202()
+    local inst = mc.mcGetInstance()
+    ProbeScripts.ProbeXY(inst)
+    return mc.MERROR_NOERROR
+end

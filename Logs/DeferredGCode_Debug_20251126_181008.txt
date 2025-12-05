@@ -1,0 +1,37 @@
+Deferred G-code System Debug Test
+=======================================================================
+2025-11-26 18:10:08
+
+Current machine state: 200
+  0 = IDLE, 4 = JOG, 100-199 = File Run, 200-299 = MDI/Macro
+
+TEST 1: Check register handles
+-----------------------------------------------------------------------
+  DeferredGCodeFile handle: 555371264.0
+  DeferredGCodeRequest handle: 555372008.0
+  DeferredGCodeFile register exists
+  DeferredGCodeRequest register exists
+
+TEST 2: Check current register values
+-----------------------------------------------------------------------
+  DeferredGCodeFile value: 'C:\Mach4Hobby\Profiles\BLP\Logs\HalletDavisTest_39365\TempCombinedTrim.tap'
+  DeferredGCodeRequest value: 1.0
+
+TEST 3: Test setting registers
+-----------------------------------------------------------------------
+  Created test file: C:\Mach4Hobby\Profiles\BLP\Logs\debug_test.nc
+  Set DeferredGCodeFile to: 'C:\Mach4Hobby\Profiles\BLP\Logs\debug_test.nc'
+  Read back value: 'C:\Mach4Hobby\Profiles\BLP\Logs\debug_test.nc'
+  PASS: Value matches
+  Set DeferredGCodeRequest to: 1
+  Read back value: 1.0
+  PASS: Value matches
+
+=======================================================================
+Debug complete.
+
+If registers exist and values are set correctly, the PLC should
+pick up the request when machine returns to IDLE state (0).
+
+Check that ProcessDeferredGCode() is being called in PLC.lua
+inside the 'if machState == 0 or machState == 4 then' block.

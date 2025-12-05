@@ -1,0 +1,5 @@
+function m207()
+    local inst = mc.mcGetInstance()
+    ProbeScripts.CalibrateProbeOffset(inst)
+    return mc.MERROR_NOERROR
+end

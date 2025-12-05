@@ -1,0 +1,293 @@
+-----------------------------------------------------------------------------
+-- Name:        BoltHolelua
+-- Author:      B Barker
+-- Modified by:
+-- Created:     08/03/2013
+-- Copyright:   (c) 2013 Newfangled Solutions. All rights reserved.
+-- Licence:     BSD license
+-----------------------------------------------------------------------------
+
+function GetNextID()
+    m_id = m_id+1
+    return m_id
+end
+--global var to hold the frame
+mainframe = nil
+panel = nil
+m_id = 0
+m_iniName = "CircleHolePat"
+
+
+ID_GENGCODE_BUT  = GetNextID()
+ID_CLOSE_BUTTON  = GetNextID()
+m_image = wx.wxGetCwd() .. "\\Wizards\\HolesNew.png"
+
+function Setupinputs()
+ --Add all the inputs
+    local val
+    m_center_x = AddInputControl("Hole Center X",nil)
+    m_center_x:SetValue( mc.mcProfileGetString(0 , tostring(m_iniName), "Xcenter", "0.000") )
+    m_center_y = AddInputControl("Hole Center Y", nil)
+    m_center_y:SetValue( mc.mcProfileGetString(0 , tostring(m_iniName), "Ycenter", "0.000") ) 
+    m_circle_dia = AddInputControl("Bolt Circle Dia", nil)
+    m_circle_dia:SetValue( mc.mcProfileGetString(0 , tostring(m_iniName), "Dia", "5.0") )
+    m_NumHoles = AddInputControl("Number Of Holes", nil)
+    m_NumHoles:SetValue( mc.mcProfileGetString(0 , tostring(m_iniName), "Holes", "5") )
+    m_StartAngle = AddInputControl("Start Angle", nil)
+    m_StartAngle:SetValue( mc.mcProfileGetString(0 , tostring(m_iniName), "Startangle", "0.000") )
+    m_z_depth = AddInputControl("Hole Depth", nil)
+    m_z_depth:SetValue( mc.mcProfileGetString(0 , tostring(m_iniName), "Depth", "-1.1200") )
+    m_rapid_height = AddInputControl("Rapid Height", nil)
+    m_rapid_height:SetValue( mc.mcProfileGetString(0 , tostring(m_iniName), "RapidHeight", "1.000") )
+    m_retract_height = AddInputControl("Retract Height", nil)
+    m_retract_height:SetValue( mc.mcProfileGetString(0 , tostring(m_iniName), "RetractHeight", ".100") )
+    m_peck_depth = AddInputControl("Peck Depth", nil)
+    m_peck_depth:SetValue( mc.mcProfileGetString(0 , tostring(m_iniName), "PeckDepth", ".125") )
+    m_feedrate = AddInputControl("Feedrate", nil)
+    m_feedrate:SetValue( mc.mcProfileGetString(0 , tostring(m_iniName), "Feed", "10") )
+    m_cycletype, ID_CYCLE_TYPE = AddSelectControl("Drill cylce", {"G81 Single pass", "G83 Peck Drill", "G73 High speed Peck"}, ID_CYCLE_TYPE)
+    local val =  mc.mcProfileGetString(0 , tostring(m_iniName), "Cycle", "0") 
+    m_cycletype:SetSelection(tonumber(val))
+    m_spindle = AddSelectControl("Spindle Dir", {"None", "CW", "CCW"}, nil)
+
+    m_Test = AddCheckControl("Check me")
+
+    m_Test2 = AddRadioControl("Radio killed the video star")
+AddRadioControl("yes")
+AddRadioControl("No ")
+AddRadioControl("okay")
+   
+end
+function SaveSettings()
+
+    mc.mcProfileWriteString(0 , tostring(m_iniName), "Xcenter", tostring(m_center_x:GetValue()))
+    mc.mcProfileWriteString(0 , tostring(m_iniName), "Ycenter", tostring(m_center_y:GetValue()))
+    mc.mcProfileWriteString(0 , tostring(m_iniName), "Dia", tostring(m_circle_dia:GetValue()))
+    mc.mcProfileWriteString(0 , tostring(m_iniName), "Holes", tostring(m_NumHoles:GetValue()))
+    mc.mcProfileWriteString(0 , tostring(m_iniName), "Depth", tostring(m_z_depth:GetValue()))
+    mc.mcProfileWriteString(0 , tostring(m_iniName), "RapidHeight", tostring(m_rapid_height:GetValue()))
+    mc.mcProfileWriteString(0 , tostring(m_iniName), "RetractHeight", tostring(m_retract_height:GetValue()))
+    mc.mcProfileWriteString(0 , tostring(m_iniName), "PeckDepth", tostring(m_peck_depth:GetValue()))
+    mc.mcProfileWriteString(0 , tostring(m_iniName), "Feed", tostring(m_feedrate:GetValue()))
+    mc.mcProfileWriteString(0 , tostring(m_iniName), "Cycle", tostring(m_cycletype:GetCurrentSelection()))
+end
+function GenGcode()
+        local x_center = m_center_x:GetValue()
+        local y_center = m_center_y:GetValue()
+        local numberofholes = m_NumHoles:GetValue()
+        local dia = m_circle_dia:GetValue()
+        local stAngle = (math.pi/180)*m_StartAngle:GetValue()
+        local RapidHeight = m_rapid_height:GetValue()
+        local retheight = m_retract_height:GetValue()
+        local peck = m_peck_depth:GetValue()
+        local feed = m_feedrate:GetValue()
+        local depth = m_z_depth:GetValue()
+        local gcode = string.format("G00 Z%.4f\n", RapidHeight)
+
+        local drilltype = m_cycletype:GetCurrentSelection()
+
+        local x = x_center+(dia/2)*math.cos(stAngle);
+        local y = y_center+(dia/2)*math.sin(stAngle);
+        
+        local spin = m_spindle:GetCurrentSelection()
+        if(spin == 0)then
+            gcode = gcode .. "(No Spindle M Code)\n"
+        elseif(spin == 1) then
+            gcode = gcode .. "M03 (Spinle CW)\n"
+        elseif(spin == 2) then
+            gcode = gcode .. "M04 (Spinle CCW)\n"
+        end
+
+        if(drilltype == 0)then
+            gcode = gcode .. string.format("G81 X%.4f Y%.4f Z%.4f R%.4f F%.4f\n", x, y, depth, retheight, feed )
+        elseif(drilltype == 1) then
+            gcode = gcode .. string.format("G83 X%.4f Y%.4f Z%.4f R%.4f Q%.4f F%.4f\n", x, y, depth, retheight, peck, feed )
+        elseif(drilltype == 2) then
+            gcode = gcode .. string.format("G73 X%.4f Y%.4f Z%.4f R%.4f Q%.4f F%.4f\n", x, y, depth, retheight, peck, feed )
+        end
+
+        local StepAng= (2*math.pi)/numberofholes;
+        local i
+        for i=1, numberofholes-1, 1  do
+            x=x_center+(dia/2)*math.cos(stAngle+(StepAng*i));
+			y=y_center+(dia/2)*math.sin(stAngle+(StepAng*i));
+            gcode = gcode .. string.format("X%.4f Y%.4f\n", x, y )
+        end
+        gcode = gcode .. "G80\nM05\nM30"
+
+        local file = wx.wxFileDialog(panel, "Select Gcode File", "", "", "Text files (*.txt)|*.txt|Tap files (*.tap)|*.tap", 
+                              wx.wxFD_SAVE,wx.wxDefaultPosition,wx.wxDefaultSize, "File Dialog" );
+        if(file:ShowModal() == wx.wxID_OK)then
+            local path = file:GetPath()
+            --wx.wxMessageBox(tostring(path))
+            io.output(io.open(path,"w"))
+            io.write(gcode)
+            io.close()
+            mc.mcCntlLoadGcodeFile( 0, tostring(path)) 
+        end
+        SaveSettings()
+end
+function main()
+
+if(mcLuaPanelParent == nil)then
+    -- create the wxFrame window
+    mainframe = wx.wxFrame( wx.NULL,          -- no parent
+                        wx.wxID_ANY,          -- whatever for wxWindow ID
+                        "Mach4 Bolt Hole Wizard", -- frame caption
+                        wx.wxDefaultPosition, -- place the frame in default position
+                        wx.wxDefaultSize,     -- default frame size
+                        wx.wxDEFAULT_FRAME_STYLE ) -- use default frame styles
+
+    -- create a panel in the frame
+    panel = wx.wxPanel(mainframe, wx.wxID_ANY)
+
+    -- create a simple file menu with an exit
+    local fileMenu = wx.wxMenu()
+    fileMenu:Append(wx.wxID_EXIT, "E&xit", "Quit the wizard")
+
+    -- create a simple help menu
+    local helpMenu = wx.wxMenu()
+    helpMenu:Append(wx.wxID_ABOUT, "&About", "About Bolt Hole Wizard")
+
+    -- create a menu bar and append the file and help menus
+    local menuBar = wx.wxMenuBar()
+    menuBar:Append(fileMenu, "&File")
+    menuBar:Append(helpMenu, "&Help")
+
+    -- attach the menu bar into the frame
+    mainframe:SetMenuBar(menuBar)
+
+    -- create a simple status bar
+    mainframe:CreateStatusBar(1)
+    mainframe:SetStatusText("No Error.")
+
+    -- connect the selection event of the exit menu item to an
+    -- event handler that closes the window
+    mainframe:Connect(wx.wxID_EXIT, 
+                      wx.wxEVT_COMMAND_MENU_SELECTED,
+                      function (event) 
+                          mainframe:Close(true) 
+                      end )
+
+    -- connect the selection event of the about menu item
+    mainframe:Connect(wx.wxID_ABOUT, wx.wxEVT_COMMAND_MENU_SELECTED,
+        function (event)
+             wx.wxMessageBox("Bolt Hole pattern wizard \n\nAuthor: Brian Barker\nDate: 8/3/13\nThis wizard is to be used as an example of how to make a wizard",
+                            "About wxLua",
+                            wx.wxOK + wx.wxICON_INFORMATION,
+                            mainframe)
+        end )
+
+else
+    panel = mcLuaPanelParent
+end
+
+    --Set up the main sizer so we can start adding controls
+    local mainSizer = wx.wxBoxSizer(wx.wxVERTICAL)
+    local InputsGridSizer  = wx.wxFlexGridSizer( 2, 4, 0, 0 )
+    InputsGridSizer:AddGrowableCol(1, 0)
+ 
+    function AddInputControl(name_string, width)
+        if(width == nil)then 
+            width = 100
+        end
+        local textCtrlID = GetNextID()
+        local staticText = wx.wxStaticText( panel, wx.wxID_ANY, name_string)
+        local textCtrl   = wx.wxTextCtrl( panel, textCtrlID, "0.000", wx.wxDefaultPosition, wx.wxSize(width, -1), wx.wxTE_PROCESS_ENTER ,wx.wxTextValidator(wx.wxFILTER_NUMERIC))
+        InputsGridSizer:Add( staticText, 0, wx.wxALIGN_CENTER_VERTICAL+wx.wxALL+wx.wxALIGN_RIGHT, 2)
+        InputsGridSizer:Add( textCtrl,   0, wx.wxGROW+wx.wxALIGN_CENTER+wx.wxALL+wx.wxALIGN_LEFT, 2)
+        return textCtrl, textCtrlID
+    end
+
+    function AddCheckControl(name_string) 
+        local ID = GetNextID()
+        local staticText = wx.wxStaticText( panel, wx.wxID_ANY, name_string)
+        local Ctrl   = wx.wxCheckBox( panel, ID, "", wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxTE_PROCESS_ENTER ,wx.wxTextValidator(wx.wxFILTER_NUMERIC))
+        InputsGridSizer:Add( staticText, 0, wx.wxALIGN_CENTER_VERTICAL+wx.wxALL+wx.wxALIGN_RIGHT, 2)
+        InputsGridSizer:Add( Ctrl,   0, wx.wxGROW+wx.wxALIGN_CENTER+wx.wxALL+wx.wxALIGN_LEFT, 2)
+        return Ctrl, ID
+    end
+
+    function AddRadioControl(name_string) 
+        local ID = GetNextID()
+        local sizer = wx.wxBoxSizer( wx.wxHORIZONTAL )
+        local Ctrl   = wx.wxRadioButton( panel, ID, name_string, wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxTE_PROCESS_ENTER ,wx.wxTextValidator(wx.wxFILTER_NUMERIC))
+        InputsGridSizer:Add( sizer, 0, wx.wxALIGN_CENTER_VERTICAL+wx.wxALL+wx.wxALIGN_RIGHT, 2)
+        InputsGridSizer:Add( Ctrl,   0, wx.wxGROW+wx.wxALIGN_CENTER+wx.wxALL+wx.wxALIGN_LEFT, 2)
+        return Ctrl, ID
+    end
+
+    function AddSelectControl(name_string, selections, selCtrlID)
+        local selCtrlID = GetNextID()
+        local staticText = wx.wxStaticText( panel, wx.wxID_ANY, name_string )
+        local selCtrl   = wx.wxComboBox(panel, selCtrlID, "", wx.wxDefaultPosition, wx.wxSize(100, -1), selections)
+        selCtrl:SetSelection(0)
+        InputsGridSizer:Add( staticText, 0, wx.wxALIGN_CENTER_VERTICAL+wx.wxALL+wx.wxALIGN_RIGHT, 2)
+        InputsGridSizer:Add( selCtrl,   0, wx.wxGROW+wx.wxALIGN_CENTER, 2)
+        return selCtrl, selCtrlID
+    end
+    -- Add image to the top
+    local hbmp = wx.wxBitmap(m_image)
+    local TopImage = wx.wxStaticBitmap(panel, wx.wxID_ANY, hbmp )
+    --Setup the inputs
+    Setupinputs()
+
+    -- make the bottom buttons
+    local buttonSizer = wx.wxBoxSizer( wx.wxHORIZONTAL )
+    local genGcode = wx.wxButton( panel, ID_GENGCODE_BUT, "&PostGcode")
+    genGcode:SetBackgroundColour(wx.wxColour(0,255, 128))
+    
+    buttonSizer:Add(    genGcode, 0, wx.wxALIGN_CENTER+wx.wxALL, 2 )
+    if(mcLuaPanelParent == nil)then
+        local closeButton = wx.wxButton( panel, ID_CLOSE_BUTTON, "E&xit")
+        buttonSizer:Add( closeButton, 0, wx.wxALIGN_CENTER+wx.wxALL, 2 )
+    end
+    
+    --Set up the sizers
+    mainSizer:Add(        TopImage, 0, wx.wxALIGN_CENTER+wx.wxALL, 2 )
+    mainSizer:Add( InputsGridSizer, 0, wx.wxALIGN_CENTER+wx.wxALL, 2 )
+    mainSizer:Add(     buttonSizer, 0, wx.wxALIGN_CENTER+wx.wxALL, 2 )
+
+    panel:SetSizer( mainSizer )
+    
+    panel:Connect(ID_GENGCODE_BUT, wx.wxEVT_COMMAND_BUTTON_CLICKED,
+    function(event) 
+       GenGcode()
+    end)
+	
+	panel:Connect(ID_CYCLE_TYPE, wx.wxEVT_COMMAND_COMBOBOX_SELECTED,
+    function(event) 
+		if(m_cycletype:GetCurrentSelection() == 0)then
+			m_peck_depth:SetEditable(false)
+            m_peck_depth:SetBackgroundColour(wx.wxColour("LIGHT GRAY"))
+		else
+			m_peck_depth:SetEditable(true)
+            m_peck_depth:SetBackgroundColour(wx.wxColour(wx.wxNullColour))
+		end
+       
+    end)
+
+   
+
+-- Connect a handler for pressing enter in the textctrls
+    panel:Connect(wx.wxID_ANY, wx.wxEVT_COMMAND_TEXT_ENTER,
+    function(event)
+        -- Send "fake" button press to do calculation.
+        -- Button ids have been set to be -1 from textctrl ids.
+      --  dialog:ProcessEvent(wx.wxCommandEvent(wx.wxEVT_COMMAND_BUTTON_CLICKED, event:GetId()-1))
+    end)
+
+    -- show the frame window
+    
+    if(mcLuaPanelParent == nil)then
+        panel:Connect(ID_CLOSE_BUTTON, wx.wxEVT_COMMAND_BUTTON_CLICKED,
+                        function(event) mainframe:Destroy() end)
+        panel:Fit()
+        mainframe:Fit()
+        mainframe:Show(true)
+    end
+end
+
+main()
+
+wx.wxGetApp():MainLoop()

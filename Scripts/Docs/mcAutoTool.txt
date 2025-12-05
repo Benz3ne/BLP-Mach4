@@ -1,0 +1,243 @@
+-----------------------------------------------------------------------------
+-- Name:        Auto Tool Setting Module
+-- Author:      T Lamontagne
+-- Modified by:
+-- Created:     03/11/2015
+-- Copyright:   (c) 2015 Newfangled Solutions. All rights reserved.
+-- License:    
+-----------------------------------------------------------------------------
+int18n = require("int18n")
+
+local mcAutoTool = {}
+
+function mcAutoTool.AutoToolSet(length)
+	local inst = mc.mcGetInstance()
+	------------- Errors -------------
+	if (length == nil) then
+		mc.mcCntlSetLastError(inst, _("Auto Tool: Guess Length not input"))
+		do return end
+	end
+	
+	------------- Define Vars -------------
+	local TouchPos = mc.mcProfileGetDouble(0 , "AutoToolSetterSettings", "SurfaceDistance", 0.000)
+	local ProbeHeight = mc.mcProfileGetDouble(0 , "AutoToolSetterSettings", "ProbeHeight", 0.000)
+	local ToolLengthGuess = tonumber(length)
+	local Xpos = mc.mcProfileGetDouble(0 , "AutoToolSetterSettings", "XPosition", 0.000)
+	local Ypos = mc.mcProfileGetDouble(0 , "AutoToolSetterSettings", "YPosition", 0.000)
+	local RetractDistance = mc.mcProfileGetDouble(0 , "AutoToolSetterSettings", "Retract", 0.000)
+	local ProbeCode = mc.mcProfileGetDouble(0 , "AutoToolSetterSettings", "GCode", 0.000)
+
+    ProbePos = TouchPos + ProbeHeight
+
+	------------- Probe signals -----------
+	local ProbeSigTable = {
+		[31] = mc.ISIG_PROBE,
+		[31.0] = mc.ISIG_PROBE,
+		[31.1] = mc.ISIG_PROBE1,
+		[31.2] = mc.ISIG_PROBE2,
+		[31.3] = mc.ISIG_PROBE3}
+	local ProbeSignal = ProbeSigTable[ProbeCode]
+	if (ProbeSignal == nil) then
+		mc.mcCntlSetLastError(inst, _("ERROR: Invalid tool setter G code"))
+		do return end
+	end
+	
+	------------- Get current state -------------
+	local CurTool = mc.mcToolGetCurrent(inst)
+	local CurHNum = mc.mcCntlGetPoundVar(inst, 2032)
+	local CurFeed = mc.mcCntlGetPoundVar(inst, 2134)
+	local CurZOffset = mc.mcCntlGetPoundVar(inst, 4102)
+	local CurFeedMode = mc.mcCntlGetPoundVar(inst, 4001)
+	local CurAbsMode = mc.mcCntlGetPoundVar(inst, 4003)
+	
+	
+	------------- Check Probe -------------
+	local function CheckProbe(state)
+		local check = true
+		local hsig = mc.mcSignalGetHandle(inst, ProbeSignal)
+		local ProbeState = mc.mcSignalGetState(hsig)
+		local errmsg = _("ERROR: No contact with probe")
+		if (state == 1) then
+			errmsg = _("ERROR: Probe signal active")
+		end
+		if (ProbeState == state) then
+			mc.mcCntlSetLastError(inst, errmsg)
+			mc.mcCntlEStop(inst)
+			check = false
+		end
+		return check
+	end
+	rc = CheckProbe(1); if not rc then; do return end; end
+	
+	------------- Move to position -------------
+	mc.mcCntlGcodeExecuteWait(inst, "G00 G80 G40 G49 G90")
+	mc.mcCntlGcodeExecuteWait(inst, "G00 G53 Z0.0")
+	mc.mcCntlGcodeExecuteWait(inst, string.format("G00 G53 X%.4f Y%.4f", Xpos, Ypos))
+	
+	--Calculate and move to Z start position
+	--local StartHeight = TouchPos + ProbeHeight + ToolLengthGuess + .5
+	local StartHeight = ((TouchPos + ProbeHeight + ToolLengthGuess + .5) * (-1))
+	mc.mcCntlGcodeExecuteWait(inst, string.format("G00 G53 Z%.4f", StartHeight))
+	
+	------------- Check Probe -------------
+	rc = CheckProbe(1); if not rc then; do return end; end
+	------------- Probe tool -------------
+	mc.mcCntlGcodeExecuteWait(inst, "G91 G31 Z-2.0 F25.")
+	--Check probe contact
+	rc = CheckProbe(0); if not rc then; do return end; end
+	mc.mcCntlGcodeExecuteWait(inst, string.format("G91 G00 Z%.4f", RetractDistance))
+	mc.mcCntlGcodeExecuteWait(inst, string.format("G91 G%.1f Z-2.0 F10.", ProbeCode))
+	rc = CheckProbe(0); if not rc then; do return end; end
+	mc.mcCntlGcodeExecuteWait(inst, "G90 G00 G53 Z0.0")
+	
+	------------- Get touch position and set offset -------------
+	local ZProbed = mc.mcCntlGetPoundVar(inst, 5073)
+	local ZOffset = math.abs(ProbePos) - math.abs(ZProbed)
+	
+	mc.mcToolSetData(inst, mc.MTOOL_MILL_HEIGHT, CurTool, ZOffset)
+	mc.mcCntlSetLastError(inst, string.format(_("Auto tool setting complete, Offset = %.4f"), ZOffset))
+	
+end
+
+function mcAutoTool.Settings()
+	AS = {}
+	
+	-- create MyFrame1
+	AS.MyFrame1 = wx.wxFrame (wx.NULL, wx.wxID_ANY, _("Auto Tool Setter Settings"), wx.wxDefaultPosition, wx.wxSize( 760,465 ), wx.wxDEFAULT_FRAME_STYLE+wx.wxTAB_TRAVERSAL )
+	AS.MyFrame1:SetSizeHints( wx.wxDefaultSize, wx.wxDefaultSize )
+	AS.MyFrame1 :SetBackgroundColour( wx.wxSystemSettings.GetColour( wx.wxSYS_COLOUR_WINDOW ) )
+	
+	AS.bSizer1 = wx.wxBoxSizer( wx.wxVERTICAL )
+	
+	AS.m_panel1 = wx.wxPanel( AS.MyFrame1, wx.wxID_ANY, wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxTAB_TRAVERSAL )
+	AS.m_panel1:SetBackgroundColour( wx.wxSystemSettings.GetColour( wx.wxSYS_COLOUR_WINDOW ) )
+	
+	AS.bSizer2 = wx.wxBoxSizer( wx.wxHORIZONTAL )
+	
+	local SettingsBmp = wx.wxBitmap(mcAutoTool.SettingsImage())
+	AS.m_bitmap2 = wx.wxStaticBitmap( AS.m_panel1, wx.wxID_ANY, SettingsBmp, wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+	AS.bSizer2:Add( AS.m_bitmap2, 0, wx.wxALL, 5 )
+	
+	AS.bSizer3 = wx.wxBoxSizer( wx.wxVERTICAL )
+	
+	AS.fgSizer1 = wx.wxFlexGridSizer( 2, 2, 0, 0 )
+	AS.fgSizer1:SetFlexibleDirection( wx.wxBOTH )
+	AS.fgSizer1:SetNonFlexibleGrowMode( wx.wxFLEX_GROWMODE_SPECIFIED )
+	
+	AS.m_staticText4 = wx.wxStaticText( AS.m_panel1, wx.wxID_ANY, _("X Position:"), wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+	AS.m_staticText4:Wrap( -1 )
+	AS.fgSizer1:Add( AS.m_staticText4, 0, wx.wxALIGN_RIGHT + wx.wxALL, 5 )
+	
+	AS.m_Xpos = wx.wxTextCtrl( AS.m_panel1, wx.wxID_ANY, "", wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+	AS.fgSizer1:Add( AS.m_Xpos, 0, wx.wxALL, 5 )
+	
+	AS.m_staticText5 = wx.wxStaticText( AS.m_panel1, wx.wxID_ANY, _("Y Position:"), wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+	AS.m_staticText5:Wrap( -1 )
+	AS.fgSizer1:Add( AS.m_staticText5, 0, wx.wxALIGN_RIGHT + wx.wxALL, 5 )
+	
+	AS.m_Ypos = wx.wxTextCtrl( AS.m_panel1, wx.wxID_ANY, "", wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+	AS.fgSizer1:Add( AS.m_Ypos, 0, wx.wxALL, 5 )
+	
+	AS.m_staticText1 = wx.wxStaticText( AS.m_panel1, wx.wxID_ANY, _("Distance to touch off surface:"), wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+	AS.m_staticText1:Wrap( -1 )
+	AS.fgSizer1:Add( AS.m_staticText1, 0, wx.wxALIGN_RIGHT + wx.wxALL, 5 )
+	
+	AS.m_SurfDist = wx.wxTextCtrl( AS.m_panel1, wx.wxID_ANY, "", wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+	AS.fgSizer1:Add( AS.m_SurfDist, 0, wx.wxALL, 5 )
+	
+	AS.m_staticText2 = wx.wxStaticText( AS.m_panel1, wx.wxID_ANY, _("Probe height:"), wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+	AS.m_staticText2:Wrap( -1 )
+	AS.fgSizer1:Add( AS.m_staticText2, 0, wx.wxALIGN_RIGHT + wx.wxALL, 5 )
+	
+	AS.m_ProbeHeight = wx.wxTextCtrl( AS.m_panel1, wx.wxID_ANY, "", wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+	AS.fgSizer1:Add( AS.m_ProbeHeight, 0, wx.wxALL, 5 )
+	
+	AS.m_staticText3 = wx.wxStaticText( AS.m_panel1, wx.wxID_ANY, _("Guess length:"), wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+	AS.m_staticText3:Wrap( -1 )
+	AS.fgSizer1:Add( AS.m_staticText3, 0, wx.wxALIGN_RIGHT + wx.wxALL, 5 )
+	
+	AS.m_ToolLength = wx.wxTextCtrl( AS.m_panel1, wx.wxID_ANY, "", wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+	AS.fgSizer1:Add( AS.m_ToolLength, 0, wx.wxALL, 5 )
+	
+	AS.m_staticText6 = wx.wxStaticText( AS.m_panel1, wx.wxID_ANY, _("Retract distance:"), wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+	AS.m_staticText6:Wrap( -1 )
+	AS.fgSizer1:Add( AS.m_staticText6, 0, wx.wxALIGN_RIGHT + wx.wxALL, 5 )
+	
+	AS.m_Retract = wx.wxTextCtrl( AS.m_panel1, wx.wxID_ANY, "", wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+	AS.fgSizer1:Add( AS.m_Retract, 0, wx.wxALL, 5 )
+	
+	AS.m_staticText7 = wx.wxStaticText( AS.m_panel1, wx.wxID_ANY, _("Probing GCode (31 is default)"), wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+	AS.m_staticText7:Wrap( -1 )
+	AS.fgSizer1:Add( AS.m_staticText7, 0, wx.wxALIGN_RIGHT + wx.wxALL, 5 )
+	
+	AS.m_GCode = wx.wxTextCtrl( AS.m_panel1, wx.wxID_ANY, "", wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+	AS.fgSizer1:Add( AS.m_GCode, 0, wx.wxALL, 5 )
+	
+	
+	AS.bSizer3:Add( AS.fgSizer1, 1, 0, 5 )
+	
+	AS.bSizer4 = wx.wxBoxSizer( wx.wxHORIZONTAL )
+	
+	AS.m_Save = wx.wxButton( AS.m_panel1, wx.wxID_ANY, _("Save and Close"), wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+	AS.bSizer4:Add( AS.m_Save, 0, wx.wxALIGN_CENTER + wx.wxALL, 5 )
+	
+	AS.m_Cancel = wx.wxButton( AS.m_panel1, wx.wxID_ANY, _("Cancel"), wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+	AS.bSizer4:Add( AS.m_Cancel, 0, wx.wxALIGN_CENTER + wx.wxALL, 5 )
+	
+	
+	AS.bSizer3:Add( AS.bSizer4, 1, wx.wxALIGN_CENTER + wx.wxALL, 5 )
+	
+	
+	AS.bSizer2:Add( AS.bSizer3, 1, 0, 5 )
+	
+	
+	AS.m_panel1:SetSizer( AS.bSizer2 )
+	AS.m_panel1:Layout()
+	AS.bSizer2:Fit( AS.m_panel1 )
+	AS.bSizer1:Add( AS.m_panel1, 1, wx.wxEXPAND  + wx. wxALL, 5 )
+	
+	
+	AS.MyFrame1:SetSizer( AS.bSizer1 )
+	AS.MyFrame1:Layout()
+	
+	AS.MyFrame1:Centre( wx.wxBOTH )
+	
+	-- Connect Events
+	
+	AS.m_Save:Connect( wx.wxEVT_COMMAND_BUTTON_CLICKED, function(event)
+	--implements m_SaveOnButtonClick
+	
+		mc.mcProfileWriteString(0 , "AutoToolSetterSettings", "SurfaceDistance", tostring(AS.m_SurfDist:GetValue()))
+		mc.mcProfileWriteString(0 , "AutoToolSetterSettings", "ProbeHeight", tostring(AS.m_ProbeHeight:GetValue()))
+		mc.mcProfileWriteString(0 , "AutoToolSetterSettings", "ToolLength", tostring(AS.m_ToolLength:GetValue()))
+		mc.mcProfileWriteString(0 , "AutoToolSetterSettings", "XPosition", tostring(AS.m_Xpos:GetValue()))
+		mc.mcProfileWriteString(0 , "AutoToolSetterSettings", "YPosition", tostring(AS.m_Ypos:GetValue()))
+		mc.mcProfileWriteString(0 , "AutoToolSetterSettings", "Retract", tostring(AS.m_Retract:GetValue()))
+		mc.mcProfileWriteString(0 , "AutoToolSetterSettings", "GCode", tostring(AS.m_GCode:GetValue()))
+		mc.mcCntlSetLastError(inst, "Auto tool setter settings saved")
+		AS.MyFrame1:Destroy()
+	end )
+	
+	AS.m_Cancel:Connect( wx.wxEVT_COMMAND_BUTTON_CLICKED, function(event)
+	--implements m_CancelOnButtonClick
+	
+		AS.MyFrame1:Destroy()
+		do return end
+	end )
+	
+	AS.m_SurfDist:SetValue( mc.mcProfileGetString(0 , "AutoToolSetterSettings", "SurfaceDistance", "0.000") )
+	AS.m_ProbeHeight:SetValue( mc.mcProfileGetString(0 , "AutoToolSetterSettings", "ProbeHeight", "0.000") )
+	AS.m_ToolLength:SetValue( mc.mcProfileGetString(0 , "AutoToolSetterSettings", "ToolLength", "0.000") )
+	AS.m_Xpos:SetValue( mc.mcProfileGetString(0 , "AutoToolSetterSettings", "XPosition", "0.000") )
+	AS.m_Ypos:SetValue( mc.mcProfileGetString(0 , "AutoToolSetterSettings", "YPosition", "0.000") )
+	AS.m_Retract:SetValue( mc.mcProfileGetString(0 , "AutoToolSetterSettings", "Retract", "0.000") )
+	AS.m_GCode:SetValue( mc.mcProfileGetString(0 , "AutoToolSetterSettings", "GCode", "0.000") )
+	AS.MyFrame1:Show()
+end
+
+function mcAutoTool.SettingsImage()
+	local Image = {};
+	return Image
+end
+
+return mcAutoTool

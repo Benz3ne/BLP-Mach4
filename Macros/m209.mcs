@@ -1,0 +1,5 @@
+function m209()
+    local inst = mc.mcGetInstance()
+    ProbeScripts.ProbeToolPosition(inst)
+    return mc.MERROR_NOERROR
+end

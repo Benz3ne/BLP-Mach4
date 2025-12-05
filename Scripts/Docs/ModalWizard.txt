@@ -1,0 +1,455 @@
+-----------------------------------------------------------------------------
+-- Name:        Modal Gcode States and Descriptions
+-- Author:      T Lamontagne
+-- Modified by:
+-- Created:     09/26/2018
+-- Copyright:   (c) 2018 Newfangled Solutions. All rights reserved.
+-- Licence:     BSD license
+-----------------------------------------------------------------------------
+--***************************
+--Set wizard name for table index
+wizname = "ModalWizard"
+--***************************
+
+-- The groupNames table defines the number of rows that will be added to the wizard. The strings in this table will populate the first column, modal group number and desc.
+local groupNames = {
+	"01: Feed mode",
+	"02: Plane selection",
+	"03: Absolute or incremental",
+	"04: Arc center mode",
+	"05: Feed rate mode",
+	"06: Units",
+	"07: Cutter compensation state",
+	"08: Height offset state",
+	"09: Active canned cycle",
+	"10: Retract Z level selection",
+	"11: Scale mode",
+	"12: Modal macro",
+	"13: Spindle mode",
+	"14: Active coordinate system",
+	"15: Cutting mode",
+	"16: Coordinate system rotation mode",
+	"17: Polar mode",
+	"18: Compensation mode"
+	}
+-- The gcodeDesc table holds the descriptions for all gcodes that could be called by the update function. This table should contain a description for every gcode that is in a modal group.
+-- This table is indexed using the gcode value. For example if G01 is active the description will be gcodeDesc[1]
+local gcodeDesc = {
+	[0] = "Linear rapid move",
+	[1] = "Linear feed move",
+	[2] = "Clockwise arc feed move",
+	[3] = "Counterclockwise arc feed move",
+	[12] = "Clockwise circle feed move",
+	[13] = "Counterclockwise circle feed move",
+	[15] = "Polar coordinate cancel",
+	[16] = "Polar coordinate active",
+	[17] = "XY plane selection",
+	[18] = "ZX plane selection",
+	[19] = "YZ plane selection",
+	[20] = "Inch units selected",
+	[21] = "Millimeter units selected",
+	[31] = "Probe feed move",
+	[32] = "Threading feed move",
+	[40] = "Cutter compensation cancelled",
+	[40.1] = "Arc type cutter compensation mode",
+	[40.2] = "Line offset cutter compensation mode",
+	[41] = "Cutter compensation left",
+	[42] = "Cutter compensation right",
+	[43] = "Tool length offset +",
+	[44] = "Tool length offset -",
+	[49] = "Tool length offset cancelled",
+	[50] = "Scaling cancelled",
+	[51] = "Scaling active on selected axes",
+	[54] = "Fixture offset 1",
+	[54.1] = "Addition fixture offsets",
+	[55] = "Fixture offset 2",
+	[56] = "Fixture offset 3",
+	[57] = "Fixture offset 4",
+	[58] = "Fixture offset 5",
+	[59] = "Fixture offset 6",
+	[61] = "Exact stop mode",
+	[64] = "Constant velocity mode",
+	[66] = "Macro modal call",
+	[67] = "Macro modal cancel",
+	[68] = "Coordinate system rotated",
+	[69] = "Coordinate system rotation cancelled",
+	[73] = "High speed peck drilling",
+	[74] = "Left hand tapping",
+	[76] = "Fine boring",
+	[80] = "Canned cycle cancel",
+	[81] = "Hole drilling",
+	[82] = "Spot face",
+	[83] = "Deep hole peck drilling",
+	[84] = "Right hand tapping",
+	[84.2] = "Right hand rigid tapping",
+	[84.3] = "Left hand rigid tapping",
+	[85] = "Boring retract at feed, spindle on",
+	[86] = "Boring retract at rapid, spindle off",
+	[87] = "Back boring",
+	[88] = "Boring, manual retract",
+	[89] = "Boring with dwell",
+	[90] = "Absolute positioning mode",
+	[90.1] = "Arc center absolute mode",
+	[91] = "Incremental positioning mode",
+	[91.1] = "Arc center incremental mode",
+	[93] = "Inverse time feed",
+	[94] = "Feed units/minute",
+	[95] = "Feed units/revolution",
+	[96] = "Constant surface speed mode",
+	[97] = "Constant rpm mode",
+	[98] = "Initial point return",
+	[99] = "R point return"
+}
+-- The buffered table contains all the data for the buffered values. This table has the gcode letter and the pound variable for retrieving the value.
+local buffered = {
+	[1] = {4102, "B"},
+	[2] = {4107, "D"},
+	[3] = {4108, "E"},
+	[4] = {4109, "F"},
+	[5] = {4111, "H"},
+	[6] = {4113, "M"},
+	[7] = {4114, "N"},
+	[8] = {4115, "O"},
+	[9] = {4119, "S"},
+	[10] = {4120, "T"}
+}
+
+local shade = wx.wxColour(226, 232, 237)
+local white = wx.wxColour(255, 255, 255)
+local highlight = wx.wxColour(255, 255, 0)
+local bgColors_rows = {} -- Table to hold original bg colors of rows, the changed time, and if it is highlighted.
+local bgColors_buf = {} -- Tabel to hold original bg colors of buffered val text boxes, the changed time and if it is highlighted.
+
+function Main() -- The main function generates the wizard window, populates all the rows and connects the update event.
+	if (inst == nil) then
+		inst = mc.mcGetInstance()
+	end
+	MachDirectory = mc.mcCntlGetMachDir(inst)
+	Profile = mc.mcProfileGetName(inst)
+	ScriptDirectory = MachDirectory .. "\\Modules\\"
+	
+	--*************************************************************
+	--*************************************************************
+	--Optional
+	--Check to see if a wizard of the same name has been opened
+	--If it has then call the openWizard function to bring it to the front
+	--and then exit the main() function
+	if (_G["tblWizards"] ~= nil) then
+		--Make sure the table of open wizards exists. if it doesn't skip
+		--the openWizard function to raise a currently open instance.
+		if (tblWizards[wizname] ~= nil) then
+			openWizard(wizname)
+			do return end
+		end
+	end
+	--*************************************************************
+	--*************************************************************
+	
+	if(mcLuaPanelParent == nil)then
+		-- create the wxFrame window
+		mainframe = wx.wxFrame( wx.NULL,          -- no parent
+							wx.wxID_ANY,          -- whatever for wxWindow ID
+							"Modal G Codes", -- frame caption
+							wx.wxDefaultPosition, -- place the frame in default position
+							wx.wxSize(800,700),     -- default frame size
+							wx.wxDEFAULT_FRAME_STYLE+ wx.wxSTAY_ON_TOP ) -- use default frame styles and stay on top
+
+		-- create a panel in the frame
+		Panel = wx.wxPanel(mainframe, wx.wxID_ANY)	
+	else	
+		Panel = mcLuaPanelParent
+		Panel :SetBackgroundColour( wx.wxColour( 40, 40, 40 ) )
+		local window = Panel:GetParent()
+		local wsize = window:GetSize()
+		Panel:SetSize(wsize)
+	end
+	
+	-- Body of panel layout here
+	-- Functions to make adding rows easier
+	row = {} -- Row table for all the row text controls
+	local shadeRow = true
+	function AddRow(num, modal, code, desc)
+		local bgColor = white
+		if shadeRow then
+			bgColor = shade
+		end
+		local t = os.time()
+		bgColors_rows[num] = {shadeRow, t, false} -- Set original row bg color and time it was set plus a highlighted flag. This is creation time so no row will be highlighted.
+		shadeRow = not shadeRow
+		
+		name_grp = wx.wxStaticText( Panel, wx.wxID_ANY, tostring(modal), wx.wxDefaultPosition, wx.wxSize(175,20), 0 )
+		name_grp:Wrap( -1 )
+		name_grp:SetBackgroundColour( bgColor )
+		
+		szr_main:Add( name_grp, 0, wx.wxALIGN_LEFT + wx.wxALL + wx.wxEXPAND, 0 )
+		
+		code_grp = wx.wxStaticText( Panel, wx.wxID_ANY, tostring(code), wx.wxDefaultPosition, wx.wxSize(125,20), wx.wxALIGN_CENTRE )
+		code_grp:Wrap( -1 )
+		code_grp:SetBackgroundColour( bgColor )
+		
+		szr_main:Add( code_grp, 0, wx.wxALIGN_CENTER + wx.wxALL + wx.wxEXPAND, 0 )
+		
+		desc_grp = wx.wxStaticText( Panel, wx.wxID_ANY, tostring(desc), wx.wxDefaultPosition, wx.wxSize(500,20), 0 )
+		desc_grp:Wrap( -1 )
+		desc_grp:SetBackgroundColour( bgColor )
+		
+		szr_main:Add( desc_grp, 0, wx.wxALIGN_LEFT + wx.wxALL + wx.wxEXPAND, 0 )
+		
+		-- Add spacers to give some vertical spacing between rows
+		--szr_main:Add( 0, 5, 1, wx.wxEXPAND, 5 )
+		--szr_main:Add( 0, 5, 1, wx.wxEXPAND, 5 )
+		--szr_main:Add( 0, 5, 1, wx.wxEXPAND, 5 )
+		
+		return name_grp, code_grp, desc_grp
+	end
+	
+	Panel:SetBackgroundColour( wx.wxColour( 255, 255, 255 ) )
+	szr_frame = wx.wxBoxSizer( wx.wxVERTICAL )
+	
+	szr_main = wx.wxFlexGridSizer( 0, 3, 0, 0 )
+	szr_main:AddGrowableCol( 2 )
+	szr_main:SetFlexibleDirection( wx.wxBOTH )
+	szr_main:SetNonFlexibleGrowMode( wx.wxFLEX_GROWMODE_SPECIFIED )
+	
+	txt_header1 = wx.wxStaticText( Panel, wx.wxID_ANY, "Modal Group", wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+	txt_header1:Wrap( -1 )
+	txt_header1:SetFont( wx.wxFont( 12, 74, 90, 92, False, "Arial" ) )
+	
+	szr_main:Add( txt_header1, 0, wx.wxALIGN_CENTER + wx.wxALL + wx.wxEXPAND, 10 )
+	
+	txt_header2 = wx.wxStaticText( Panel, wx.wxID_ANY, "Active GCode", wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+	txt_header2:Wrap( -1 )
+	txt_header2:SetFont( wx.wxFont( 12, 74, 90, 92, False, "Arial" ) )
+	
+	szr_main:Add( txt_header2, 0, wx.wxALIGN_CENTER + wx.wxALL + wx.wxEXPAND, 10 )
+	
+	txt_header3 = wx.wxStaticText( Panel, wx.wxID_ANY, "Description", wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+	txt_header3:Wrap( -1 )
+	txt_header3:SetFont( wx.wxFont( 12, 74, 90, 92, False, "Arial" ) )
+	
+	szr_main:Add( txt_header3, 0, wx.wxALIGN_CENTER + wx.wxALL, 10 )
+	
+	for i = 1, #groupNames, 1 do
+		local name = "name_grp" .. tostring(i)
+		local code = "code_grp" .. tostring(i)
+		local desc = "desc_grp" .. tostring(i)
+		row[name], row[code], row[desc] = AddRow(i, groupNames[i], "default", "default")
+	end
+	
+	szr_frame:Add(szr_main, 1, wx.wxEXPAND, 5)
+	
+	m_staticline1 = wx.wxStaticLine( Panel, wx.wxID_ANY, wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxLI_HORIZONTAL )
+	szr_frame:Add( m_staticline1, 0, wx.wxEXPAND  + wx. wxALL, 5 )
+	
+	txt_header4 = wx.wxStaticText( Panel, wx.wxID_ANY, "Last buffered values", wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+	txt_header4:Wrap( -1 )
+	txt_header4:SetFont( wx.wxFont( 12, 74, 90, 92, False, "Arial" ) )
+	
+	szr_frame:Add( txt_header4, 0, wx.wxALL, 5 )
+	
+	szr_buf = wx.wxFlexGridSizer(0, 4, 0, 0)
+	szr_buf:SetFlexibleDirection( wx.wxBOTH )
+	szr_buf:SetNonFlexibleGrowMode( wx.wxFLEX_GROWMODE_SPECIFIED )
+	
+	buf = {} -- Table for all new buffered values controls
+	for i = 1, #buffered,1 do
+		local lbl = "lbl" .. tostring(i)
+		local val = "val" .. tostring(i)
+		local tbl = buffered[i]
+		local lbl_txt = tbl[2] .. ":"
+		local pnd_var = tbl[1]
+		local pnd_val = mc.mcCntlGetPoundVar(inst, pnd_var)
+		local val_txt = tostring(pnd_val)
+		if (pnd_val < -10000) then
+			val_txt = "NIL"
+		end
+		buf[lbl] = wx.wxStaticText( Panel, wx.wxID_ANY, lbl_txt, wx.wxDefaultPosition, wx.wxSize( 50,20 ), wx.wxALIGN_CENTRE )
+		buf[lbl]:Wrap( -1 )
+		szr_buf:Add( buf[lbl], 0, wx.wxALL, 5 )
+		
+		buf[val] = wx.wxStaticText( Panel, wx.wxID_ANY, val_txt, wx.wxDefaultPosition, wx.wxSize( 120,20 ), wx.wxALIGN_CENTRE+wx.wxSIMPLE_BORDER )
+		buf[val]:Wrap( -1 )
+		buf[val]:SetBackgroundColour(white)
+		local t = os.time()
+		bgColors_buf[i] = {false, t, false} -- Set original state of the background color and the time it was created
+		szr_buf:Add( buf[val], 0, wx.wxALL, 5 )
+	end
+	
+	szr_frame:Add(szr_buf, 1, wx.wxEXPAND, 5)
+	
+	Panel:SetSizer( szr_frame )
+	Panel:Layout()
+	
+	-- End body
+	
+	if(mcLuaPanelParent == nil)then
+        Panel:Fit()
+        mainframe:Connect(wx.wxEVT_CLOSE_WINDOW,function (event)  					  
+			--*************************************************************
+			--*************************************************************
+			--Use close wizards function to close the wizard and remove it from the table
+				if (_G["closeWizards"] ~= nil) then
+					closeWizards(wizname)
+				else
+					
+					mainframe:Destroy()
+				end
+			--*************************************************************
+			--*************************************************************
+		end )
+		--*************************************************************
+		--*************************************************************
+		--Call open wizard function to show the frame and add the wizard to the table
+			if (_G["openWizard"] ~= nil) then
+				--Check that the openWizard function exits before calling it
+				--If not then just show the frame.
+				openWizard(wizname, mainframe)
+			else
+				mainframe:Show(true)
+			end
+		--*************************************************************
+		--*************************************************************
+    else
+		window = Panel:GetParent()
+		window:Connect(wx.wxID_ANY, wx.wxEVT_SIZE,
+		function(event)
+			local wsize = event:GetSize()
+			Panel:SetSize(wsize)
+			Panel:FitInside()
+		end)
+	end
+	
+	-- Connect Events
+	
+	Panel:Connect( wx.wxEVT_UPDATE_UI, function(event)
+		-- Run function every time UI updates
+		OnUpdateUI()
+	end )
+	
+end
+
+local grp = {}
+local grp_last = {}
+local buf_val = {}
+local buf_val_last = {}
+
+local count = 0
+-- The OnUpdateUI function gets called for every update of the frame, this is on the system refresh rate
+function OnUpdateUI()
+	if (inst == nil) then
+		inst = mc.mcGetInstance()
+	end
+	local updated = false
+	-- Read and set all gcode modal group values
+	for i = 1, #groupNames, 1 do
+		local name = "name_grp" .. tostring(i)
+		local code = "code_grp" .. tostring(i)
+		local desc = "desc_grp" .. tostring(i)
+		--local g = grp[i]
+		local g = mc.mcCntlGetPoundVar(inst, 4000 + i)
+		if (g ~= grp_last[i]) then
+			local n = row[name]
+			local c = row[code]
+			local d = row[desc]
+			local desc_string = "Unknown code"
+			if (gcodeDesc[g] ~= nil) then
+				desc_string = gcodeDesc[g]
+			end
+			local g_string = tostring(g)
+			-- Number formatting, add leading zero if number value is between 0 and 10
+			if (g >= 0) and (g < 10) then
+				g_string = "0" .. g_string
+			end
+			c:SetLabel("G" .. g_string)
+			d:SetLabel(desc_string)
+			grp_last[i] = g
+			if (count > 1) then -- Don't highlight at start up
+				-- The value changed so highlight the row and log the time it was changed
+				n:SetBackgroundColour(highlight)
+				c:SetBackgroundColour(highlight)
+				d:SetBackgroundColour(highlight)
+				local t = os.time()
+				bgColors_rows[i][2] = t
+				bgColors_rows[i][3] = true
+			end
+			n:Refresh()
+			c:Refresh()
+			d:Refresh()
+			updated = true
+		end
+	end
+	-- Look for highlighted rows and if they have been highlighted for the specified time remove the highlight
+	for i = 1, #bgColors_rows, 1 do
+		local shade_orig = bgColors_rows[i][1]
+		local t_chg = bgColors_rows[i][2]
+		local t_cur = os.time()
+		local dt = t_cur - t_chg
+		local row_highlited = bgColors_rows[i][3]
+		if row_highlited and (dt > 4) then
+			local name = "name_grp" .. tostring(i)
+			local code = "code_grp" .. tostring(i)
+			local desc = "desc_grp" .. tostring(i)
+			local n = row[name]
+			local c = row[code]
+			local d = row[desc]
+			local bgColor = white
+			if shade_orig then
+				bgColor = shade
+			end 
+			n:SetBackgroundColour(bgColor)
+			c:SetBackgroundColour(bgColor)
+			d:SetBackgroundColour(bgColor)
+			n:Refresh()
+			c:Refresh()
+			d:Refresh()
+			bgColors_rows[i][3] = false
+		end
+	end
+	-- Get the buffered data values and update the text boxes	
+	for i = 1, #buffered,1 do
+		local val = "val" .. tostring(i)
+		local tbl = buffered[i]
+		local pnd_var = tbl[1]
+		local b = mc.mcCntlGetPoundVar(inst, pnd_var)
+		local val_txt = tostring(b)
+		if (b < -10000) then
+			val_txt = "NIL"
+		end
+		if (b ~= buf_val_last[i]) then
+			local txt = buf[val]
+			txt:SetLabel(val_txt)
+			buf_val_last[i] = b
+			if (count > 1) then -- Don't highlight at start up
+				txt:SetBackgroundColour(highlight)
+				local t = os.time()
+				bgColors_buf[i][2] = t
+				bgColors_buf[i][3] = true
+			end
+			txt:Refresh()
+			updated = true
+		end
+	end
+	-- Look for highlighted text boxes and if they have been highlighed for the specified time remove the highlight.
+	for i = 1, #bgColors_buf, 1 do
+		local t_chg = bgColors_buf[i][2]
+		local t_cur = os.time()
+		local dt = t_cur - t_chg
+		local buf_highlited = bgColors_buf[i][3]
+		if buf_highlited and (dt > 4) then
+			local val = "val" .. tostring(i)
+			local txt = buf[val]
+			txt:SetBackgroundColour(white)
+			txt:Refresh()
+			bgColors_buf[i][3] = false
+		end
+	end
+	
+	if updated then
+		Panel:Layout()
+		Panel:Refresh()
+	end
+	
+	count = count + 1
+end
+
+Main()

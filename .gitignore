@@ -1,0 +1,12 @@
+# Compiled macro files (keep .mcs source files)
+*.mcc
+
+# Temp files
+*.tmp
+Temp/
+
+# Backups (git is your backup now)
+Backups/
+
+# System/cache files
+*.dat

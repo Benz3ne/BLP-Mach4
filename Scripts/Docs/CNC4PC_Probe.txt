@@ -1,0 +1,120 @@
+// Sample Tool Probe
+// Original Code by Terry Parker, Adapted to the AXYZ CNC by Arturo Duncan
+// Some code for the original linear tool change which is not used was left there intentionally and is commented
+
+Definitions:
+double ZMove = 10;           			//Travel Distance to probe
+double ZPos = exec.GetZmachpos();    // Coordinates Machine ABS Z
+int Tool = exec.Getcurrenttool(); 		// Read Current tool  : GetDRO (24) 
+
+// Read machine positon before probing, so can return to it when finished probing.
+double x = exec.GetXpos();				// GetOEMDRO(83)
+double y = exec.GetYpos();				// GetOEMDRO(84) 
+double z = exec.GetZpos();				// GetOEMDRO(85) 
+double a = exec.GetApos();				// GetOEMDRO(86) 
+double b = exec.GetBpos();				// GetOEMDRO(87) 
+double c = exec.GetCpos();				// GetOEMDRO(88)
+
+
+int MaxToolNum = 8;      		//'Max number off tools for the changer
+double ToolDown   = -5.339;  		//'Z Pos to Get or drop a tool
+double ToolUp     = 0;    	//'Z Hieght to Rapid from tool to tool
+double DustCollector = 0.154;
+double ToolProbePos = -3.1336;
+double YTootChangePos = -7.8;
+double YTootPos = -11.6913;
+double Zshift = -8.26;
+double SafeZ = 0;
+double Xoriginalpos = exec.GetXmachpos();
+double Yoriginalpos = exec.GetYmachpos();
+double SpindleSpeed = Convert.ToDouble(AS3.Getfield(870));
+
+// Verify Selected Tool
+int Tnum  = exec.Getcurrenttool();
+
+if(Tnum == 0 || Tnum >8) // If new tool number is 0  means a missing T code, so we need to stop here...
+{
+MessageBox.Show("The TOOL # is out of range 1 - 8 , Correct the Value and Restart");
+exec.Stop();
+return;
+}
+
+//Main Code
+if(!exec.GetLED(56)||!exec.GetLED(57)||!exec.GetLED(58)||!exec.GetLED(60)) // If machine was not homed then it is unsafe to move in machine coordinates, stop here...
+{
+  MessageBox.Show("The machine was not yet homed, do homeing before executing a tool change!");
+  exec.Stop();
+  return;
+}
+  
+// Stop spindle if running, Move Z up, open the dust collector and move Y to the tool change positon.
+ //Check that the spindle is really off before delivering the tool
+ exec.Stopspin(); 
+ //exec.Wait(3000);                       //Wait 3 sec to spin stop
+
+do
+{
+exec.Wait(50);
+SpindleSpeed = Convert.ToDouble(AS3.Getfield(870)); 
+}
+while(SpindleSpeed != 0);  // Wait unti the speedle speed is 0.
+
+
+ exec.Code("G00 G53 Z"+ ToolUp );       // Move Z up
+ while(exec.IsMoving()){}
+  
+ exec.Code("M14") ;				       // Open the dust collector.
+ while(exec.IsMoving()){}
+ 
+ exec.Code("G00 G53 Y" + DustCollector );       // Do a rapid move to the dust collector stop.
+ while(exec.IsMoving()){} 
+  
+ exec.Code("G00 G53 Y" + ToolProbePos );       // Do a rapid move to the Tool Probe stop.
+ while(exec.IsMoving()){}   
+ 
+ // Start the probing sequence.
+ exec.Callbutton(182);  //Remove tool offset 
+  while(exec.IsMoving()){}
+ double OldZpos = ZPos;
+ ZPos = ZPos - ZMove;
+ exec.Code("G31 Z" + ZPos + " F20.0" );       // Probes the tool length.
+ while(exec.IsMoving()){} 
+ ZPos = exec.GetZmachpos();
+ while(exec.IsMoving()){} 
+ if(ZPos == OldZpos) // Check if the the tool positon was found.
+ {
+  MessageBox.Show("ERROR! The tool did not hit the probe and DRO was not set");
+  exec.Stop();
+  return;
+ }
+//double  Zshift = AS3. Getfielddouble(1002);
+double  Zoffset = AS3.Getfielddouble(873);
+double Toffset = (Zoffset  - Zshift)  ;
+//exec.Callbutton(182);  //Remove tool offset
+exec.Wait(100);
+AS3.Setfieldtext("Removed Tool Offset ",2000);
+//exec.Wait(1000);
+
+AS3.Setfield(Toffset , (195+Tool));
+//exec.Callbutton(168);
+//exec.Wait(100);
+AS3.Setfieldtext("The Tool Table Is Updated ",2000);
+//exec.Wait (1000);
+AS3.Setfieldtext(" ",2000);
+//exec.Wait(100);
+AS3.Setfieldtext("Applying G43 ",2000);
+exec.Wait(1000);
+exec.Code("G43 H" +Tool );     
+//exec.Wait(1000);
+AS3.Setfieldtext("          G43 H" +Tool +"  Applied ",2000);
+//exec.Wait (1000);
+AS3.Setfieldtext(" ",2000);
+//AS3.Setfield(0,1003);
+//MessageBox.Show("  exec.Code(G00 G53 Z+ SafeZ)");
+  exec.Code("G00 G53 Z"+ SafeZ); // Move Z up
+  while(exec.IsMoving()){}
+  
+// Move back to start point
+//MessageBox.Show("exec.Code(G00 G53 X + Xoriginalpos +  Y + Yoriginalpos)");
+exec.Code("G00 G53 X" + Xoriginalpos + " Y" + Yoriginalpos);
+while(exec.IsMoving()){}

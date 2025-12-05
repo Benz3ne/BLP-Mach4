@@ -1,0 +1,4 @@
+function m6()
+    local inst = mc.mcGetInstance()
+    return ProbeScripts.M6_ToolChange(inst) or mc.MERROR_NOERROR
+end

@@ -1,0 +1,6 @@
+-- ========= m999.mcs =========
+-- Save as m999.mcs - MINIMAL VERSION
+function m999()
+    local inst = mc.mcGetInstance()
+    mc.mcCntlSetLastError(inst, "M999 EXECUTED")
+end

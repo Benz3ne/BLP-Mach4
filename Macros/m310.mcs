@@ -1,0 +1,4 @@
+function m310()
+    local inst = mc.mcGetInstance()
+    return ProbeScripts.M310_ProbeToolHeight(inst) or mc.MERROR_NOERROR
+end

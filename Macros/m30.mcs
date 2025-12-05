@@ -1,0 +1,5 @@
+function m30()
+    local inst = mc.mcGetInstance()
+    mc.mcSpindleSetDirection(inst, 0)
+    mc.mcCntlRewind(inst)
+end

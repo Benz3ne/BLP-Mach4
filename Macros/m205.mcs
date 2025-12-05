@@ -1,0 +1,5 @@
+function m205()
+    local inst = mc.mcGetInstance()
+    ProbeScripts.FindAngle(inst)
+    return mc.MERROR_NOERROR
+end

@@ -1,0 +1,46 @@
+-- M311.mcs - Touch probe macro wrapper
+function m311(hParam)
+    local inst = mc.mcGetInstance()
+    
+    -- Load ProbeScripts
+    if not _G.ProbeScripts then
+        local profile = mc.mcProfileGetName(inst)
+        local path = mc.mcCntlGetMachDir(inst) .. "\\Profiles\\" .. profile .. "\\Scripts\\ProbeScripts.lua"
+        _G.ProbeScripts = dofile(path)
+    end
+    
+    -- Helper to get parameter if set
+    local function getParam(var)
+        return mc.mcCntlGetLocalVarFlag(inst, hParam, var) == 1 and 
+               mc.mcCntlGetLocalVar(inst, hParam, var) or nil
+    end
+    
+    -- Extract parameters
+    local direction = getParam(mc.SV_D)     -- direction (required)
+    local fastFeed = getParam(mc.SV_F)      -- fastFeed (required)
+    local backoff = getParam(mc.SV_B)       -- backoff (required)
+    local slowFeed = getParam(mc.SV_S)      -- slowFeed (optional, 0 for single-tap)
+    local maxTravel = getParam(mc.SV_T)     -- maxTravel (optional)
+    local finalRetract = getParam(mc.SV_R)  -- finalRetract (optional)
+    local setDatum = getParam(mc.SV_A)      -- A1 = set datum, A0 or omitted = no datum
+    
+    -- Validate required parameters
+    if not direction or not fastFeed or not backoff then
+        mc.mcCntlSetLastError(inst, "M311 Error: Missing required parameters (D, F, B)")
+        return mc.MERROR_INVALID_PARAMETER
+    end
+    
+    -- Call ProbeXYZ
+    local machineEdge, workEdge, probeSuccess = _G.ProbeScripts.ProbeXYZ(inst, 
+        direction,
+        fastFeed, 
+        backoff,
+        slowFeed,
+        maxTravel,
+        finalRetract,
+        setDatum
+    )
+    
+    -- Return success/failure code
+    return probeSuccess and mc.MERROR_NOERROR or mc.MERROR_NOT_NOW
+end

@@ -1,0 +1,26 @@
+---------------------------------------------------------------
+-- Load modules
+---------------------------------------------------------------
+local inst = mc.mcGetInstance()
+local rc, mcSP = pcall(require, "./Modules/mcSysPaths")
+if rc == false then
+	mc.mcCntlSetLastError(inst, string.format("Path error in 'Require.mcs' macro: %s", mcSP))
+	return
+end
+mcSP.SetupPaths(".")
+
+---------------------------------------------------------------
+-- Add Module Requires Below
+---------------------------------------------------------------
+
+--Probing module
+package.loaded.mcProbe = nil
+mcProbe = require "mcProbing"
+
+--AutoTool module
+package.loaded.mcAT = nil
+mcAT = require "mcAutoTool"
+
+--ErrorCheck module
+package.loaded.mcErrorCheck = nil
+mcErrorCheck = require "mcErrorCheck"

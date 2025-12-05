@@ -1,0 +1,263 @@
+--[[
+8/25 Barker Added scale, The scale is activated by sending an S value of 1 or greater 
+]]--
+
+local function InMacroHold(state)
+	if (((state >= mc.MC_STATE_FRUN_MACROH) and (state <= mc.MC_STATE_FRUN_MACROH_JOG)) or ((state >= mc.MC_STATE_MRUN_MACROH) and (state <= mc.MC_STATE_MRUN_MACROH_JOG))) then 
+		return true
+	end
+	if (state == mc.MC_STATE_IDLE) then
+		return true
+	end
+	return false
+end
+
+function vectorAngle(v)-- Get the angle in Degrees
+	local angle = math.deg(math.atan(v.y,v.x))
+	if(angle < 0) then 
+		angle = 360.0 + angle 
+	end
+	return angle
+end
+
+function PointData(originP,point)
+	-- create a vector from the orogin to the end 
+	local vect = vectorCreate(originP, point)
+	local angle = vectorAngle(vect)
+	local length = vectorMag(vect)
+	return angle, length, vect
+end
+
+function pointRotateScale(rPoint, point, rAngle,scale)-- rpoint is the point to rotate about, point is the point to be rotated 
+	local a,d = PointData(rPoint, point)
+	a = a + rAngle-- add the angle
+	local pnew = {}
+	pnew.x = scale * d * math.cos(math.rad(a))
+	pnew.y = scale * d * math.sin(math.rad(a))
+	pnew.x = rPoint.x + pnew.x
+	pnew.y = rPoint.y + pnew.y
+	return pnew
+end
+
+function vectorCreate(sp,ep) --sp is old point, ep is new point
+	local v = {}
+	v.x = ep.x - sp.x
+	v.y = ep.y - sp.y
+	return v				--v returns to the vector mag function to find magnitude of the vector
+end
+
+function vectorMag(v)--Return the length of the vector 
+	local d = math.sqrt((v.x*v.x) + (v.y*v.y))
+	return d
+end
+
+local function pointCreate(x, y)
+	local point = {["x"] = x,["y"] = y}
+	return point
+end
+
+local function pointPointDist(p1, p2) --p1 is old point, p2 is new point
+	local v = vectorCreate(p1,p2)			--p1 is old point, p2 is new point
+	return vectorMag(v)					-- V is the magnitude of the vector created from the old point to the new point
+end
+
+local function GetPosition()
+	local x = mc.mcAxisGetPos(mc.mcGetInstance(), mc.X_AXIS) 
+	local y = mc.mcAxisGetPos(mc.mcGetInstance(), mc.Y_AXIS) 
+	return pointCreate(x, y)
+end
+
+function GetFixOffsetVars(inst,FixOffset)
+	
+    --local FixOffset = mc.mcCntlGetPoundVar(inst, mc.SV_MOD_GROUP_14)
+    local Pval = mc.mcCntlGetPoundVar(inst, mc.SV_BUFP)
+    local FixNum, whole, frac
+
+    if (FixOffset ~= 54.1) then --G54 through G59
+        whole, frac = math.modf (FixOffset)
+        FixNum = (whole - 53) 
+        PoundVarX = ((mc.SV_FIXTURES_START - mc.SV_FIXTURES_INC) + (FixNum * mc.SV_FIXTURES_INC))
+        CurrentFixture = string.format('G' .. tostring(FixOffset)) 
+    else --G54.1 P1 through G54.1 P100
+        FixNum = (Pval + 6)
+        CurrentFixture = string.format('G54.1 P' .. tostring(Pval))
+        if (Pval > 0) and (Pval < 51) then -- G54.1 P1 through G54.1 P50
+            PoundVarX = ((mc.SV_FIXTURE_EXPAND - mc.SV_FIXTURES_INC) + (Pval * mc.SV_FIXTURES_INC))
+        elseif (Pval > 50) and (Pval < 101) then -- G54.1 P51 through G54.1 P100
+            PoundVarX = ((mc.SV_FIXTURE_EXPAND2 - mc.SV_FIXTURES_INC) + (Pval * mc.SV_FIXTURES_INC))	
+        end
+    end
+	PoundVarY = (PoundVarX + 1)
+	PoundVarZ = (PoundVarX + 2)
+	return PoundVarX, PoundVarY, PoundVarZ, FixNum, CurrentFixture
+end
+
+local function SetFixtureOffset(fixtureNum, hParam)
+	
+	local varP = 0
+	local inst = mc.mcGetInstance()
+	if (hParam ~= nil) then
+		local flagP, rc = mc.mcCntlGetLocalVarFlag(inst, hParam, mc.SV_P)
+		if (flagP == 1) then --Check that the flag has been set so we do not get an unexpected value for mc.SV_P
+			varP = mc.mcCntlGetLocalVar(inst, hParam, mc.SV_P)
+		end
+	end
+	if (RunVision(inst, varP) == false) then 
+		mc.mcCntlSetLastError(mc.mcGetInstance(), "Vision failed.")-- Message is posted in the Run Vision function 
+		mc.mcCntlCntlEnable(inst, 0);
+		return false
+	end
+
+	local XPos = mc.mcAxisGetMachinePos(inst, mc.X_AXIS)
+	local YPos = mc.mcAxisGetMachinePos(inst, mc.Y_AXIS)
+	
+	XVar, YVar, ZVar = GetFixOffsetVars(inst,fixtureNum)
+	mc.mcCntlSetPoundVar(inst, XVar, XPos)
+	mc.mcCntlSetPoundVar(inst, YVar, YPos)
+	mc.mcMotionSync(inst);
+	return true 
+end 
+
+function RunVision(inst, precision)
+	local OldPos = GetPosition()
+	-- Get the Vision started
+	local hreg = mc.mcRegGetHandle(mc.mcGetInstance(), 'iRegs0/FindCenter')
+	mc.mcRegSetValue(hreg, 1);
+	
+	-- now use mc.mcFileHoldAquire() to hold the interpreter up.
+	local state, rc
+	state, rc  = mc.mcCntlGetState(inst)
+	if (state ~= mc.MC_STATE_IDLE) then
+		rc = mc.mcFileHoldAquire(inst, "Run Vision System", 0)
+		-- NOTE To Trevor... this  can't be run from the editor .... We need the Gcode to call this 
+		mc.mcCntlSetLastError(inst, "check for file hold state, RC == " .. tostring(rc))
+		if (rc == mc.MERROR_NOERROR) then 
+			-- first, make sure we get into the macro hold state.
+		mc.mcCntlSetLastError(inst, "check for file hold state, RC1 == " .. tostring(rc))
+			while (InMacroHold(state) == false) do
+				state, rc  = mc.mcCntlGetState(inst)
+				if (rc ~= mc.MERROR_NOERROR) then 
+					mc.mcCntlSetLastError(inst, "file hold state, FAILED")
+					return false -- failed.
+				end
+			end
+			-- now we wait for cycle start to get us out of the macro hold state.
+			--mc.mcCntlSetLastError(inst, "wait for cycle start")
+			while (InMacroHold(state) == true) do
+				state, rc  = mc.mcCntlGetState(inst)
+				-- maybe check for the vision complettion and call cycle start here.  Otherwise, 
+				-- the user will have to hit cycle start.
+				wx.wxMilliSleep(20)
+			end
+		    --mc.mcCntlSetLastError(mc.mcGetInstance(), "Vision done testing for the New position ")
+			local NewPos = GetPosition()
+			-- Debugging so we can get the positions and show what we got for positions 
+			--mc.mcCntlSetLastError(mc.mcGetInstance(), string.format("Started at X%.3f Y%.3f end at X%.3f Y%.3f",OldPos.x,OldPos.y,NewPos.x,NewPos.y))
+
+			precision = tonumber(precision)
+			if(precision ~= nil)then 
+				if(precision > 0) then 
+					-- This is where we check to see if we are within the distance 
+					--mc.mcCntlSetLastError(mc.mcGetInstance(), string.format("Started at X%.3f Y%.3f end at X%.3f Y%.3f",OldPos.x,OldPos.y,NewPos.x,NewPos.y))
+
+					local d = pointPointDist(OldPos, NewPos)
+					--mc.mcCntlSetLastError(mc.mcGetInstance(), string.format("Dist == %.3f ",d))
+					if(math.abs(d) > precision)then 
+						rc = mc.mcCntlMacroAlarm(mc.mcGetInstance(), 1, 'Not within tolerance.')
+						return false -- We are to far away... Not valid 
+					end 
+				end 
+			end 
+			
+			return true -- success
+		end
+	end
+	mc.mcCntlSetLastError(mc.mcGetInstance(), "Vision was not able to start in current machine state.")
+	return false -- failed.
+end
+
+
+
+function m68(hParam) --The param is a P value called from Gcode. M162P3 for example.
+	local varP = 0
+	local varS = 0
+	local inst = mc.mcGetInstance()
+	local StartPos = GetPosition()
+	if (hParam ~= nil) then
+		local flagP, rc = mc.mcCntlGetLocalVarFlag(inst, hParam, mc.SV_P)
+		if (flagP == 1) then --Check that the flag has been set so we do not get an unexpected value for mc.SV_P
+			varP = mc.mcCntlGetLocalVar(inst, hParam, mc.SV_P)
+		end
+		local flagS, rc = mc.mcCntlGetLocalVarFlag(inst, hParam, mc.SV_S)
+		if (flagS == 1) then --Check that the flag has been set so we do not get an unexpected value for mc.SV_S
+			varS = mc.mcCntlGetLocalVar(inst, hParam, mc.SV_S)
+		end
+	end
+	if (RunVision(inst, varP) == false) then 
+		--mc.mcCntlSetLastError(mc.mcGetInstance(), "Vision failed.")-- Message is posted in the Run Vision function 
+		mc.mcCntlEnable(mc.mcGetInstance(), 0);
+		mc.mcCntlSetLastError(mc.mcGetInstance(), "Vision Fail")
+		return false -- we failed to be in the correct position
+	end
+
+	-- Get the position of where we are now, this is where we need to move the point to
+	local NewPos = GetPosition()
+	-- With both of the positions lets get the angle of the original point (start Pos)
+	local origin = pointCreate(0,0) 
+	local Sangle , Sdist = PointData(origin,StartPos)
+	--mc.mcCntlSetLastError(mc.mcGetInstance(), string.format("Angle start = %.3f Length = %.3f", Sangle,Sdist))
+	local Nangle , Ndist = PointData(origin,NewPos)
+	--mc.mcCntlSetLastError(mc.mcGetInstance(), string.format("Angle start = %.3f Length = %.3f", Sangle,Sdist))
+	local angle = Nangle - Sangle -- This is the amount we need to rotate the path
+	local scale = Ndist / Sdist -- this is the amount the scale is off 
+	mc.mcCntlSetLastError(mc.mcGetInstance(), string.format("Angle Set to %.3fDeg", angle))
+	mc.mcCntlGcodeExecute(mc.mcGetInstance(), string.format("G68 X0 Y0 R%.3f", angle))
+	if(tonumber(varS) >= 1)then 
+		mc.mcCntlGcodeExecute(mc.mcGetInstance(), string.format("G51 X%.4f Y%.4f", scale, scale))
+	end 
+	mc.mcMotionSync(inst);
+end
+
+function m168(hParam) --The param is a P value called from Gcode. M162P3 for example.
+	local varP = 0
+	local inst = mc.mcGetInstance()
+	if (hParam ~= nil) then
+		local flagP, rc = mc.mcCntlGetLocalVarFlag(inst, hParam, mc.SV_P)
+		if (flagP == 1) then --Check that the flag has been set so we do not get an unexpected value for mc.SV_P
+			varP = mc.mcCntlGetLocalVar(inst, hParam, mc.SV_P)
+			
+		end
+	end
+	if (RunVision(inst, varP) == false) then 
+		--mc.mcCntlSetLastError(mc.mcGetInstance(), "Vision failed.")-- Message is posted in the Run Vision function 
+		mc.mcCntlEnable(mc.mcGetInstance(), 0);
+	end
+end
+
+if (mc.mcInEditor() == 1) then
+	local inst = mc.mcGetInstance()
+	local hparam, rc = mc.mcCntlCreateLocalVars(inst, "P1.5")
+	if (rc ~= mc.MERROR_NOERROR) then 
+		local errorstring = mc.mcCntlGetErrorString(inst, rc)
+	end
+    m168(hparam)
+end
+
+function m54(hParam)
+	SetFixtureOffset(54,hParam)
+end
+function m55(hParam) --The param is a P value called from Gcode. M162P3 for example.
+	SetFixtureOffset(55,hParam)
+end
+function m56(hParam) --The param is a P value called from Gcode. M162P3 for example.
+	SetFixtureOffset(56,hParam)
+end
+function m57(hParam) --The param is a P value called from Gcode. M162P3 for example.
+	SetFixtureOffset(57,hParam)
+end
+function m58(hParam) --The param is a P value called from Gcode. M162P3 for example.
+	SetFixtureOffset(58,hParam)
+end
+function m59(hParam) --The param is a P value called from Gcode. M162P3 for example.
+	SetFixtureOffset(59,hParam)
+end

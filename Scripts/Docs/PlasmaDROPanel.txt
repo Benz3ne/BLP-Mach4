@@ -1,0 +1,86 @@
+local inst = mc.mcGetInstance()
+local UI = {}
+local handles = nil
+local path = "iRegs0/nf/thc/PID"
+local ends = {"dval", "imax", "ival", "kd", "ki", "kp"}
+
+	UI.MyFrame1 = wx.wxFrame (wx.NULL, wx.wxID_ANY, "PID Tuning", wx.wxDefaultPosition, wx.wxSize( 400,350 ), wx.wxDEFAULT_FRAME_STYLE + wx.wxTAB_TRAVERSAL + wx.wxSTAY_ON_TOP )
+	UI.MyFrame1:SetSizeHints( wx.wxDefaultSize, wx.wxDefaultSize )
+
+	UI.gSizer1 =  wx.wxBoxSizer( wx.wxVERTICAL )
+	UI.MyFrame1:SetBackgroundColour( wx.wxColour( 65, 65, 65 ) )
+	
+	UI.gbSizer2 = wx.wxGridBagSizer( 0, 0 )
+	UI.gbSizer2:SetFlexibleDirection( wx.wxBOTH )
+	UI.gbSizer2:SetNonFlexibleGrowMode( wx.wxFLEX_GROWMODE_SPECIFIED )
+	
+	for i=1, 6, 1 do
+	UI["m_staticText" .. tostring(i)] = wx.wxStaticText( UI.MyFrame1, wx.wxID_ANY, "PID: "  .. ends[i], wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+	UI["m_staticText" .. tostring(i)]:Wrap( -1 )
+	UI["m_staticText" .. tostring(i)]:SetFont( wx.wxFont( 20, wx.wxFONTFAMILY_SWISS, wx.wxFONTSTYLE_NORMAL, wx.wxFONTWEIGHT_NORMAL, false, "Arial" ) )
+	UI["m_staticText" .. tostring(i)]:SetForegroundColour( wx.wxColour( 0, 255, 0 ) )
+	UI.gbSizer2:Add( UI["m_staticText" .. tostring(i)], wx.wxGBPosition( i, 0 ), wx.wxGBSpan( 1, 1 ), wx.wxALL, 5 )
+	
+	UI["dro" .. tostring(i)] = wx.wxStaticText( UI.MyFrame1, wx.wxID_ANY, "", wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+	UI["dro" .. tostring(i)]:Wrap( -1 )
+	UI["dro" .. tostring(i)]:SetFont( wx.wxFont( 20, wx.wxFONTFAMILY_SWISS, wx.wxFONTSTYLE_NORMAL, wx.wxFONTWEIGHT_NORMAL, false, "Arial" ) )
+	UI["dro" .. tostring(i)]:SetForegroundColour( wx.wxColour( 0, 255, 0 ) )
+	UI["dro" .. tostring(i)]:SetBackgroundColour( wx.wxSystemSettings.GetColour( wx.wxSYS_COLOUR_BTNTEXT ) )
+	UI.gbSizer2:Add( UI["dro" .. tostring(i)], wx.wxGBPosition( i, 1 ), wx.wxGBSpan( 1, 1 ), wx.wxALL, 5 )
+	
+	end
+
+	UI.helpButton = wx.wxButton(UI.MyFrame1, wx.wxID_ANY, "Help", wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+	UI.helpButton:SetForegroundColour( wx.wxColour( 255, 255, 255 ) )
+	UI.helpButton:SetBackgroundColour( wx.wxColour( 75, 75, 75 ) )
+	UI.gbSizer2:Add( UI.helpButton, wx.wxGBPosition( 0, 0 ), wx.wxGBSpan( 1, 2 ),  wx.wxALL + wx.wxALIGN_CENTER, 5 )
+
+	UI.gSizer1:Add( UI.gbSizer2, 1, wx.wxEXPAND, 5 )
+
+	UI.MyFrame1:SetSizer( UI.gSizer1 )
+	UI.MyFrame1:Layout()
+	UI.gSizer1:Fit( UI.MyFrame1 )
+	
+	UI.MyFrame1:Centre( wx.wxBOTH )
+
+
+function OnUpdateUI() 
+	--update the dro values
+	if handles == nil then
+		handles = {}
+		for i=1, 6, 1 do 
+			local handle = mc.mcRegGetHandle(inst, path .. ends[i])
+			table.insert(handles, handle)
+		end
+	end
+	local str = "dro"
+	for i=1, 6, 1 do 
+		local regVal = tostring(mc.mcRegGetValue(handles[i]))
+		if UI[tostring(str .. i)]:GetLabel() ~= regVal then
+			UI[tostring(str .. i)]:SetLabel(regVal)
+		end
+	end
+	UI.gSizer1:Fit( UI.MyFrame1 )
+end
+	 --Connect Events
+	UI.MyFrame1:Connect( wx.wxEVT_UPDATE_UI, function(event)
+		-- Run function every time UI updates
+		OnUpdateUI()
+		event:Skip()
+	end )  
+UI.MyFrame1:Connect( wx.wxEVT_CLOSE_WINDOW, function(event)
+		-- Run function every time UI updates
+
+		event:Skip()
+	end )  
+UI.helpButton:Connect( wx.wxEVT_COMMAND_BUTTON_CLICKED, function(event)
+	--implements do the dew
+	local dir = mc.mcCntlGetMachDir(inst);
+    local cmd = "start " .. dir .. "\\Docs\\Plasma_THC_Config.odt"
+	os.execute(cmd)
+	
+print(cmd)
+		event:Skip()
+end )
+UI.MyFrame1:Show(true)
+wx.wxGetApp():MainLoop()

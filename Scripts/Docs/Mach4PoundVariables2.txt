@@ -1,0 +1,242 @@
+Mach4 Parameters list:
+
+By Scott Shafer 5/28/15
+
+local value = mc.mcCntlGetPoundVar(num inst, num PoundVar);--Get a pound var value
+mc.mcCntlSetPoundVar(num inst, num PoundVar, num value);--Set a pound var value
+
+Local VARs 
+A 	1
+B 	2
+C 	3
+I 	4
+J 	5
+K 	6
+D 	7
+E 	8
+F 	9
+G 	10
+H 	11
+L 	12
+M 	13
+N 	14
+O 	15
+P	16
+Q 	17
+R 	18
+S 	19
+T 	20
+U 	21
+V 	22
+W 	23
+X 	24
+Y 	25
+Z 	26
+
+Common vars (cleared on startup)
+CMN1 START 	100
+CMN1 END 	199
+
+Common vars (retained across startups)
+CMN2 START 	500
+CMN2 END 	599
+CURRENT TIP 	1237 			// Tool tip direction in Lathe mode for Tip
+
+Comp
+FRO ON OFF 		2027 		// FRO On or Off
+CUR DIA INDEX 		2028 		// Current Dia number (D)
+CUR TOOL NUMBER 	2029 		// Current tool number (T)
+CUR SELECTED TOOL 	2031 		// Current tool that is selected (Next T number)
+CUR LENGTH INDEX 	2032 			// Current Length number (H)
+CUR TOOL XLENGTH REGISTER 2033
+CUR TOOLDIA REGISTER 	2034 		// Register for the amount of tool dia offset
+CUR TOOL ZLENGTH REGISTER 2035
+CUR TOOL YLENGTH REGISTER 2036
+CUR CSS LIMIT 		2130
+CUR SPINDLE SFPM 	2131
+CUR SPINDLE SPEED	2132
+TRAVERSE RATE 		2133 		// Rate for traverse motions
+FEEDRATE 		2134 		// Feed rate in current units/min
+ROTATION X 		2135
+ROTATION Y 		2136
+ROTATION 		2137
+ALM 			3000 		// W: Writing to this var will produce a machine alarm.
+CLOCK1 			3001 		// R: Time, in milliseconds, since the machine was powered on.
+CLOCK2 			3002 		// R: Accumulated time, in hours, of the machine. (Hour Meter)
+CNTL1 			3003 		// R/W: bit 0 high suppresses single block (default == not set),
+					bit 1 high suppresses waits on MST codes (default == not set).
+					M SBK 0x01
+					M MST 0x02
+					M FIN 0x02 // Same as SV M MST.
+CNTL2 			3004 		// R/W: bit 0 high disables feed hold
+					(default == not set), bit 1 high disables FRO
+					(default == not set), bit 2 high enables exact stop
+					(default == not set).
+					M FHD 0x01
+					M OV 0x02
+					M EST 0x04
+SETDT 			3005 		// R/W: Settings Data (bit 2 = 0 Inch, bit 2 = 1 Metric)
+MSGSTP 			3006 		// W: Writing to this var will produce a machine stop.
+MRIMG 			3007 		// R: Status of Mirror Image.
+PRSTR 			3008 		// R: Program restart (0 or 1)
+DEFAULT UNITS 		3005 		// Same as SV SETDT R/W: (bit 2 = 0 Inch,bit 2 = 1 Metric)
+DATE 			3011 		// R: Current Date (YYYYMMDD)
+TIME 			3012 		// R: Current Time (HHMMSS)
+EMPTY 			3100 		// R: returns NIL
+PI 			3101 		// R: returns pi. (3.14159265358979323846)
+BASE LOG E 		3102 		// R: returns base of natural logarithm E.(2.71828182845904523536)
+PRTSA 			3901 		// R/W: Total number of parts.
+PRTSN 			3902 		// R/W: Number of required parts
+MAINO 			4000 		// Main program number.
+MOD GROUP 1 		4001 		// Group 1 // active G-code for motion
+MOD GROUP 2 		4002 		// Group 2 // active plane, XY-, YZ-, or XZ-plane
+MOD GROUP 3 		4003 		// Group 3 // absolute or incremental
+MOD GROUP 4 		4004 		// Group 4 // arc center mode
+MOD GROUP 5 		4005 		// Group 5 // G93 (inverse time) or G94 units/min
+MOD GROUP 6 		4006 		// Group 6 // millimeters or inches
+MOD GROUP 7 		4007 		// Group 7 // current cutter compensation side
+MOD GROUP 8 		4008 		// Group 8 // tool length offset
+MOD GROUP 9 		4009 		// Group 9 // canned cycles
+MOD GROUP 10 		4010 		// Group 10 // for cycles, old z or r plane
+MOD GROUP 11 		4011 		// Group 11 // scale mode
+MOD GROUP 12 		4012 		// Group 12 // modal macro (G66,G66.1,G67)
+MOD GROUP 13 		4013 		// Group 13 // spindle mode
+MOD GROUP 14		4014 		// Group 14 // coordinate systems
+MOD GROUP 15 		4015 		// Group 15 // exact path or cutting mode
+MOD GROUP 16 		4016 		// Group 16 // coordinate system rotation mode
+MOD GROUP 17 		4017 		// Group 17 // polar mode
+MOD GROUP 18 		4018 		// Group 18 // compensation mode
+MOD GROUP 19 		4019 		// Group 19 // not used
+MOD GROUP 20 		4020 		// Group 20 // not used
+MOD GROUP 21 		4021 		// Group 21 // not used
+MOD GROUP 22 		4022 		// Group 22 // not used
+MOD GROUP 23 		4023 		// Group 22 // not used
+MOD GROUP 24 		4024 		// Group 22 // not used
+MOD GROUP 25 		4025 		// Group 22 // not used
+BUFB 			4102 		// last buffered B code value.
+BUFD 			4107 		// last buffered D code value.
+BUFE 			4108 		// last buffered E code value.
+BUFF 			4109 		// last buffered F code value.
+BUFH 			4111 		// last buffered H code value.
+BUFM 			4113 		// last buffered H code value.
+BUFN 			4114 		// last buffered N code value.
+BUFO 			4115 		// last buffered O code value.
+BUFS 			4119 		// last buffered S code value.
+BUFT 			4120 		// last buffered T code value.
+ORIGIN OFFSET X 	4140
+ORIGIN OFFSET Y 	4141
+ORIGIN OFFSET Z 	4142
+ORIGIN OFFSET A 	4143
+ORIGIN OFFSET B 	4144
+ORIGIN OFFSET C 	4145
+LAST OUTPUT X 		5001
+LAST OUTPUT Y 		5002
+LAST OUTPUT Z 		5003
+LAST OUTPUT A 		5004
+LAST OUTPUT B 		5005
+LAST OUTPUT C 		5006
+CURRENT MACH X 		5021
+CURRENT MACH Y 		5022
+CURRENT MACH Z 		5023
+CURRENT MACH A 		5024
+CURRENT MACH B 		5025
+CURRENT MACH C 		5026
+AXIS OFFSET X 		5030 		// Used to save the offset with the G92.3 command
+AXIS OFFSET Y 		5031
+AXIS OFFSET Z 		5032
+AXIS OFFSET A 		5033
+AXIS OFFSET B 		5034
+AXIS OFFSET C 		5035
+CURRENT ABS X 		5041
+CURRENT ABS Y 		5042
+CURRENT ABS Z 		5043
+CURRENT ABS A 		5044
+CURRENT ABS B 		5045
+CURRENT ABS C 		5046
+G92 OFFSET X 		5050 		// Used to save the offset with the G92.3 command
+G92 OFFSET Y 		5051
+G92 OFFSET Z 		5052
+G92 OFFSET A 		5053
+G92 OFFSET B 		5054
+G92 OFFSET C 		5055
+PROBE POS X 		5061 		// G31 Skip signal
+PROBE POS Y 		5062
+PROBE POS Z 		5063
+PROBE POS A 		5064
+PROBE POS B 		5065
+PROBE POS C		5066
+PROBE MACH POS X 	5071 		// G31 Skip signal machine position
+PROBE MACH POS Y 	5072
+PROBE MACH POS Z 	5073
+PROBE MACH POS A 	5074
+PROBE MACH POS B 	5075
+PROBE MACH POS C 	5076
+HEAD SHIFT X 		5110
+HEAD SHIFT Y 		5111
+HEAD SHIFT Z 		5112
+HEAD SHIFT A 		5113
+HEAD SHIFT B 		5114
+HEAD SHIFT C 		5115
+
+/* Turn Registers only */
+/* G76 Parameters */
+G76 MIN PASS DEPTH 	5140
+G76 FINISH DEPTH 	5141
+G76 FINISH PASSES 	5142
+G76 THREAD ANGLE 	5143
+G76 CHAMFER AMOUNT 	5144
+G76 CUTTING METHOD 	5145
+/* End of Turn Registers */
+
+CUR COMP X 		5157 		// Program x, used when cutter comp on
+CUR COMP Y 		5158 		// Program y, used when cutter comp on
+CUR COMP Z 		5159 		// Program z, used when cutter comp on
+G 30 XPOS 		5181
+G 30 YPOS 		5182
+G 30 ZPOS 		5183
+G 30 APOS 		5184
+G 30 BPOS 		5185
+G 30 CPOS 		5186
+WORK SHIFT X 		5201
+WORK SHIFT Y 		5202
+WORK SHIFT Z 		5203
+WORK SHIFT A 		5204
+WORK SHIFT B 		5205
+WORK SHIFT C 		5206
+FIXTURES START 		5221 		// Fixture start in Parameter list
+					Fixture increment is 20, Increment from fixture to fixture. G54 – G59
+G 30 P2 XPOS 		5351
+G 30 P2 YPOS 		5352
+G 30 P2 ZPOS 		5353
+G 30 P2 APOS 		5354
+G 30 P2 BPOS 		5355
+G 30 P2 CPOS 		5356
+G 30 P3 XPOS 		5361
+G 30 P3 YPOS 		5362
+G 30 P3 ZPOS 		5363
+G 30 P3 APOS 		5364
+G 30 P3 BPOS 		5365
+G 30 P3 CPOS 		5366
+G 30 P4 XPOS 		5371
+G 30 P4 YPOS 		5372
+G 30 P4 ZPOS 		5373
+G 30 P4 APOS 		5374
+G 30 P4 BPOS 		5375
+G 30 P4 CPOS 		5376
+ROTATION G68 NO R 	5410
+APPROACH DIST X		5440 		// Approach distance for the G60 Unidirectional approach command
+APPROACH DIST Y 	5441
+APPROACH DIST Z 	5442
+APPROACH DIST A 	5443
+APPROACH DIST B 	5444
+APPROACH DIST C 	5445
+CMN RO START 		6031 		// The starting common var (#500-#999) to write protect.
+CMN RO END 		6032 		// The ending common var (#500-#999) to write protect.
+PRTCNTL 		6700 		// Setting to 1 only allows M code specified by# 6710 to increment part count. (default 0)
+PRTINCM 		6710 		// Set to a M code that will increment part counts with or without M02 and M30 according to #6700.
+PRTSA2 			6711 		// R/W: Total number of parts. Will change/reflect #3901 as well.
+
+(cleared on file load).
+PRTST 			6712 		// R/W: Total number of parts machined.
+PRTSN2 			6713 		// R/W: Number of required parts Will change/reflect #3902 as well.
+FIXTURE EXPAND 		7001 		// Fixtures after G54.1, P1 – P120,incremented by 20 from offset to offset

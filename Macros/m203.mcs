@@ -1,0 +1,5 @@
+function m203()
+    local inst = mc.mcGetInstance()
+    ProbeScripts.ProbeOutsideCenter(inst)
+    return mc.MERROR_NOERROR
+end

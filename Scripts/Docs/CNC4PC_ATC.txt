@@ -1,0 +1,226 @@
+// Carousel toolchanger code
+// Original Code by Terry Parker, Adapted to the AXYZ CNC by Arturo Duncan
+// Some code for the original linear tool change which is not used was left there intentionally and is commented
+
+//  MessageBox.Show(" New Tool Change Macro Newtool=");
+  
+//Tool positions definition
+int Chuckopenport = 1;
+int Chuckopenpin = 16;
+
+// Tool carusel driven by the B axis.
+double[] ToolB = new double[11];
+ToolB[0] = 0; // Tool0 B position
+
+//Angle at which each tool is.
+
+ToolB[1] = 45*(1-1); // Tool1 B position
+ToolB[2] = 45*(2-1); // Tool2 B position
+ToolB[3] = 45*(3-1); // Tool3 B position
+ToolB[4] = 45*(4-1); // Tool4 B position
+ToolB[5] = 45*(5-1); // Tool5 B position
+ToolB[6] = 45*(6-1); // Tool6 B position
+ToolB[7] = 45*(7-1); // Tool7 B position
+ToolB[8] = 45*(8-1); // Tool8 B position
+
+//Read and store the position of the machine before doing the tool change so we can send the spindle to where it was when the tool change was called.
+
+double x = exec.GetXpos();				// GetOEMDRO(83)
+double y = exec.GetYpos();				// GetOEMDRO(84) 
+double z = exec.GetZpos();				// GetOEMDRO(85) 
+double a = exec.GetApos();				// GetOEMDRO(86) 
+double b = exec.GetBpos();				// GetOEMDRO(87) 
+double c = exec.GetCpos();				// GetOEMDRO(88)
+
+//  MessageBox.Show("Newtool=");
+  
+// These are the machine constants.  The positions in the machine coordinate system where phisical things are.
+  
+double SafeZ = -.5;
+double Ztoolrelease = 30;
+double Ztoolpickup = 28;
+int MaxToolNum = 8;      		//'Max number off tools for the changer
+double ToolDown   = -5.339;  		//'Z Pos to Get or drop a tool
+double ToolUp     = -0;    	//'Z Hieght to Rapid from tool to tool
+double DustCollector = 0.154;
+double ToolProbePos = -3.1336;
+double YTootChangePos = -7.8;
+double YTootPos = -11.6913;
+double SpindleSpeed = Convert.ToDouble(AS3.Getfield(870));
+
+int Newtool = exec.Getnewtool();
+int Currenttool = exec.Getcurrenttool();
+
+
+if(Currenttool == 0) // If new tool number is -1 means a missing T code, so we need to stop here...
+{
+MessageBox.Show("The Current TOOL # is out of range 1 - 8 , Correct the Value and Restart");
+exec.Stop();
+return;
+}
+
+if(Newtool == -1) // If new tool number is -1 means a missing T code, so we need to stop here...
+return; 
+
+if(Newtool <1 || Newtool >10) // Tool number is out of range, so we need to stop here...
+return;
+
+if(Newtool == Currenttool) // Same tool was selected, so do nothing, stop here...
+return; 
+
+if(Newtool == 0 || Newtool >8) // If new tool number is 0  means a missing T code, so we need to stop here...
+{
+MessageBox.Show("The TOOL # is out of range 1 - 8 , Correct the Value and Restart");
+exec.Stop();
+return;
+}
+
+if(!exec.GetLED(56)||!exec.GetLED(57)||!exec.GetLED(58)||!exec.GetLED(60)) // If machine was not homed then it is unsafe to move in machine coordinates, stop here...
+{
+  MessageBox.Show("The machine was not yet homed, do homeing before executing a tool change!");
+  exec.Stop();
+  return;
+}
+
+while(exec.IsMoving()){}
+
+// Get current XY machine coordinates to return to this position at the end of the macro
+
+double Xoriginalpos = exec.GetXmachpos();
+double Yoriginalpos = exec.GetYmachpos();
+
+// Stop spindle if running and Move Z up
+
+exec.Stopspin(); 
+//MessageBox.Show("G00 G53 Z+ SafeZ"); // Move Z up");
+exec.Code("G00 G53 Z"+ SafeZ); // Move Z up
+while(exec.IsMoving()){}
+// Open Dust Collector
+exec.Setoutpin(2,1);     				// Open the Dust Collector
+while(exec.IsMoving()){}
+
+if(Currenttool!=0) // No need to drop down tool if current tool number is zero
+{
+  // Drop old tool
+
+ // exec.Code("G00 G53 "+" B" + ToolB[Currenttool]);
+  //while(exec.IsMoving()){}
+
+  // Drop current tool
+  
+  //exec.Code("G00 G53 Z"+ Ztoolrelease); // Move Z axis down to tool holder position
+  //while(exec.IsMoving()){}
+  //exec.Setoutpin(Chuckopenport, Chuckopenpin); // Open the chuck with pneumatic valve
+  //exec.Wait(1000); // Wait one 1000msec
+  //exec.Code("G00 G53 Z"+ SafeZ); // Move Z up
+  //while(exec.IsMoving()){}
+}
+
+// Move to new tool position on XY plane
+// MessageBox.Show("G00 G53 Y"+DustCollector+ "B "+ ToolB[Currenttool]);
+exec.Code("G00 G53 Y"+DustCollector+" B" + ToolB[Currenttool]);
+while(exec.IsMoving()){}
+// MessageBox.Show("exec.Code(G00 G53 Y+YTootChangePos)");
+exec.Code("G00 G53 Y"+YTootChangePos);
+while(exec.IsMoving()){}
+// MessageBox.Show("exec.Code(G00 G53 Z+ToolDown)");
+exec.Code("G00 G53 Z"+ToolDown);
+while(exec.IsMoving()){}
+//Wait unti spindle is off
+
+
+
+//Check that the spindle is really off before delivering the tool
+do
+{
+exec.Wait(50);
+SpindleSpeed = Convert.ToDouble(AS3.Getfield(870)); 
+}
+//MessageBox.Show("SpindleSpeed ="+SpindleSpeed );
+while(SpindleSpeed != 0);
+
+// MessageBox.Show("exec.Code(G0 G53 Y+YTootPos+.25)");
+exec.Code("G0 G53 Y"+(YTootPos+.1));
+while(exec.IsMoving()){}
+
+// MessageBox.Show("exec.Code(G1 F30 G53 Y+YTootPos)");
+exec.Code("G1 F30 G53 Y"+YTootPos);
+while(exec.IsMoving()){}
+//MessageBox.Show("exec.Code(G4 P.75)");
+exec.Code("G4 P.75");
+while(exec.IsMoving()){}
+// Tool Release
+{exec.Setoutpin(2,14);     				// Release Tool
+}
+//MessageBox.Show("exec.Code(G4 P.75)");
+exec.Code("G4 P.75");
+while(exec.IsMoving()){}
+//  MessageBox.Show("exec.Code(G1 F10 G53 Z & ToolDown+.25)");
+exec.Code("G1 F10 G53 Z" + (ToolDown+.1));
+while(exec.IsMoving()){}
+exec.Clroutpin(2,14);     		//  Clamp Tool
+while(exec.IsMoving()){}
+// MessageBox.Show("exec.Code(G0 G53 Z + ToolUp-2)");
+exec.Code("G0 G53 Z" + (ToolUp-2.25));
+while(exec.IsMoving()){}
+// MessageBox.Show("exec.Code(G0 G53 BToolB[Newtool])");
+exec.Code("G0 G53 B"+ToolB[Newtool]);
+while(exec.IsMoving()){}
+// MessageBox.Show("exec.Code(G0 G53 Z & ToolUp-2)");
+exec.Code("G0 G53 Z" + (ToolUp-2.25));
+while(exec.IsMoving()){}
+{exec.Setoutpin(2,14);     				// Release Tool
+}
+// MessageBox.Show("exec.Code(G0 G53 Z & ToolDown+.25)");
+exec.Code("G0 G53 Z" + (ToolDown+.1));
+while(exec.IsMoving()){}
+// MessageBox.Show("exec.Code(G0 G53 Z & ToolDown);");
+exec.Code("G1 F10 G53 Z" + ToolDown);
+while(exec.IsMoving()){}
+// Clamp Tool
+exec.Clroutpin(2,14);     		//  Clamp Tool
+while(exec.IsMoving()){}
+exec.Wait(1000); // Wait one 1000msec
+// MessageBox.Show("exec.Code(G1 F30 G53 Y+YTootPos-.2)");
+//exec.Code("G1 F30 G53 Y"+(YTootPos+1));
+//while(exec.IsMoving()){}
+// MessageBox.Show("exec.Code(G00 G53 Y+YTootChangePos)");
+exec.Code("G00 G53 Y"+YTootChangePos);
+while(exec.IsMoving()){}
+//MessageBox.Show("  exec.Code(G00 G53 Z+ SafeZ)");
+  exec.Code("G00 G53 Z"+ SafeZ); // Move Z up
+  while(exec.IsMoving()){}
+
+//MessageBox.Show("  exec.Code(G00 G53 Y+ DustCollector+5)");
+// exec.Code("G00 G53 Y20"); // Bang the Dust Collector
+// while(exec.IsMoving()){}
+
+
+// Move back to start point
+//MessageBox.Show("exec.Code(G00 G53 X + Xoriginalpos +  Y + Yoriginalpos)");
+exec.Code("G00 G53 X" + Xoriginalpos + " Y" + Yoriginalpos);
+while(exec.IsMoving()){}
+
+//MessageBox.Show("Reset Tool Offset");
+exec.Code("G49"); // Reset Tool Offset
+
+exec.Wait(200);
+while(exec.IsMoving()){}
+AS3.Setfield(Newtool,1003);
+
+if(!exec.Ismacrostopped()) // If tool change was not interrupted with a stop only then validate new tool number
+{
+  exec.Setcurrenttool(Newtool); //Set the current tool -> the new tool
+
+//MessageBox.Show("exec.Code(G43 H+Newtool)");
+exec.Code("G43 H"+Newtool); // Load new tool offset
+exec.Wait(200);
+while(exec.IsMoving()){}
+
+//MessageBox.Show("Tool change done.");
+}
+else
+{
+  exec.StopWithDeccel();
+  MessageBox.Show("Tool change was interrupted by user!");
+}

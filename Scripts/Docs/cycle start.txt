@@ -1,0 +1,10 @@
+local inst, hReg
+inst = mc.mcGetInstance() --Get the instance of Mach4
+hReg= mc.mcRegGetHandle(inst, "gRegs0/CycleCnt")
+local value = mc.mcRegGetValue(hReg)
+
+if (value>0) then
+	CycleStart()
+else
+	mc.mcCntlSetLastError(inst, "END OF PARTS")
+end

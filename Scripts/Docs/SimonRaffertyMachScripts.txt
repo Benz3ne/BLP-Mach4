@@ -1,0 +1,71 @@
+--Paste this into the WX Screen Load script (doesn't matter where, so long as it's not inside another function)
+--SerialDRO module
+package.loaded.SerialDRO = nil
+SDRO = require "SerialDRO"
+
+--Define Global Variables required for Pendant
+bSerialDROActive = false --DRO Activated by button
+LastX = 9999 --Storage for last positions sent to save time & serial data
+LastY = 9999
+LastZ = 9999 --Set to unlikely values so they are updated the first tim activated
+LastSpin = 9999
+LastFRO = 9999
+Pendant_OK = false
+
+--Set the background colour of the Button to Grey
+scr.SetProperty('btnSerialDRO','Bg Color','') 
+
+--Open the serial port
+--The OpenPort function scans all the serial ports until it finds the Pendant
+if(SDRO.OpenPort()=="") then
+	Pendant_OK = true
+end
+
+
+
+
+--In the Mach4 Screen Editor, Add a new button (or re-use one of the blank buttons)
+--And paste this script into the Clicked Script.  The Variables used in this are defined
+--in the Screen Load Script
+
+if(Pendant_OK) then
+	if(bSerialDROActive)then
+		scr.StopTimer(0)
+		bSerialDROActive = false --Deactivate sending
+		--Change the button colour
+		scr.SetProperty('btnSerialDRO','Bg Color','')	
+	else
+		bSerialDROActive = true --Activate Sending
+		--Change the button colour
+		scr.SetProperty('btnSerialDRO','Bg Color','#00FF00')
+		
+		scr.StartTimer(0,200,0)
+	end
+	SDRO.UpdatePendant(bSerialDROActive)
+end
+
+
+
+
+--Paste this into the WX Screen Unload Script
+SDRO.ClosePort()
+
+
+
+
+--Paste this into the WX Screen Timer Script
+--The timer is enabled to run every 200ms by the Pendant Enable Button
+if timer == 0 then
+	if(machEnabled~=0) then
+		SDRO.SendSerialDRO() --Send DRO & Button data to Pendant
+		SDRO.ReadPendant() --Read Commands from Pendant, including jogging
+	else
+		--Mach disabled, disable pendant and pendant button
+		bSerialDROActive = false
+		scr.SetProperty('btnSerialDRO','Bg Color','')
+		scr.StopTimer(0)
+		SDRO.UpdatePendant(bSerialDROActive)
+	end
+	
+
+end

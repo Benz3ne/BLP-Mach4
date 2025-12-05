@@ -1,0 +1,5 @@
+function m8()
+    local inst = mc.mcGetInstance()
+    local hSig = mc.mcSignalGetHandle(inst, mc.OSIG_COOLANTON)
+    mc.mcSignalSetState(hSig, 1)
+end

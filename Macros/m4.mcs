@@ -1,0 +1,12 @@
+function m4()
+    local inst = mc.mcGetInstance()
+    mc.mcSpindleSetDirection(inst, -1)
+
+    local h  = mc.mcSignalGetHandle(inst, mc.ISIG_INPUT13)
+    local t0 = os.clock()
+    while (os.clock() - t0) < 10.0 do
+        if mc.mcSignalGetState(h) == 1 then return end
+        wx.wxMilliSleep(50)
+    end
+    mc.mcCntlSetLastError(inst, "M4: Timed out waiting for Input13 HIGH")
+end

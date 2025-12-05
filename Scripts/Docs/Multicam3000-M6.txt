@@ -1,0 +1,466 @@
+
+----------Variables----------
+
+
+
+local inst = mc.mcGetInstance() 
+
+local ToolInColletSig = mc.ISIG_INPUT0 
+
+local DrawBarOut = mc.OSIG_OUTPUT2 -------- Release drawbar ------ 
+
+local BlowOut = mc.OSIG_OUTPUT3 -------- Release blow ------
+
+local AirOut = mc.OSIG_OUTPUT4 -------- Release Air ------ 
+
+local dustOut = mc.OSIG_OUTPUT5 -------- Release dust collector  ------ 
+
+local numtools = 6
+
+
+
+-----------------------------
+
+local ToolXPositions = {}
+
+ToolXPositions[1] = 108.1125 
+
+ToolXPositions[2] = 108.0490
+
+ToolXPositions[3] = 108.0490
+
+ToolXPositions[4] = 108.0490
+
+ToolXPositions[5] = 108.0377
+
+ToolXPositions[6] = 108.0377
+
+
+
+-----------------------------
+
+local ToolYPositions = {}
+
+ToolYPositions[1] = 10.5956 
+
+ToolYPositions[2] = 17.5321
+
+ToolYPositions[3] = 24.5036
+
+ToolYPositions[4] = 31.5118
+
+ToolYPositions[5] = 38.4884
+
+ToolYPositions[6] = 45.6542
+
+
+
+-----------------------------
+
+local ToolZPositions = {}
+
+ToolZPositions[1] = -11.93856 
+
+ToolZPositions[2] = -11.93856
+
+ToolZPositions[3] = -11.93856
+
+ToolZPositions[4] = -11.93856
+
+ToolZPositions[5] = -11.93856
+
+ToolZPositions[6] = -11.93856
+
+
+
+function m6()
+
+
+
+local GCode = "" 
+
+ GCode = GCode .. string.format("M5\n") 
+
+GCode = GCode .. string.format("G04 P1000\n") 
+
+mc.mcCntlGcodeExecuteWait(inst, GCode)
+
+
+
+
+
+------ Get and compare current and next tools ------ 
+
+local SelectedTool = mc.mcToolGetSelected(inst)
+
+local CurrentTool = mc.mcToolGetCurrent(inst)
+
+if (SelectedTool == CurrentTool) then
+
+mc.mcCntlSetLastError(inst, "Next tool = Current tool")
+
+do return end
+
+end
+
+
+
+------ Get current machine state ------
+
+
+
+local CurFeed = mc.mcCntlGetPoundVar(inst, 2134)
+
+local CurFeedMode = mc.mcCntlGetPoundVar(inst, 4001)
+
+local CurAbsMode = mc.mcCntlGetPoundVar(inst, 4003)
+
+
+
+------ Get Position data for current tool ------
+
+
+
+if (CurrentTool <= numtools) then
+
+
+
+Num1 = CurrentTool
+
+XPos1 = ToolXPositions[CurrentTool]
+
+YPos1 = ToolYPositions[CurrentTool]
+
+ZPos1 = ToolZPositions[CurrentTool]
+
+
+
+else
+
+
+
+mc.mcCntlEStop(inst)
+
+mc.mcCntlSetLastError(inst, "ERROR: Tool number out of range!")
+
+do return end
+
+
+
+end
+
+
+
+------ Get position data for next tool ------
+
+
+
+if (SelectedTool <= numtools) then
+
+
+
+Num2 = SelectedTool
+
+XPos2 = ToolXPositions[SelectedTool]
+
+YPos2 = ToolYPositions[SelectedTool]
+
+ZPos2 = ToolZPositions[SelectedTool]
+
+
+
+else
+
+
+
+mc.mcCntlEStop(inst)
+
+mc.mcCntlSetLastError(inst, "ERROR: Tool number out of range!")
+
+do return end
+
+
+
+end
+
+------ Release dust collector  ------ 
+
+local hsig = mc.mcSignalGetHandle(inst,dustOut) 
+
+mc.mcSignalSetState(hsig, 0)
+
+
+
+   local hSig, rc = mc.mcSignalGetHandle(inst, ToolInColletSig)
+
+ local hReg, rc = mc.mcSignalGetState(hSig)
+
+
+
+if (hReg == 1) then
+
+
+
+------ Move to current tool change position ------ 
+
+local GCode = "" 
+
+GCode = GCode .. "G00 G90 G53 Z-2.0\n" 
+
+GCode = GCode .. string.format("G00 G90 G53 X%.4f Y%.4f\n", XPos1 - 4.5, YPos1)  
+
+GCode = GCode .. string.format("G00 G90 G53 Z%.4f\n", ZPos1 + 1.0) -- Ab +1 unit über Ablagehöhe wird mit G01 verfahren, hier Wert einstellen.
+
+GCode = GCode .. string.format("G00 G90 G53 Z%.4f\n", ZPos1) 
+
+GCode = GCode .. string.format("G01 G90 G53 X%.4f Y%.4f F50\n", XPos1 , YPos1)
+
+
+
+mc.mcCntlGcodeExecuteWait(inst, GCode) 
+
+
+
+------ Release drawbar ------ 
+
+local hsig = mc.mcSignalGetHandle(inst, DrawBarOut) 
+
+mc.mcSignalSetState(hsig, 1)
+
+
+
+------ Release blow ------ 
+
+local hsig1 = mc.mcSignalGetHandle(inst, BlowOut) 
+
+mc.mcSignalSetState(hsig1, 1)
+
+
+
+------ Release Air ------ 
+
+local hsig2 = mc.mcSignalGetHandle(inst, AirOut) 
+
+mc.mcSignalSetState(hsig2, 1)
+
+
+
+------ Move to next tool change position ------
+
+GCode = ""
+
+GCode = GCode .. "G04 P2000\n" 
+
+GCode = GCode .. "G00 G90 G53 Z-2.0\n"
+
+GCode = GCode .. string.format("G00 G90 G53 X%.4f Y%.4f\n", XPos2, YPos2)
+
+GCode = GCode .. string.format("G00 G90 G53 Z%.4f\n", ZPos2 +1) -- Ab +1 unit über Ablagehöhe wird mit G01 verfahren, hier Wert einstellen
+
+GCode = GCode .. string.format("G01 G90 G53 Z%.4f F20.0\n", ZPos2)
+
+
+
+mc.mcCntlGcodeExecuteWait(inst, GCode)
+
+
+
+------ Clamp drawbar ------
+
+mc.mcSignalSetState(hsig,0)
+
+mc.mcSignalSetState(hsig1,0)
+
+mc.mcSignalSetState(hsig2,0)
+
+GCode = ""
+
+GCode = GCode .. "G04 P1000\n" 
+
+mc.mcCntlGcodeExecuteWait(inst, GCode)
+
+hSig, rc = mc.mcSignalGetHandle(inst, ToolInColletSig)
+
+hReg, rc = mc.mcSignalGetState(hSig)
+
+
+
+if (hReg == 0) then
+
+mc.mcCntlEStop(inst)
+
+mc.mcCntlSetLastError(inst, "ERROR: Tool not detected!")
+
+do return end
+
+
+
+end
+
+
+
+GCode = ""
+
+GCode = GCode .. "G04 P2000\n" --Wartezeit 2000 milisekunden, nur optional
+
+GCode = GCode .. string.format("G01 G90 G53 X%.4f Y%.4f F 50\n", XPos2 - 4.5, YPos2)
+
+mc.mcCntlGcodeExecuteWait(inst, GCode)
+
+mc.mcSignalSetState(hsig,0)
+
+
+
+------ Move to Safe Z UP & in front of last change position ------
+
+mc.mcCntlGcodeExecuteWait(inst, "G00 G90 G53 Z-2.0\n")
+
+mc.mcCntlGcodeExecuteWait(inst, "G00 G90 G53 Y0\n") -- Fahrt hier in einen sicheren Abstand vom Werkzeugwechsler bei X=Letztes WZG. vor!
+
+
+
+else
+
+
+
+------ Release drawbar ------ 
+
+local hsig = mc.mcSignalGetHandle(inst, DrawBarOut) 
+
+mc.mcSignalSetState(hsig, 1)
+
+
+
+------ Release blow ------ 
+
+local hsig1 = mc.mcSignalGetHandle(inst, BlowOut) 
+
+mc.mcSignalSetState(hsig1, 1)
+
+
+
+------ Release Air ------ 
+
+local hsig2 = mc.mcSignalGetHandle(inst, AirOut) 
+
+mc.mcSignalSetState(hsig2, 1)
+
+
+
+------ Move to next tool change position ------
+
+GCode = ""
+
+GCode = GCode .. "G04 P2000\n" 
+
+GCode = GCode .. "G00 G90 G53 Z-2.0\n"
+
+GCode = GCode .. string.format("G00 G90 G53 X%.4f Y%.4f\n", XPos2, YPos2)
+
+GCode = GCode .. string.format("G00 G90 G53 Z%.4f\n", ZPos2 +1) -- Ab +1 unit über Ablagehöhe wird mit G01 verfahren, hier Wert einstellen
+
+GCode = GCode .. string.format("G01 G90 G53 Z%.4f F20.0\n", ZPos2)
+
+mc.mcCntlGcodeExecuteWait(inst, GCode)
+
+
+
+------ Clamp drawbar ------
+
+mc.mcSignalSetState(hsig,0)
+
+mc.mcSignalSetState(hsig1,0)
+
+mc.mcSignalSetState(hsig2,0)
+
+
+
+GCode = ""
+
+GCode = GCode .. "G04 P1000\n" 
+
+mc.mcCntlGcodeExecuteWait(inst, GCode)
+
+
+
+local hSig, rc = mc.mcSignalGetHandle(inst, ToolInColletSig)
+
+
+
+   local hReg, rc = mc.mcSignalGetState(hSig)
+
+
+
+if (hReg == 0) then
+
+
+
+mc.mcCntlEStop(inst)
+
+mc.mcCntlSetLastError(inst, "ERROR: Tool not detected!")
+
+do return end
+
+end
+
+
+
+GCode = ""
+
+GCode = GCode .. "G04 P2000\n" --Wartezeit 2000 milisekunden, nur optional
+
+GCode = GCode .. string.format("G01 G90 G53 X%.4f Y%.4f F50\n", XPos2 - 4.5, YPos2)
+
+mc.mcCntlGcodeExecuteWait(inst, GCode)
+
+mc.mcSignalSetState(hsig,0)
+
+
+
+------ Move to Safe Z UP & in front of last change position ------
+
+mc.mcCntlGcodeExecuteWait(inst, "G00 G90 G53 Z-2.0\n")
+
+mc.mcCntlGcodeExecuteWait(inst, "G00 G90 G53 Y0\n") -- Fahrt hier in einen sicheren Abstand vom Werkzeugwechsler bei X=Letztes WZG. vor!
+
+
+
+end
+
+
+
+------ Reset state ------
+
+mc.mcCntlSetPoundVar(inst, 2134, CurFeed)
+
+mc.mcCntlSetPoundVar(inst, 4001, CurFeedMode)
+
+mc.mcCntlSetPoundVar(inst, 4003, CurAbsMode)
+
+
+
+------ Set new tool ------
+
+mc.mcToolSetCurrent (inst, SelectedTool)
+
+mc.mcCntlSetLastError(inst, string.format("Tool change - Tool: %.0f", SelectedTool))
+
+mc.mcCntlGcodeExecuteWait(inst, "G43 H"..SelectedTool)
+
+
+
+------ Release dust collector  ------ 
+
+local hsig = mc.mcSignalGetHandle(inst,dustOut) 
+
+mc.mcSignalSetState(hsig, 1)
+
+end
+
+if (mc.mcInEditor() == 1) then
+
+m6()
+
+
+
+end

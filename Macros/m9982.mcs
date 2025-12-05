@@ -1,0 +1,82 @@
+--[[ Pound Variable Dump - In Use Only - Debug v1.0
+Dependencies: mc
+
+INSTALLATION INSTRUCTIONS:
+Run this script from the MDI by typing:
+MDI> m9982 (or any unused M-code number)
+Save as m9982.mcs in Macros folder
+
+Shows only pound variables that are in use
+]]--
+
+function m9982()
+    local inst = mc.mcGetInstance()
+    
+    -- Configuration - CHANGE THESE AS NEEDED
+    local START_VAR = 1
+    local END_VAR = 10000
+    local SHOW_FREE = false  -- Set to true to show ALL variables
+    
+    -- Output file
+    local userProfile = os.getenv("USERPROFILE")
+    local filename = userProfile .. "\\Downloads\\PoundInUse_" .. os.date("%Y%m%d_%H%M%S") .. ".txt"
+    
+    mc.mcCntlSetLastError(inst, "Scanning pound variables...")
+    
+    local file = io.open(filename, "w")
+    if not file then
+        filename = mc.mcCntlGetMachDir(inst) .. "\\PoundInUse_" .. os.date("%Y%m%d_%H%M%S") .. ".txt"
+        file = io.open(filename, "w")
+        if not file then
+            mc.mcCntlSetLastError(inst, "ERROR: Cannot create file")
+            return
+        end
+    end
+    
+    -- Header
+    file:write("POUND VARIABLES IN USE\n")
+    file:write("======================\n")
+    file:write("Generated: " .. os.date("%Y-%m-%d %H:%M:%S") .. "\n")
+    file:write("Range: #" .. START_VAR .. " to #" .. END_VAR .. "\n\n")
+    
+    -- Scan
+    local results = {}
+    local count = 0
+    
+    for i = START_VAR, END_VAR do
+        local value = mc.mcCntlGetPoundVar(inst, i)
+        
+        if value > -1e300 and value ~= 0 then  -- In use AND not zero
+            count = count + 1
+            table.insert(results, {num = i, val = value})
+        elseif SHOW_FREE then
+            table.insert(results, {num = i, val = value, free = true})
+        end
+        
+        -- Status update
+        if i % 1000 == 0 then
+            mc.mcCntlSetLastError(inst, string.format("Scanning #%d...", i))
+            wx.wxMilliSleep(10)
+        end
+    end
+    
+    -- Write results
+    file:write(string.format("Found %d variables in use:\n\n", count))
+    
+    for _, var in ipairs(results) do
+        if var.free then
+            file:write(string.format("#%-6d = FREE\n", var.num))
+        else
+            file:write(string.format("#%-6d = %g\n", var.num, var.val))
+        end
+    end
+    
+    file:close()
+    
+    mc.mcCntlSetLastError(inst, string.format("Found %d in use. File: %s", count, filename))
+end
+
+-- Editor check
+if mc.mcInEditor() == 1 then
+    m9982()
+end

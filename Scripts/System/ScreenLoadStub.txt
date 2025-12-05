@@ -1,0 +1,42 @@
+-- ===== ScreenLoad stub (safe + verbose on error) =====
+local inst = mc.mcGetInstance()
+
+-- Get paths
+local profile = mc.mcProfileGetName(inst)
+local machDir = mc.mcCntlGetMachDir(inst)
+_G.ROOT = machDir .. [[\Profiles\]] .. profile .. [[\Scripts]]
+local SRC = _G.ROOT .. [[\ScreenLoad.lua]]
+
+-- Simple error logging (only on failure)
+local function _log_error(...)
+    local stamp = os.date("%Y-%m-%d_%H-%M-%S")
+    local downloads = (os.getenv("USERPROFILE") or os.getenv("PUBLIC") or _G.ROOT) .. "\\Downloads"
+    local log_path = downloads .. "\\Mach4_ScreenLoad_Error_" .. stamp .. ".txt"
+    local f = io.open(log_path, "w")
+    if f then
+        f:write("ScreenLoad Error at " .. os.date("%Y-%m-%d %H:%M:%S") .. "\r\n")
+        f:write("File: " .. SRC .. "\r\n\r\n")
+        for i = 1, select("#", ...) do 
+            f:write(tostring(select(i, ...)) .. "\r\n")
+        end
+        f:close()
+    end
+end
+
+-- Reload function for development
+function _G.Reload_ScreenLoad()
+    local chunk, err = loadfile(SRC)
+    if not chunk then 
+        _log_error("RELOAD FAILED:", err)
+        error(err) 
+    end
+    return chunk()
+end
+
+-- Load and run ScreenLoad
+local ok, err = pcall(_G.Reload_ScreenLoad)
+if not ok then
+    _log_error("LOAD/RUN ERROR:", err, debug.traceback())
+    pcall(mc.mcCntlSetLastError, inst, "ScreenLoad error (see Downloads folder)")
+end
+-- ===== end ScreenLoad stub =====

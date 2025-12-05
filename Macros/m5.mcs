@@ -1,0 +1,4 @@
+function m5()
+    local inst = mc.mcGetInstance()
+    mc.mcSpindleSetDirection(inst, 0)
+end

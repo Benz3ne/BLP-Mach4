@@ -1,0 +1,1559 @@
+------------------------------------------------------------------------------
+-- Name:        Touch Off
+-- Author:      B Price
+-- Modified by: B Price 7/3/2019 Added support for find center if coordinates are rotated
+-- Created:     05/17/2016
+-- Copyright:   (c) 2016 Newfangled Solutions. All rights reserved.
+-- License:  	BSD license - This header can not be removed
+-- Thanks go to the following for helping with this project in one form or another.
+-- Brian Barker, Steve Murphree, Todd Monto, Jim Dingus, Rob Gaudette, T Lamontagne, Steve Stallings, Chris Buchanan, J Thacher
+------------------------------------------------------------------------------
+
+local mcTouchOff = {}
+
+local inst = mc.mcGetInstance()
+local lastCheck = true
+
+-- Get current mode and feed rate so we can set them back at the end of each function or after an error.
+function GetPreState()
+	m_CurFeed = mc.mcCntlGetPoundVar(inst, mc.SV_FEEDRATE)	--Feed rate
+	m_CurAbsMode = mc.mcCntlGetPoundVar(inst, mc.SV_MOD_GROUP_3)	--G90, G91
+end
+
+--------------------- Get the values from the ini. DO NOT EDIT THESE VALUES HERE!!! ----------------------------
+function ReadIni()
+	ToffProbeRate = mc.mcProfileGetString(inst, 'ToffParams', 'ToffProbeRate', '5.0000') -- Get the Value from the profile ini. If none exist use 5.0000
+	ToffProbeRate = math.abs (ToffProbeRate) --Make sure value is unsigned
+	
+	ToffRetractDistance = mc.mcProfileGetString(inst, 'ToffParams', 'ToffRetractDistance', '.1000') -- Get the Value from the profile ini. If none exist use .1000
+	ToffRetractDistance = math.abs (tonumber(ToffRetractDistance)) --Make sure value is unsigned
+	
+	ToffPrepRate = mc.mcProfileGetString(inst, 'ToffParams', 'ToffPrepRate', '60.0000') -- Get the Value from the profile ini. If none exist use 60.000
+	ToffPrepRate = math.abs (ToffPrepRate) --Make sure value is unsigned
+	
+	ToffPrepDistance = mc.mcProfileGetString(inst, 'ToffParams', 'ToffPrepDistance', '0.5000') -- Get the Value from the profile ini. If none exist use 0.5000
+	ToffPrepDistance = math.abs (ToffPrepDistance) --Make sure value is unsigned
+	
+	ToffPlate = mc.mcProfileGetString(inst, 'ToffParams', 'ToffPlate', '.2500') -- Get the Value from the profile ini. If none exist use .2500
+	ToffPlate = math.abs (ToffPlate) --Make sure value is unsigned
+	
+	ToffToolDiam = mc.mcProfileGetString(inst, 'ToffParams', 'ToffToolDiam', '.5000') -- Get the Value from the profile ini. If none exist use .5000
+	ToffToolDiam = math.abs (ToffToolDiam) --Make sure value is unsigned
+	
+	ToffToolRadius = (ToffToolDiam /2)
+	
+	ToffCornerOption = mc.mcProfileGetString(inst, 'ToffParams', 'ToffCornerOption', '0'); -- Get the Value from the profile ini. If none exist use 0
+	ToffCornerOption = math.abs (ToffCornerOption) --Make sure value is unsigned
+	
+	ToffCenterOption = mc.mcProfileGetString(inst, 'ToffParams', 'ToffCenterOption', '0'); -- Get the Value from the profile ini. If none exist use 0
+	ToffCenterOption = math.abs (ToffCenterOption) --Make sure value is unsigned
+	
+	ToffProbeCode = mc.mcProfileGetString(inst, 'ToffParams', 'ToffProbeCode', '31'); -- Get the Value from the profile ini. If none exist use 31
+	ToffProbeCode = math.abs (ToffProbeCode) --Make sure value is unsigned
+end
+
+----------- Check Probe State -----------
+--We can use this function to return the current state CheckProbe()
+--or check it for active CheckProbe(1)
+--or check it for inactive CheckProbe(0)
+function CheckProbe(state)
+
+	----- Select probe signal depending on probe code selected
+	ProbeSig = mc.ISIG_PROBE --Default probe signal, G31
+	if ToffProbeCode == 31.1 then
+		ProbeSig = mc.ISIG_PROBE1
+	elseif ToffProbeCode == 31.2 then
+		ProbeSig = mc.ISIG_PROBE2
+	elseif ToffProbeCode == 31.3 then
+		ProbeSig = mc.ISIG_PROBE3
+	end
+	
+	local check = true --Default value of check
+	local hsig = mc.mcSignalGetHandle(inst, ProbeSig)
+	local ProbeState = mc.mcSignalGetState(hsig)
+	local errmsg = 'ERROR: No contact with probe' --Default error message
+	
+	if (ProbeState == 1) then --Change the error message
+		errmsg = 'ERROR: Unexpected probe touch'
+	end
+	
+	if (state == nil) then --We did not specify the value of the state parameter so lets return ProbeState
+		if (ProbeState == 1) then 
+			return (true);
+		else
+			return (false);
+		end
+	end
+	
+	if (ProbeState ~= state) then --CheckProbe failed
+		mc.mcCntlSetLastError(inst, errmsg)
+		mc.mcCntlGcodeExecute(inst, string.format('G ' .. m_CurAbsMode .. '\nF ' .. m_CurFeed)) --Set mode and feed back
+		wx.wxMilliSleep(20)
+		check = false
+		m_CheckProbe = false
+		mc.mcCntlEStop(inst)
+	end
+	wx.wxMilliSleep(20)
+	return check
+end
+
+--------- Get machine position --------------
+function GetMachPos(Axis)
+	if (Axis == 'X') then
+		XMach = mc.mcAxisGetMachinePos(inst, mc.X_AXIS)
+	elseif (Axis == 'Y') then
+		YMach = mc.mcAxisGetMachinePos(inst, mc.Y_AXIS)
+	elseif (Axis == 'Z') then
+		ZMach = mc.mcAxisGetMachinePos(inst, mc.Z_AXIS)
+	end
+end
+
+----------- Get Work position --------------
+function GetWorkPos(Axis)
+	if (Axis == 'X') then
+		XWork = mc.mcAxisGetPos(inst, mc.X_AXIS)
+	elseif (Axis == 'Y') then
+		YWork = mc.mcAxisGetPos(inst, mc.Y_AXIS)
+	elseif (Axis == 'Z') then
+		ZWork = mc.mcAxisGetPos(inst, mc.Z_AXIS)
+	end
+end
+
+--------- Go to machine position -------------
+--This will move the axis to the position that was got using the GetMachPos function.
+function ToMachPos(Axis)
+	mc.mcCntlSetLastError(inst, string.format(Axis .. ' axis is moving to a requested machine position.')) -- Tell the operator the axis is moving to a machine position.
+	if (Axis == 'X') then
+		Code(string.format('G90 G53 X ' .. XMach .. 'F ' .. ToffPrepRate))
+	elseif (Axis == 'Y') then
+		Code(string.format('G90 G53 Y ' .. YMach .. 'F ' .. ToffPrepRate))
+	elseif (Axis == 'Z') then
+		Code(string.format('G90 G53 Z ' .. ZMach .. 'F ' .. ToffPrepRate))
+	end
+end
+
+----------- Go to work position -------------
+--This will move the axis to the position that was got using the GetWorkPos function.
+function ToWorkPos(Axis)
+	mc.mcCntlSetLastError(inst, string.format(Axis .. ' axis is moving to a requested work position.')) -- Tell the operator the axis is moving to a work position.
+	if (Axis == 'X') then
+		Code(string.format('G90 X ' .. XWork .. 'F ' .. ToffPrepRate))
+	elseif (Axis == 'Y') then
+		Code(string.format('G90 Y ' .. YWork .. 'F ' .. ToffPrepRate))
+	elseif (Axis == 'Z') then
+		Code(string.format('G90 Z ' .. ZWork .. 'F ' .. ToffPrepRate))
+	end
+end
+
+------------- Get Fixture Offset Values -----------
+function GetFixOffsetValues()
+	XVar, YVar, ZVar = GetFixOffsetVars() 	--Get the fixture offset pound variables.
+	XSet = mc.mcCntlGetPoundVar(inst, XVar)	--Get the value of the # variable
+	YSet = mc.mcCntlGetPoundVar(inst, YVar)	--Get the value of the # variable
+	ZSet = mc.mcCntlGetPoundVar(inst, ZVar)	--Get the value of the # variable
+	return XSet, YSet, ZSet
+end
+
+
+---------- Get fixture offset pound variables function -------------
+function GetFixOffsetVars()  --Function GetFixOffsetVars() may also be in the ScreenLoad script
+	local FixOffset = mc.mcCntlGetPoundVar(inst, mc.SV_MOD_GROUP_14)
+    local Pval = mc.mcCntlGetPoundVar(inst, mc.SV_BUFP)
+    local FixNum, whole, frac
+	
+	if (FixOffset ~= 54.1) then --G54 through G59
+		whole, frac = math.modf (FixOffset)
+        FixNum = (whole - 53) 
+        PoundVarX = ((mc.SV_FIXTURES_START - mc.SV_FIXTURES_INC) + (FixNum * mc.SV_FIXTURES_INC))
+		CurrentFixture = string.format('G' .. tostring(FixOffset)) 
+	else --G54.1 P1 through G54.1 P100
+		FixNum = (Pval + 6)
+		CurrentFixture = string.format('G54.1 P' .. tostring(Pval))
+		if (Pval > 0) and (Pval < 51) then -- G54.1 P1 through G54.1 P50
+			PoundVarX = ((mc.SV_FIXTURE_EXPAND - mc.SV_FIXTURES_INC) + (Pval * mc.SV_FIXTURES_INC))
+		elseif (Pval > 50) and (Pval < 101) then -- G54.1 P51 through G54.1 P100
+			PoundVarX = ((mc.SV_FIXTURE_EXPAND2 - mc.SV_FIXTURES_INC) + (Pval * mc.SV_FIXTURES_INC))	
+		end
+	end
+	PoundVarY = (PoundVarX + 1)
+    PoundVarZ = (PoundVarX + 2)
+    return PoundVarX, PoundVarY, PoundVarZ, FixNum, CurrentFixture
+	--PoundVar(Axis) returns the pound variable for the current fixture for that axis (not the pound variables value).
+	--CurrentFixture returned as a string (examples G54, G59, G54.1 P12).
+	--FixNum returns a simple number (1-106) for current fixture (examples G54 = 1, G59 = 6, G54.1 P1 = 7, etc).
+end
+	
+---------- Set Fixture Offset --------
+function SetFixOffset(Axis, Direction)
+	if (Axis == 'X') then
+		Pos = mc.mcAxisGetProbePos(inst, mc.X_AXIS, 1)
+		OffsetVal = (((ToffPlate + ToffToolRadius) * Direction) + Pos)
+	elseif (Axis == 'Y') then
+		Pos = mc.mcAxisGetProbePos(inst, mc.Y_AXIS, 1)
+		OffsetVal = (((ToffPlate + ToffToolRadius) * Direction) + Pos)
+	elseif (Axis == 'Z') then
+		Pos = mc.mcAxisGetProbePos(inst, mc.Z_AXIS, 1)
+		OffsetVal = ((ToffPlate * Direction) + Pos)
+	end
+	
+	
+	XVar, YVar, ZVar, FixNum, CurrentFixture = GetFixOffsetVars() -- Get the fixture offset pound variables. Function GetFixOffsetVars() may also be in the ScreenLoad script
+	
+	if (Axis == 'X') then
+		mc.mcCntlSetPoundVar(inst, XVar, OffsetVal)
+		--Code(string.format('G10 L2 P' .. CurrentFixture .. 'X' .. OffsetVal), true)
+	elseif (Axis == 'Y') then
+		mc.mcCntlSetPoundVar(inst, YVar, OffsetVal)
+	elseif (Axis == 'Z') then
+		mc.mcCntlSetPoundVar(inst, ZVar, OffsetVal)
+	end
+	
+	mc.mcCntlSetLastError(inst, string.format(Axis .. ' Axis Offset Set to: ' .. OffsetVal .. '.')) -- Tell the operator what we set the offset to
+	
+end
+
+------------- Code -----------
+-- This function condenses the way you can execute Gcode and will pause processing until the Gcode is finished being executed.
+-- See the function frameMainOnUpdateUI() for other essential bits that allows this to work. 
+function Code(Gcode, ProbeActive)
+	m_CheckProbe = false
+	local rc = mc.mcCntlGcodeExecute(inst, Gcode)
+	if (ProbeActive ~= true) then
+		ProbeActive = false;
+	end
+	coroutine.yield(rc, ProbeActive)
+end
+
+---------- Touch Off Function --------
+function TouchOff(Axis, Direction)
+	-- Get the values from the Touch Off Parameters and manipulate them for this function as needed here.
+	local PrepDistance = ((ToffPrepDistance + ToffToolDiam) * Direction) --Sets the maximum distance a touch move will travel and the + or - direction. 
+	mc.mcCntlSetLastError(inst, string.format(Axis .. ' axis is performing a touch move.')) -- Tell the operator the axis is doing a touch move
+	Code(string.format('G91 G' .. ToffProbeCode .. ' ' .. Axis .. ' ' .. PrepDistance .. 'F' .. ToffProbeRate), true) -- Probe and make sure probe is active (true) when motion stops.
+end
+
+------------- Touch Retract -----------
+function TouchRetract(Axis, Direction)
+	local TouchRetract = (ToffRetractDistance * Direction)
+	mc.mcCntlSetLastError(inst, 'Retracting')
+	Code(string.format('G91 G1 ' .. Axis .. ' ' .. TouchRetract .. 'F' .. ToffPrepRate)) -- Retract. This is the only move not done as a probe move because the probe will already be active.
+end
+
+------- Prep move function -----------------
+-- Example syntax to use this function: PrepMove ('Z', -1, 3)
+-- This will give you a Z Axis (Z, needs to be in quotes) move in the negative direction (-1, 1 would be positive) the distance defined by Level 3 (3)
+-- You can edit the way this function works by altering Levels or adding your own
+function PrepMove(Axis, Direction, Level)	--, Multiplier)
+	-- Get the values from the Touch Off Parameters and manipulate them for this function as needed here.
+	local PrepDistance = ToffPrepDistance
+	local RetractDistance = ToffRetractDistance
+	local TouchPlate = ToffPlate
+	
+	if Level == 0 then
+		PrepDistance = RetractDistance
+	elseif Level == 1 then
+		PrepDistance = (RetractDistance * 2)
+	elseif Level == 2 then
+		PrepDistance = PrepDistance
+	elseif Level == 3 then
+		PrepDistance = (PrepDistance + RetractDistance + TouchPlate)
+	end
+		
+	-- Set Direction
+	if Direction < 1 then
+		PrepDistance = (PrepDistance * -1)
+	end
+	
+	mc.mcCntlSetLastError(inst, string.format(Axis .. ' axis is performing a Level ' .. Level .. ' prep move.')) -- Tell the operator the axis is doing a touch move
+	Code(string.format('G91 G' .. ToffProbeCode .. ' ' .. Axis .. ' ' .. PrepDistance .. 'F' .. ToffPrepRate)) -- Execute a probe move as Gcode. The reason we do this as a probe move is an unexpected touch will stop motion.	
+end
+
+------------- Finish Move -----------
+function FinishMove()	
+	mc.mcCntlSetLastError(inst, 'Moving to X0 Y0.') -- Tell the operator we are moving to X and Y zero.
+	Code(string.format('G90 G' .. ToffProbeCode .. 'X0 Y0 F' .. ToffPrepRate)) -- Do a probe move to X0 Y0 at the prep rate
+end
+
+------- Single Axis Touch Functions ----------
+------------------ X -------------------------
+function TouchOffXPos0() --Left
+	GetPreState()
+	TouchOff('X', 1) -- Do a touch move in the X positive direction
+	SetFixOffset('X', 1)
+	TouchRetract('X', -1)
+	GetFixOffsetValues()
+	mc.mcCntlSetLastError(inst, 'Touch is finished. X axis set to ' .. XSet) -- Tell the operator what we set the offset/s to.
+	mc.mcCntlGcodeExecute(inst, string.format('G ' .. m_CurAbsMode .. '\nF ' .. m_CurFeed)) --Set mode and feed back
+end
+
+function TouchOffXNeg0() --Right
+	GetPreState()
+	TouchOff('X', -1) -- Do a touch move in the X negative direction
+	SetFixOffset('X', -1)
+	TouchRetract('X', 1)
+	GetFixOffsetValues()
+	mc.mcCntlSetLastError(inst, 'Touch is finished. X axis set to ' .. XSet) -- Tell the operator what we set the offset/s to.
+	mc.mcCntlGcodeExecute(inst, string.format('G ' .. m_CurAbsMode .. '\nF ' .. m_CurFeed)) --Set mode and feed back
+end
+
+------------------ Y -------------------------
+function TouchOffYNeg0() --Top
+	GetPreState()
+	TouchOff('Y', -1) -- Do a touch move in the Y negative direction
+	SetFixOffset('Y', -1)
+	TouchRetract('Y', 1)
+	GetFixOffsetValues()
+	mc.mcCntlSetLastError(inst, 'Touch is finished. Y axis set to ' .. YSet) -- Tell the operator what we set the offset/s to.
+	mc.mcCntlGcodeExecute(inst, string.format('G ' .. m_CurAbsMode .. '\nF ' .. m_CurFeed)) --Set mode and feed back
+end
+
+function TouchOffYPos0() --Bottom
+	GetPreState()
+	TouchOff('Y', 1) -- Do a touch move in the Y positive direction
+	SetFixOffset('Y', 1)
+	TouchRetract('Y', -1)
+	GetFixOffsetValues()
+	mc.mcCntlSetLastError(inst, 'Touch is finished. Y axis set to ' .. YSet) -- Tell the operator what we set the offset/s to.
+	mc.mcCntlGcodeExecute(inst, string.format('G ' .. m_CurAbsMode .. '\nF ' .. m_CurFeed)) --Set mode and feed back
+end
+
+------------------ Z -------------------------
+function TouchOffZNeg0()	--Set work zero to material top
+	GetPreState()
+	TouchOff('Z', -1) -- Do a touch move in the Z negative direction
+	SetFixOffset('Z', -1)
+	TouchRetract('Z', 1)
+	GetFixOffsetValues()
+	mc.mcCntlSetLastError(inst, 'Touch is finished. Z axis set to ' .. ZSet) -- Tell the operator what we set the offset/s to.
+	mc.mcCntlGcodeExecute(inst, string.format('G ' .. m_CurAbsMode .. '\nF ' .. m_CurFeed)) --Set mode and feed back
+end
+
+function TouchOffZNeg1()	--Set tool length offset
+	GetPreState()
+	local CurTool = mc.mcToolGetCurrent(inst) --Current Tool Num
+	if (CurTool > 0) and (CurTool < 255) then
+		GetMachPos('Z')
+		TouchOff('Z', -1) -- Do a touch move in the X negative direction
+		local ZPos = mc.mcAxisGetProbePos(inst, mc.Z_AXIS, 0)
+		ToMachPos('Z')
+		local GageBlock = ToffPlate
+		local OffsetVal = ZPos - GageBlock
+		OffsetState = mc.mcCntlGetPoundVar(inst, mc.SV_MOD_GROUP_8) --Current Height Offset State
+		
+		mc.mcCntlGcodeExecuteWait(inst, "G49")
+		mc.mcToolSetData(inst, mc.MTOOL_MILL_HEIGHT, CurTool, OffsetVal)
+		mc.mcCntlSetLastError(inst, string.format("Tool %.0f Height Offset Set: %.4f", CurTool, OffsetVal))
+		if (OffsetState ~= 49) then
+			mc.mcCntlMdiExecute(inst, string.format("G%.1f", OffsetState))
+		end
+	else
+	mc.mcCntlSetLastError(inst, ('Cannot set a height for an invalid tool number. Call a valid tool and try again.'))
+	end
+	mc.mcCntlGcodeExecute(inst, string.format('G ' .. m_CurAbsMode .. '\nF ' .. m_CurFeed)) --Set mode and feed back
+end
+
+------- Multi Axis Touch Functions ----------
+------------------ Top Left ------------------
+function TouchZnegYnegXpos0() -- Top left Outside with Z
+	GetPreState() -- So we can set them back when finished with this routine.
+	TouchOff('Z', -1) -- Do a touch move in the Z negative direction
+	SetFixOffset('Z', -1)	--Set the fixture offset
+	TouchRetract('Z', 1)	--Retract
+	GetMachPos('Y') -- Get the machine coordinates before moving it so we can return to it later
+	
+	PrepMove('Y', 1, 2) -- Do a Level 1 prep move in the Y positive direction (Axis, Direction, Level)
+	PrepMove('Z', -1, 1) -- Do a Level 3 prep move in the Z negative direction (Axis, Direction, Level)
+	TouchOff('Y', -1) -- Do a touch move in the Y negative direction
+	SetFixOffset('Y', -1)	--Set the fixture offset
+	TouchRetract('Y', 1)	--Retract
+	
+	PrepMove('Z', 1, 1) -- Do a Level 3 prep move in the Z positive direction (Axis, Direction, Level)
+	ToMachPos('Y') -- Return to the machine position we got earlier
+	
+	PrepMove('X', -1, 2) -- Do a Level 1 prep move in the X negative direction (Axis, Direction, Level)
+	PrepMove('Z', -1, 1) -- Do a Level 3 prep move in the Z negative direction (Axis, Direction, Level)
+	TouchOff('X', 1) -- Do a touch move in the X positive direction
+	SetFixOffset('X', 1)	--Set the fixture offset
+	TouchRetract('X', -1)	--Retract
+	
+	PrepMove('Z', 1, 1) -- Do a Level 3 prep move in the Z positive direction (Axis, Direction, Level)
+	FinishMove() -- Move to X0 Y0
+	GetFixOffsetValues()	--For our message
+	mc.mcCntlSetLastError(inst, 'Touch combination is finished. X axis set to ' .. XSet .. ' Y axis set to ' .. YSet .. ' Z axis set to ' .. ZSet) -- Tell the operator the touch combination function is finished and what all the fixture offsets were set to.
+	mc.mcCntlGcodeExecute(inst, string.format('G ' .. m_CurAbsMode .. '\nF ' .. m_CurFeed)) --Set mode and feed back
+end
+
+------------------ Top Right ------------------
+function TouchZnegYnegXneg0() -- Top right Outside with Z
+	GetPreState()
+	TouchOff('Z', -1)
+	SetFixOffset('Z', -1)
+	TouchRetract('Z', 1)
+	GetMachPos('Y')
+	
+	PrepMove('Y', 1, 2)
+	PrepMove('Z', -1, 1)
+	TouchOff('Y', -1)
+	SetFixOffset('Y', -1)
+	TouchRetract('Y', 1)
+	
+	PrepMove('Z', 1, 1)
+	ToMachPos('Y')
+	
+	PrepMove('X', 1, 2)
+	PrepMove('Z', -1, 1)
+	TouchOff('X', -1)
+	SetFixOffset('X', -1)
+	TouchRetract('X', 1)
+	
+	PrepMove('Z', 1, 1)
+	FinishMove()
+	GetFixOffsetValues()
+	mc.mcCntlSetLastError(inst, 'Touch combination is finished. X axis set to ' .. XSet .. ' Y axis set to ' .. YSet .. ' Z axis set to ' .. ZSet) -- Tell the operator the touch combination function is finished
+	mc.mcCntlGcodeExecute(inst, string.format('G ' .. m_CurAbsMode .. '\nF ' .. m_CurFeed)) --Set mode and feed back
+end
+
+------------------ Bottom Left ----------------
+function TouchZnegYposXpos0() -- Bottom left Outside with Z
+	GetPreState()
+	TouchOff('Z', -1)
+	SetFixOffset('Z', -1)
+	TouchRetract('Z', 1)
+	GetMachPos('Y')
+	
+	PrepMove('Y', -1, 2)
+	PrepMove('Z', -1, 1)
+	TouchOff('Y', 1)
+	SetFixOffset('Y', 1)
+	TouchRetract('Y', -1)
+	
+	PrepMove('Z', 1, 1)
+	ToMachPos('Y')
+	
+	PrepMove('X', -1, 2)
+	PrepMove('Z', -1, 1)
+	TouchOff('X', 1)
+	SetFixOffset('X', 1)
+	TouchRetract('X', -1)
+	
+	PrepMove('Z', 1, 1)
+	FinishMove()
+	GetFixOffsetValues()
+	mc.mcCntlSetLastError(inst, 'Touch combination is finished. X axis set to ' .. XSet .. ' Y axis set to ' .. YSet .. ' Z axis set to ' .. ZSet) -- Tell the operator the touch combination function is finished
+	mc.mcCntlGcodeExecute(inst, string.format('G ' .. m_CurAbsMode .. '\nF ' .. m_CurFeed)) --Set mode and feed back
+end
+
+------------------ Bottom Right ---------------
+function TouchZnegYposXneg0() -- Bottom right Outside with Z
+	GetPreState()
+	TouchOff('Z', -1)
+	SetFixOffset('Z', -1)
+	TouchRetract('Z', 1)
+	GetMachPos('Y')
+	
+	PrepMove('Y', -1, 2)
+	PrepMove('Z', -1, 1)
+	TouchOff('Y', 1)
+	SetFixOffset('Y', 1)
+	TouchRetract('Y', -1)
+	
+	PrepMove('Z', 1, 1)
+	ToMachPos('Y')
+	
+	PrepMove('X', 1, 2)
+	PrepMove('Z', -1, 1)
+	TouchOff('X', -1)
+	SetFixOffset('X', -1)
+	TouchRetract('X', 1)
+	
+	PrepMove('Z', 1, 1)
+	FinishMove()
+	GetFixOffsetValues()
+	mc.mcCntlSetLastError(inst, 'Touch combination is finished. X axis set to ' .. XSet .. ' Y axis set to ' .. YSet .. ' Z axis set to ' .. ZSet) -- Tell the operator the touch combination function is finished
+	mc.mcCntlGcodeExecute(inst, string.format('G ' .. m_CurAbsMode .. '\nF ' .. m_CurFeed)) --Set mode and feed back
+end
+
+------------------ Center Touch Functions ---------------------
+function TouchCenter0() -- Center Inside No Z
+	--If G68 active Cancel G68 with G69, find the center in machine coords and go there then set G68 back then set work 0.
+	XVar, YVar, ZVar = GetFixOffsetVars() 			-- Get the fixture offset pound variables. Function GetFixOffsetVars() may also be in the ScreenLoad script
+	GetPreState()
+	local rotation = mc.mcCntlGetPoundVar(inst, 2137)
+	if (rotation ~= 0.0000) then
+		Code('G69')
+	end
+	GetMachPos('X')
+	GetMachPos('Y')
+	TouchOff('X', -1) -- Do a touch move in the X negative direction
+	local Pos1 = mc.mcAxisGetProbePos(inst, mc.X_AXIS, 1) --Get the probe position in machine coordinates
+	Code(string.format('G90 G53 X ' .. XMach .. 'Y' .. YMach .. 'F ' .. ToffPrepRate)) --Move back to start position
+	TouchOff('X', 1) -- Do a touch move in the X positive direction
+	local Pos2 = mc.mcAxisGetProbePos(inst, mc.X_AXIS, 1) --Get the probe position in machine coordinates
+	Code(string.format('G90 G53 X ' .. XMach .. 'Y' .. YMach .. 'F ' .. ToffPrepRate)) --Move back to start position
+	
+	TouchOff('Y', -1) -- Do a touch move in the Y negative direction
+	local Pos3 = mc.mcAxisGetProbePos(inst, mc.Y_AXIS, 1) --Get the probe position in machine coordinates
+	Code(string.format('G90 G53 X ' .. XMach .. 'Y' .. YMach .. 'F ' .. ToffPrepRate)) --Move back to start position
+	TouchOff('Y', 1) -- Do a touch move in the Y positive direction
+	local Pos4 = mc.mcAxisGetProbePos(inst, mc.Y_AXIS, 1) --Get the probe position in machine coordinates
+	Code(string.format('G90 G53 X ' .. XMach .. 'Y' .. YMach .. 'F ' .. ToffPrepRate)) --Move back to start position
+	
+	--Calculate center
+	local XCenter = (Pos1  + Pos2) / 2
+	local YCenter = (Pos3 + Pos4) / 2
+	
+	--Move to center
+	mc.mcCntlSetLastError(inst, 'Moving to Center.') -- Tell the operator we are moving to the center.
+	Code(string.format('G90 G53 G' .. ToffProbeCode .. 'X' .. XCenter .. 'Y' .. YCenter .. 'F' .. ToffPrepRate)) -- Do a probe move to XCenter YCenter (machine coordinates) at the prep rate
+	
+	--Set our rotated angle back if applies
+	if (rotation ~= 0.0000) then
+		Code(string.format('G68 R ' .. rotation)) 
+	end
+	
+	--Now that we are at the center lets zero out our work coordinates
+	rc = mc.mcAxisSetPos(inst, mc.X_AXIS, 0.0000)
+	rc = mc.mcAxisSetPos(inst, mc.Y_AXIS, 0.0000)
+	
+	GetFixOffsetValues()
+	mc.mcCntlSetLastError(inst, 'Touch combination is finished. X axis set to ' .. XSet .. ' Y axis set to ' .. YSet) --Tell the operator what the work offset values are.
+	mc.mcCntlGcodeExecute(inst, string.format('G ' .. m_CurAbsMode .. '\nF ' .. m_CurFeed)) --Set mode and feed back
+end
+
+------------------ Angle Touch Function ---------------------
+function Angle0()
+	GetPreState()
+	Code(string.format('G69')) -- Cancel any previously set G68 angle.
+	rc = UI.m_choiceMeasureAngle:GetSelection()	--0 = X+, 1 = X-, 2 = Y+, 3 = Y-
+
+	if (rc < 2) then
+		TouchAxis = 'X'
+		PrepAxis = 'Y'
+	else 
+		TouchAxis = 'Y'
+		PrepAxis = 'X'
+	end
+	
+	if (rc == 0) or (rc == 2) then
+		TouchDirection = 1
+	else
+		TouchDirection = -1
+	end
+	
+	RetractDirection = TouchDirection * -1
+	
+	GetMachPos((TouchAxis))
+	TouchOff((TouchAxis), (TouchDirection)) -- Do a touch move in the X positive direction
+	local X1  = mc.mcAxisGetProbePos(inst, mc.X_AXIS, 1)	--Last parameter is 1 for machine position 0 would get work position
+	local Y1  = mc.mcAxisGetProbePos(inst, mc.Y_AXIS, 1)	--Last parameter is 1 for machine position 0 would get work position
+	ToMachPos(TouchAxis)
+	
+	mc.mcCntlSetLastError(inst, 'Moving to position for second touch.')
+	Code(string.format('G91 G' .. ToffProbeCode .. PrepAxis .. ToffPrepDistance .. 'F' .. ToffPrepRate)) -- Probe
+	
+	GetMachPos((TouchAxis))
+	TouchOff((TouchAxis), (TouchDirection)) -- Do a touch move in the X positive direction
+	local X2  = mc.mcAxisGetProbePos(inst, mc.X_AXIS, 1)
+	local Y2  = mc.mcAxisGetProbePos(inst, mc.Y_AXIS, 1)
+	ToMachPos(TouchAxis)
+	
+	--Subtract the start from the end point 
+	local xDelta = X2 - X1
+	local yDelta = Y2 - Y1
+	
+	local angle = math.atan2 (yDelta, xDelta)
+	angle = angle * 180 / math.pi
+	
+	if TouchAxis == 'X' then
+		angle = angle - 90.0
+	end
+	
+	mc.mcCntlSetLastError(inst, 'Angle (G68) has been set to ' .. tostring(angle))
+	Code(string.format('G68 R' .. angle)) --Rotate coordinate system
+	mc.mcCntlGcodeExecute(inst, string.format('G ' .. m_CurAbsMode .. '\nF ' .. m_CurFeed)) --Set mode and feed back
+end
+
+ReadIni()
+
+------------------ Dialog ---------------------
+function mcTouchOff.Dialog()
+
+UI = {}
+
+
+-- create frameMain
+UI.frameMain = wx.wxFrame (wx.NULL, wx.wxID_ANY, "TouchOff UI", wx.wxDefaultPosition, wx.wxSize( 900,530 ), wx.wxCAPTION + wx.wxCLOSE_BOX + wx.wxRESIZE_BORDER )
+	UI.frameMain:SetSizeHints( wx.wxSize( 900,530 ), wx.wxDefaultSize )
+	UI.frameMain :SetBackgroundColour( wx.wxColour( 255, 255, 255 ) )
+	
+	UI.m_menubar1 = wx.wxMenuBar( 0 )
+	UI.m_menuHelp = wx.wxMenu()
+	UI.m_menuItemDocs = wx.wxMenuItem( UI.m_menuHelp, wx.wxID_ANY, "Docs", "", wx.wxITEM_NORMAL )
+	UI.m_menuHelp:Append( UI.m_menuItemDocs )
+	
+	UI.m_menubar1:Append( UI.m_menuHelp, "Help" ) 
+	
+	UI.frameMain:SetMenuBar( UI.m_menubar1 )
+	
+	UI.bSizerFrame = wx.wxBoxSizer( wx.wxVERTICAL )
+	
+	UI.fgSizerFrame = wx.wxFlexGridSizer( 0, 3, 0, 0 )
+	UI.fgSizerFrame:AddGrowableCol( 0 )
+	UI.fgSizerFrame:AddGrowableCol( 1 )
+	UI.fgSizerFrame:AddGrowableCol( 2 )
+	UI.fgSizerFrame:AddGrowableRow( 0 )
+	UI.fgSizerFrame:SetFlexibleDirection( wx.wxBOTH )
+	UI.fgSizerFrame:SetNonFlexibleGrowMode( wx.wxFLEX_GROWMODE_SPECIFIED )
+	
+	UI.sbSizerSettings = wx.wxStaticBoxSizer( wx.wxStaticBox( UI.frameMain, wx.wxID_ANY, "Settings/Options" ), wx.wxHORIZONTAL )
+	
+	UI.fgSizerSettings = wx.wxFlexGridSizer( 12, 2, 0, 0 )
+	UI.fgSizerSettings:AddGrowableCol( 0 )
+	UI.fgSizerSettings:AddGrowableCol( 1 )
+	UI.fgSizerSettings:AddGrowableRow( 0 )
+	UI.fgSizerSettings:AddGrowableRow( 1 )
+	UI.fgSizerSettings:AddGrowableRow( 2 )
+	UI.fgSizerSettings:AddGrowableRow( 3 )
+	UI.fgSizerSettings:AddGrowableRow( 4 )
+	UI.fgSizerSettings:AddGrowableRow( 5 )
+	UI.fgSizerSettings:AddGrowableRow( 6 )
+	UI.fgSizerSettings:AddGrowableRow( 7 )
+	UI.fgSizerSettings:AddGrowableRow( 8 )
+	UI.fgSizerSettings:AddGrowableRow( 9 )
+	UI.fgSizerSettings:AddGrowableRow( 10 )
+	UI.fgSizerSettings:AddGrowableRow( 11 )
+	UI.fgSizerSettings:SetFlexibleDirection( wx.wxBOTH )
+	UI.fgSizerSettings:SetNonFlexibleGrowMode( wx.wxFLEX_GROWMODE_SPECIFIED )
+	
+	UI.m_staticTextProbeFeedRate = wx.wxStaticText( UI.frameMain, wx.wxID_ANY, "Probe Feed Rate", wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxALIGN_RIGHT )
+	UI.m_staticTextProbeFeedRate:Wrap( -1 )
+	UI.m_staticTextProbeFeedRate:SetForegroundColour( wx.wxColour( 0, 0, 0 ) )
+	
+	UI.fgSizerSettings:Add( UI.m_staticTextProbeFeedRate, 1, wx.wxALIGN_RIGHT + wx.wxALL + wx.wxEXPAND, 5 )
+	
+	UI.m_textCtrlProbeFeedRate = wx.wxTextCtrl( UI.frameMain, wx.wxID_ANY, "", wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+	UI.m_textCtrlProbeFeedRate:SetToolTip( "Probe Feed Rate is the rate (speed) the axes will move at during a probe move. This is typically very slow. Setting it too high could result in chipped tools, bent probes, etc. All machines are different and it is the operators responsibility to set this to something acceptable for their machine." )
+	
+	UI.fgSizerSettings:Add( UI.m_textCtrlProbeFeedRate, 1, wx.wxALL + wx.wxEXPAND, 5 )
+	
+	UI.m_staticTextRetractDistance = wx.wxStaticText( UI.frameMain, wx.wxID_ANY, "Retract Distance", wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxALIGN_RIGHT )
+	UI.m_staticTextRetractDistance:Wrap( -1 )
+
+	UI.m_staticTextRetractDistance:SetForegroundColour( wx.wxColour( 0, 0, 0 ) )
+	
+	UI.fgSizerSettings:Add( UI.m_staticTextRetractDistance, 1, wx.wxALIGN_RIGHT + wx.wxALL + wx.wxEXPAND, 5 )
+	
+	UI.m_textCtrlRetractDistance = wx.wxTextCtrl( UI.frameMain, wx.wxID_ANY, "", wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+	UI.m_textCtrlRetractDistance:SetToolTip( "Retract Distance is the distance the axis will retract after it touches." )
+	
+	UI.fgSizerSettings:Add( UI.m_textCtrlRetractDistance, 1, wx.wxALL + wx.wxEXPAND, 5 )
+	
+	UI.m_staticTextPrepFeedRate = wx.wxStaticText( UI.frameMain, wx.wxID_ANY, "Prep. Feed Rate", wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxALIGN_RIGHT )
+	UI.m_staticTextPrepFeedRate:Wrap( -1 )
+	UI.m_staticTextPrepFeedRate:SetForegroundColour( wx.wxColour( 0, 0, 0 ) )
+	
+	UI.fgSizerSettings:Add( UI.m_staticTextPrepFeedRate, 1, wx.wxALIGN_RIGHT + wx.wxALL + wx.wxEXPAND, 5 )
+	
+	UI.m_textCtrlPrepFeedRate = wx.wxTextCtrl( UI.frameMain, wx.wxID_ANY, "", wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+	UI.m_textCtrlPrepFeedRate:SetToolTip( "Prep. Feed Rate is the rate (speed) the axes will move at during a preparation move." )
+	
+	UI.fgSizerSettings:Add( UI.m_textCtrlPrepFeedRate, 1, wx.wxALL + wx.wxEXPAND, 5 )
+	
+	UI.m_staticTextPrepDistance = wx.wxStaticText( UI.frameMain, wx.wxID_ANY, "Prep. Distance", wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxALIGN_RIGHT )
+	UI.m_staticTextPrepDistance:Wrap( -1 )
+	UI.m_staticTextPrepDistance:SetForegroundColour( wx.wxColour( 0, 0, 0 ) )
+	
+	UI.fgSizerSettings:Add( UI.m_staticTextPrepDistance, 1, wx.wxALIGN_RIGHT + wx.wxALL + wx.wxEXPAND, 5 )
+	
+	UI.m_textCtrlPrepDistance = wx.wxTextCtrl( UI.frameMain, wx.wxID_ANY, "", wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+	UI.m_textCtrlPrepDistance:SetToolTip( "Prep. Distance is a variable that is used to calculate the distance axes will move in a preparation move. If a touch is detected in the preparation move you will get a \"ERROR: Unexpected probe touch\" error message in the status bar, motion will stop and Mach will be disabled." )
+	
+	UI.fgSizerSettings:Add( UI.m_textCtrlPrepDistance, 1, wx.wxALL + wx.wxEXPAND, 5 )
+	
+	UI.m_staticTextToolDiam = wx.wxStaticText( UI.frameMain, wx.wxID_ANY, "Tool or Probe Diameter", wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxALIGN_RIGHT )
+	UI.m_staticTextToolDiam:Wrap( -1 )
+	UI.m_staticTextToolDiam:SetForegroundColour( wx.wxColour( 0, 0, 0 ) )
+	
+	UI.fgSizerSettings:Add( UI.m_staticTextToolDiam, 1, wx.wxALIGN_RIGHT + wx.wxALL + wx.wxEXPAND, 5 )
+	
+	UI.m_textCtrlToolDiam = wx.wxTextCtrl( UI.frameMain, wx.wxID_ANY, "", wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+	UI.m_textCtrlToolDiam:SetToolTip( "Tool or Probe Diameter is the diameter of the tool or probe being used in the touch function." )
+	
+	UI.fgSizerSettings:Add( UI.m_textCtrlToolDiam, 1, wx.wxALL + wx.wxEXPAND, 5 )
+	
+	UI.m_staticTextTouchPlateHeight = wx.wxStaticText( UI.frameMain, wx.wxID_ANY, "Touch Plate Height", wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxALIGN_RIGHT )
+	UI.m_staticTextTouchPlateHeight:Wrap( -1 )
+	UI.m_staticTextTouchPlateHeight:SetForegroundColour( wx.wxColour( 0, 0, 0 ) )
+	
+	UI.fgSizerSettings:Add( UI.m_staticTextTouchPlateHeight, 1, wx.wxALIGN_RIGHT + wx.wxALL + wx.wxEXPAND, 5 )
+	
+	UI.m_textCtrlTouchPlateHeight = wx.wxTextCtrl( UI.frameMain, wx.wxID_ANY, "", wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+	UI.m_textCtrlTouchPlateHeight:SetToolTip( "Touch Plate Height is the thickness of the touch plate. A touch plate capable of setting more than one axis must be the same thickness on all planes it is capable of being used to set in a single function." )
+	
+	UI.fgSizerSettings:Add( UI.m_textCtrlTouchPlateHeight, 1, wx.wxALL + wx.wxEXPAND, 5 )
+	
+	UI.m_staticTextProbeCode = wx.wxStaticText( UI.frameMain, wx.wxID_ANY, "Probe Code Options", wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxALIGN_RIGHT )
+	UI.m_staticTextProbeCode:Wrap( -1 )
+	UI.m_staticTextProbeCode:SetForegroundColour( wx.wxColour( 0, 0, 0 ) )
+	
+	UI.fgSizerSettings:Add( UI.m_staticTextProbeCode, 1, wx.wxALIGN_RIGHT + wx.wxALL + wx.wxEXPAND, 5 )
+	
+	UI.m_choiceProbeCodeChoices = { "G31 (Probe)", "G31.1 (Probe 1)", "G31.2 (Probe 2)", "G31.3 (Probe 3)" }
+	UI.m_choiceProbeCode = wx.wxChoice( UI.frameMain, wx.wxID_ANY, wx.wxDefaultPosition, wx.wxDefaultSize, UI.m_choiceProbeCodeChoices, 0 )
+	UI.m_choiceProbeCode:SetSelection( 0 )
+	UI.m_choiceProbeCode:SetToolTip( "Probe Code Options sets the option for the probe being used. \n\nProbe Code is the Gcode that will be executed when a touch function is used. This does not change the motion the machine will make during any function. It only changes which input the function is looking at to detect a touch. Mach4 has 4 probe inputs and the options are limited to those 4.\n\nG31 = Probe\nG31.1 = Probe 1\nG31.2 = Probe 2\nG31.3 = Probe 3" )
+	
+	UI.fgSizerSettings:Add( UI.m_choiceProbeCode, 1, wx.wxALL + wx.wxEXPAND, 5 )
+	
+	UI.m_staticTextCornerTouchOptions = wx.wxStaticText( UI.frameMain, wx.wxID_ANY, "Corner Touch Options", wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxALIGN_RIGHT )
+	UI.m_staticTextCornerTouchOptions:Wrap( -1 )
+	UI.m_staticTextCornerTouchOptions:SetForegroundColour( wx.wxColour( 0, 0, 0 ) )
+	
+	UI.fgSizerSettings:Add( UI.m_staticTextCornerTouchOptions, 1, wx.wxALIGN_RIGHT + wx.wxALL + wx.wxEXPAND, 5 )
+	
+	UI.m_choiceCornerTouchChoices = { "Outside With Z" }
+	UI.m_choiceCornerTouch = wx.wxChoice( UI.frameMain, wx.wxID_ANY, wx.wxDefaultPosition, wx.wxDefaultSize, UI.m_choiceCornerTouchChoices, 0 )
+	UI.m_choiceCornerTouch:SetSelection( 0 )
+	UI.m_choiceCornerTouch:SetToolTip( "Corner Touch Options sets the option for a corner touch. \n\nOutside With Z description:\nJog to point where the tool or probe is just above the Z and close enough to the corner your touching that the Prep. Distance will get you past the edge of the part but not so far that when probing (Prep. Distance + Tool Diameter) it will not make contact with the probe." )
+	
+	UI.fgSizerSettings:Add( UI.m_choiceCornerTouch, 1, wx.wxALL + wx.wxEXPAND, 5 )
+	
+	UI.m_staticTextCenterTouchOptions = wx.wxStaticText( UI.frameMain, wx.wxID_ANY, "Center Touch Options", wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxALIGN_RIGHT )
+	UI.m_staticTextCenterTouchOptions:Wrap( -1 )
+	UI.m_staticTextCenterTouchOptions:SetForegroundColour( wx.wxColour( 0, 0, 0 ) )
+	
+	UI.fgSizerSettings:Add( UI.m_staticTextCenterTouchOptions, 1, wx.wxALIGN_RIGHT + wx.wxALL + wx.wxEXPAND, 5 )
+	
+	UI.m_choiceCenterTouchChoices = { "Inside No Z" }
+	UI.m_choiceCenterTouch = wx.wxChoice( UI.frameMain, wx.wxID_ANY, wx.wxDefaultPosition, wx.wxDefaultSize, UI.m_choiceCenterTouchChoices, 0 )
+	UI.m_choiceCenterTouch:SetSelection( 0 )
+	UI.m_choiceCenterTouch:SetToolTip( "Center Touch Options sets the options for a center touch. \n\nInside No Z description:\nJog to a point where the tool or probe is deep enough inside the bore, square or rectangle to touch four points. This will set the work coordinates to 0 at the center of the feature. This action does not provoke any Z axis movement and will not alter the fixture offset for the Z axis." )
+	
+	UI.fgSizerSettings:Add( UI.m_choiceCenterTouch, 1, wx.wxALL + wx.wxEXPAND, 5 )
+	
+	UI.m_staticTextMeasureAngleOptions = wx.wxStaticText( UI.frameMain, wx.wxID_ANY, "Measure Angle Options", wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxALIGN_RIGHT )
+	UI.m_staticTextMeasureAngleOptions:Wrap( -1 )
+	UI.fgSizerSettings:Add( UI.m_staticTextMeasureAngleOptions, 1, wx.wxALIGN_RIGHT + wx.wxALL + wx.wxEXPAND, 5 )
+	
+	UI.m_choiceMeasureAngleChoices = { "X++", "X--", "Y++", "Y--" }
+	UI.m_choiceMeasureAngle = wx.wxChoice( UI.frameMain, wx.wxID_ANY, wx.wxDefaultPosition, wx.wxDefaultSize, UI.m_choiceMeasureAngleChoices, 0 )
+	UI.m_choiceMeasureAngle:SetSelection( 0 )
+	UI.m_choiceMeasureAngle:SetToolTip( "Measure Angle Options sets the option for the axis and direction to probe in to find an angle and performs a G68 (which rotates the coordinate system)." )
+	
+	UI.fgSizerSettings:Add( UI.m_choiceMeasureAngle, 1, wx.wxALL + wx.wxEXPAND, 5 )
+	
+	UI.m_staticTextZOnlyOptions = wx.wxStaticText( UI.frameMain, wx.wxID_ANY, "Z Only Options", wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxALIGN_RIGHT )
+	UI.m_staticTextZOnlyOptions:Wrap( -1 )
+	UI.fgSizerSettings:Add( UI.m_staticTextZOnlyOptions, 1, wx.wxALIGN_RIGHT + wx.wxALL + wx.wxEXPAND, 5 )
+	
+	UI.m_choiceZOnlyChoices = { "Material Top", "Tool Length (TLO)" }
+	UI.m_choiceZOnly = wx.wxChoice( UI.frameMain, wx.wxID_ANY, wx.wxDefaultPosition, wx.wxDefaultSize, UI.m_choiceZOnlyChoices, 0 )
+	UI.m_choiceZOnly:SetSelection( 0 )
+	UI.m_choiceZOnly:SetToolTip( "Z Only Options sets the option of what it is your trying to find the Z value for.\n\nMaterial Top:\nUsed to find the top of the material being machined. It sets the current fixtures Z work offset to 0.0000 (zero) at the top of the material.\n\nTool Length (TLO):\nWill set the length offset for the current tool. Make sure you have called the tool offset you want to set through MDI or Gcode before performing this function." )
+	
+	UI.fgSizerSettings:Add( UI.m_choiceZOnly, 1, wx.wxALL + wx.wxEXPAND, 5 )
+	
+	
+	UI.sbSizerSettings:Add( UI.fgSizerSettings, 1, wx.wxALL + wx.wxEXPAND, 0 )
+	
+	
+	UI.fgSizerFrame:Add( UI.sbSizerSettings, 1, wx.wxALL + wx.wxEXPAND, 5 )
+	
+	UI.sbSizerStatus = wx.wxStaticBoxSizer( wx.wxStaticBox( UI.frameMain, wx.wxID_ANY, "Status" ), wx.wxHORIZONTAL )
+	
+	UI.fgSizerStatus = wx.wxFlexGridSizer( 6, 2, 10, 10 )
+	UI.fgSizerStatus:AddGrowableCol( 0 )
+	UI.fgSizerStatus:AddGrowableCol( 1 )
+	UI.fgSizerStatus:AddGrowableRow( 0 )
+	UI.fgSizerStatus:AddGrowableRow( 1 )
+	UI.fgSizerStatus:AddGrowableRow( 2 )
+	UI.fgSizerStatus:AddGrowableRow( 3 )
+	UI.fgSizerStatus:AddGrowableRow( 4 )
+	UI.fgSizerStatus:AddGrowableRow( 5 )
+	UI.fgSizerStatus:SetFlexibleDirection( wx.wxBOTH )
+	UI.fgSizerStatus:SetNonFlexibleGrowMode( wx.wxFLEX_GROWMODE_SPECIFIED )
+	
+	UI.m_staticTextX = wx.wxStaticText( UI.frameMain, wx.wxID_ANY, "X", wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+	UI.m_staticTextX:Wrap( -1 )
+	UI.m_staticTextX:SetFont( wx.wxFont( 24, 70, 90, 90, False, "" ) )
+	
+	UI.fgSizerStatus:Add( UI.m_staticTextX, 1, wx.wxALL + wx.wxEXPAND, 5 )
+	
+	UI.m_textCtrlX = wx.wxTextCtrl( UI.frameMain, wx.wxID_ANY, "0.0000", wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxTE_RIGHT )
+	UI.m_textCtrlX:SetFont( wx.wxFont( 18, 70, 90, 92, False, "" ) )
+	
+	UI.fgSizerStatus:Add( UI.m_textCtrlX, 1, wx.wxALL + wx.wxEXPAND, 5 )
+	
+	UI.m_staticTextY = wx.wxStaticText( UI.frameMain, wx.wxID_ANY, "Y", wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+	UI.m_staticTextY:Wrap( -1 )
+	UI.m_staticTextY:SetFont( wx.wxFont( 24, 70, 90, 90, False, "" ) )
+	
+	UI.fgSizerStatus:Add( UI.m_staticTextY, 1, wx.wxALL + wx.wxEXPAND, 5 )
+	
+	UI.m_textCtrlY = wx.wxTextCtrl( UI.frameMain, wx.wxID_ANY, "0.0000", wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxTE_RIGHT )
+	UI.m_textCtrlY:SetFont( wx.wxFont( 18, 70, 90, 92, False, "" ) )
+	
+	UI.fgSizerStatus:Add( UI.m_textCtrlY, 1, wx.wxALL + wx.wxEXPAND, 5 )
+	
+	UI.m_staticTextZ = wx.wxStaticText( UI.frameMain, wx.wxID_ANY, "Z", wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+	UI.m_staticTextZ:Wrap( -1 )
+	UI.m_staticTextZ:SetFont( wx.wxFont( 24, 70, 90, 90, False, "" ) )
+	
+	UI.fgSizerStatus:Add( UI.m_staticTextZ, 1, wx.wxALL + wx.wxEXPAND, 5 )
+	
+	UI.m_textCtrlZ = wx.wxTextCtrl( UI.frameMain, wx.wxID_ANY, "0.0000", wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxTE_RIGHT )
+	UI.m_textCtrlZ:SetFont( wx.wxFont( 18, 70, 90, 92, False, "" ) )
+	
+	UI.fgSizerStatus:Add( UI.m_textCtrlZ, 1, wx.wxALL + wx.wxEXPAND, 5 )
+	
+	
+	UI.fgSizerStatus:Add( 0, 0, 1, wx.wxEXPAND, 5 )
+	
+	UI.m_buttonMachineWork = wx.wxButton( UI.frameMain, wx.wxID_ANY, "Work/Machine Toggle\nCurrently Displaying\nWork Coordinates", wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+	UI.m_buttonMachineWork:SetFont( wx.wxFont( 12, 70, 90, 92, False, "" ) )
+	UI.m_buttonMachineWork:SetForegroundColour( wx.wxColour( 255, 255, 255 ) )
+	UI.m_buttonMachineWork:SetBackgroundColour( wx.wxColour( 0, 0, 0 ) )
+	UI.m_buttonMachineWork:SetToolTip( "Machine/Work Toggle. This toggle button selects which units are displayed in the TouchOff UI DROs. The options are Work or Machine. Each click will change the currently displayed units to the other. Choosing to display machine coordinates is not a retained setting. By default the TouchOff UI is opened each time displaying work coordinates." )
+	
+	UI.fgSizerStatus:Add( UI.m_buttonMachineWork, 1, wx.wxALL + wx.wxEXPAND, 5 )
+	
+	
+	UI.fgSizerStatus:Add( 0, 0, 1, wx.wxALL, 5 )
+	
+	UI.m_staticTextProbeStatus = wx.wxStaticText( UI.frameMain, wx.wxID_ANY, "\nSelected Probe Is\nCurrently Inactive", wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxALIGN_CENTRE + wx.wxST_NO_AUTORESIZE+wx.wxSUNKEN_BORDER )
+	UI.m_staticTextProbeStatus:Wrap( -1 )
+	UI.m_staticTextProbeStatus:SetFont( wx.wxFont( 12, 70, 90, 92, False, "" ) )
+	UI.m_staticTextProbeStatus:SetForegroundColour( wx.wxColour( 255, 255, 255 ) )
+	UI.m_staticTextProbeStatus:SetBackgroundColour( wx.wxColour( 0, 0, 0 ) )
+	UI.m_staticTextProbeStatus:SetToolTip( "This is an indicator for the current status (active or inactive) of the selected probe input." )
+	
+	UI.fgSizerStatus:Add( UI.m_staticTextProbeStatus, 1, wx.wxALL + wx.wxEXPAND, 5 )
+	
+	
+	UI.sbSizerStatus:Add( UI.fgSizerStatus, 1, wx.wxALL + wx.wxEXPAND, 0 )
+	
+	
+	UI.fgSizerFrame:Add( UI.sbSizerStatus, 1, wx.wxALL + wx.wxEXPAND, 5 )
+	
+	UI.sbSizerFunctions = wx.wxStaticBoxSizer( wx.wxStaticBox( UI.frameMain, wx.wxID_ANY, "Functions" ), wx.wxHORIZONTAL )
+	
+	UI.fgSizerFunctions = wx.wxFlexGridSizer( 4, 3, 40, 40 )
+	UI.fgSizerFunctions:AddGrowableCol( 0 )
+	UI.fgSizerFunctions:AddGrowableCol( 1 )
+	UI.fgSizerFunctions:AddGrowableCol( 2 )
+	UI.fgSizerFunctions:AddGrowableRow( 0 )
+	UI.fgSizerFunctions:AddGrowableRow( 1 )
+	UI.fgSizerFunctions:AddGrowableRow( 2 )
+	UI.fgSizerFunctions:AddGrowableRow( 3 )
+	UI.fgSizerFunctions:SetFlexibleDirection( wx.wxBOTH )
+	UI.fgSizerFunctions:SetNonFlexibleGrowMode( wx.wxFLEX_GROWMODE_SPECIFIED )
+	
+	UI.m_bpButtonTopLeft = wx.wxBitmapButton( UI.frameMain, wx.wxID_ANY, (wx.wxBitmap(ImageTopLeft())), wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxBU_AUTODRAW )
+	--UI.m_bpButtonTopLeft = wx.wxBitmapButton( UI.frameMain, wx.wxID_ANY, wx.wxNullBitmap, wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxBU_AUTODRAW )
+	UI.m_bpButtonTopLeft:SetToolTip( "Find top left corner:\n\nThis will find the top left corner. Corner touch options selection can modify the behavior." )
+	
+	UI.fgSizerFunctions:Add( UI.m_bpButtonTopLeft, 1, wx.wxALL + wx.wxEXPAND, 5 )
+	
+	UI.m_bpButtonTop = wx.wxBitmapButton( UI.frameMain, wx.wxID_ANY, (wx.wxBitmap(ImageTop())), wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxBU_AUTODRAW )
+	--UI.m_bpButtonTop = wx.wxBitmapButton( UI.frameMain, wx.wxID_ANY, wx.wxNullBitmap, wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxBU_AUTODRAW )
+	UI.m_bpButtonTop:SetToolTip( "Find Y++:\n\nThis will find the Y positive edge. The probe move will be a Y-- move." )
+	
+	UI.fgSizerFunctions:Add( UI.m_bpButtonTop, 1, wx.wxALL + wx.wxEXPAND, 5 )
+	
+	UI.m_bpButtonTopRight = wx.wxBitmapButton( UI.frameMain, wx.wxID_ANY, (wx.wxBitmap(ImageTopRight())), wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxBU_AUTODRAW )
+	--UI.m_bpButtonTopRight = wx.wxBitmapButton( UI.frameMain, wx.wxID_ANY, wx.wxNullBitmap, wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxBU_AUTODRAW )
+	UI.m_bpButtonTopRight:SetToolTip( "Find top right corner:\n\nThis will find the top right corner. Corner touch options selection can modify the behavior." )
+	
+	UI.fgSizerFunctions:Add( UI.m_bpButtonTopRight, 1, wx.wxALL + wx.wxEXPAND, 5 )
+	
+	UI.m_bpButtonLeft = wx.wxBitmapButton( UI.frameMain, wx.wxID_ANY, (wx.wxBitmap(ImageLeft())), wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxBU_AUTODRAW )
+	--UI.m_bpButtonLeft = wx.wxBitmapButton( UI.frameMain, wx.wxID_ANY, wx.wxNullBitmap, wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxBU_AUTODRAW )
+	UI.m_bpButtonLeft:SetToolTip( "Find X--:\n\nThis will find the X negative edge. The probe move will be a X++ move." )
+	
+	UI.fgSizerFunctions:Add( UI.m_bpButtonLeft, 1, wx.wxALL + wx.wxEXPAND, 5 )
+	
+	UI.m_bpButtonCenter = wx.wxBitmapButton( UI.frameMain, wx.wxID_ANY, (wx.wxBitmap(ImageCenter())), wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxBU_AUTODRAW )
+	--UI.m_bpButtonCenter = wx.wxBitmapButton( UI.frameMain, wx.wxID_ANY, wx.wxNullBitmap, wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxBU_AUTODRAW )
+	UI.m_bpButtonCenter:SetToolTip( "Find center:\n\nThis will find the center of a square, circle or rectangle. Center touch options selection can modify the behavior." )
+	
+	UI.fgSizerFunctions:Add( UI.m_bpButtonCenter, 1, wx.wxALL + wx.wxEXPAND, 5 )
+	
+	UI.m_bpButtonRight = wx.wxBitmapButton( UI.frameMain, wx.wxID_ANY, (wx.wxBitmap(ImageRight())), wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxBU_AUTODRAW )
+	--UI.m_bpButtonRight = wx.wxBitmapButton( UI.frameMain, wx.wxID_ANY, wx.wxNullBitmap, wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxBU_AUTODRAW )
+	UI.m_bpButtonRight:SetToolTip( "Find X++:\n\nThis will find the X positive edge. The probe move will be a X-- move." )
+	
+	UI.fgSizerFunctions:Add( UI.m_bpButtonRight, 1, wx.wxALL + wx.wxEXPAND, 5 )
+	
+	UI.m_bpButtonBottomLeft = wx.wxBitmapButton( UI.frameMain, wx.wxID_ANY, (wx.wxBitmap(ImageBottomLeft())), wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxBU_AUTODRAW )
+	--UI.m_bpButtonBottomLeft = wx.wxBitmapButton( UI.frameMain, wx.wxID_ANY, wx.wxNullBitmap, wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxBU_AUTODRAW )
+	UI.m_bpButtonBottomLeft:SetToolTip( "Find bottom left corner:\n\nThis will find the bottom left corner. Corner touch options selection can modify the behavior." )
+	
+	UI.fgSizerFunctions:Add( UI.m_bpButtonBottomLeft, 1, wx.wxALL + wx.wxEXPAND, 5 )
+	
+	UI.m_bpButtonBottom = wx.wxBitmapButton( UI.frameMain, wx.wxID_ANY, (wx.wxBitmap(ImageBottom())), wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxBU_AUTODRAW )
+	--UI.m_bpButtonBottom = wx.wxBitmapButton( UI.frameMain, wx.wxID_ANY, wx.wxNullBitmap, wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxBU_AUTODRAW )
+	UI.m_bpButtonBottom:SetToolTip( "Find Y--:\n\nThis will find the Y negative edge. The probe move will be a Y++ move." )
+	
+	UI.fgSizerFunctions:Add( UI.m_bpButtonBottom, 1, wx.wxALL + wx.wxEXPAND, 5 )
+	
+	UI.m_bpButtonBottomRight = wx.wxBitmapButton( UI.frameMain, wx.wxID_ANY, (wx.wxBitmap(ImageBottomRight())), wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxBU_AUTODRAW )
+	--UI.m_bpButtonBottomRight = wx.wxBitmapButton( UI.frameMain, wx.wxID_ANY, wx.wxNullBitmap, wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxBU_AUTODRAW )
+	UI.m_bpButtonBottomRight:SetToolTip( "Find bottom right corner:\n\nThis will find the bottom right corner. Corner touch options selection can modify the behavior." )
+	
+	UI.fgSizerFunctions:Add( UI.m_bpButtonBottomRight, 1, wx.wxALL + wx.wxEXPAND, 5 )
+	
+	UI.m_bpButtonMeasureAngle = wx.wxBitmapButton( UI.frameMain, wx.wxID_ANY, (wx.wxBitmap(ImageMeasureAngle())), wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxBU_AUTODRAW )
+	--UI.m_bpButtonMeasureAngle = wx.wxBitmapButton( UI.frameMain, wx.wxID_ANY, wx.wxNullBitmap, wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxBU_AUTODRAW )
+	UI.m_bpButtonMeasureAngle:SetToolTip( "Find angle:\n\nThis will find the angle of an edge and rotate the coordinate system with a G68 by this amount. The measure angle option selection will dictate the direction of travel during a probe move." )
+	
+	UI.fgSizerFunctions:Add( UI.m_bpButtonMeasureAngle, 1, wx.wxALL + wx.wxEXPAND, 5 )
+	
+	UI.m_bitmap1 = wx.wxStaticBitmap( UI.frameMain, wx.wxID_ANY, (wx.wxBitmap(ImageCompass())), wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+	--UI.m_bitmap1 = wx.wxStaticBitmap( UI.frameMain, wx.wxID_ANY, wx.wxNullBitmap, wx.wxDefaultPosition, wx.wxDefaultSize, 0 )
+	UI.m_bitmap1:SetToolTip( "This simply shows the direction an axis will be moving in to make a X or Y positive or negative move." )
+	
+	UI.fgSizerFunctions:Add( UI.m_bitmap1, 1, wx.wxALL + wx.wxEXPAND, 5 )
+	
+	UI.m_bpButtonZOnly = wx.wxBitmapButton( UI.frameMain, wx.wxID_ANY, (wx.wxBitmap(ImageZOnly())), wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxBU_AUTODRAW )
+	--UI.m_bpButtonZOnly = wx.wxBitmapButton( UI.frameMain, wx.wxID_ANY, wx.wxNullBitmap, wx.wxDefaultPosition, wx.wxDefaultSize, wx.wxBU_AUTODRAW )
+	UI.m_bpButtonZOnly:SetToolTip( "Find Z:\n\nThis will only probe with the Z axis. The Z only option selection will dictate what is set using the probe contact position." )
+	
+	UI.fgSizerFunctions:Add( UI.m_bpButtonZOnly, 1, wx.wxALL + wx.wxEXPAND, 5 )
+	
+	
+	UI.sbSizerFunctions:Add( UI.fgSizerFunctions, 1, wx.wxALL + wx.wxEXPAND, 0 )
+	
+	
+	UI.fgSizerFrame:Add( UI.sbSizerFunctions, 1, wx.wxALL + wx.wxEXPAND, 5 )
+	
+	
+	UI.bSizerFrame:Add( UI.fgSizerFrame, 1, wx.wxEXPAND, 0 )
+	
+	
+	UI.frameMain:SetSizer( UI.bSizerFrame )
+	UI.frameMain:Layout()
+	
+	UI.frameMain:Centre( wx.wxBOTH )
+	
+	-- Connect Events
+	
+	UI.frameMain:Connect( wx.wxEVT_ACTIVATE, function(event)
+	frameMainOnActivate()
+	
+	event:Skip()
+	end )
+	
+	UI.frameMain:Connect( wx.wxEVT_CLOSE_WINDOW, function(event)
+	frameMainOnClose()
+	
+	end )
+	
+	UI.frameMain:Connect( wx.wxEVT_UPDATE_UI, function(event)
+	frameMainOnUpdateUI()
+	
+	event:Skip()
+	end )
+	
+	UI.frameMain:Connect( wx.wxID_ANY ,wx.wxEVT_COMMAND_MENU_SELECTED , function(event)
+	m_menuItemDocsOnMenuSelection()
+	
+	--event:Skip()
+	end )
+	
+	UI.m_textCtrlProbeFeedRate:Connect( wx.wxEVT_KILL_FOCUS, function(event)
+	m_textCtrlProbeFeedRateOnKillFocus()
+	
+	event:Skip()
+	end )
+	
+	UI.m_textCtrlProbeFeedRate:Connect( wx.wxEVT_COMMAND_TEXT_ENTER, function(event)
+	m_textCtrlProbeFeedRateOnKillFocus()
+	
+	event:Skip()
+	end )
+	
+	UI.m_textCtrlRetractDistance:Connect( wx.wxEVT_KILL_FOCUS, function(event)
+	m_textCtrlRetractDistanceOnKillFocus()
+	
+	event:Skip()
+	end )
+	
+	UI.m_textCtrlRetractDistance:Connect( wx.wxEVT_COMMAND_TEXT_ENTER, function(event)
+	m_textCtrlRetractDistanceOnKillFocus()
+	
+	event:Skip()
+	end )
+	
+	UI.m_textCtrlPrepFeedRate:Connect( wx.wxEVT_KILL_FOCUS, function(event)
+	m_textCtrlPrepFeedRateOnKillFocus()
+	
+	event:Skip()
+	end )
+	
+	UI.m_textCtrlPrepFeedRate:Connect( wx.wxEVT_COMMAND_TEXT_ENTER, function(event)
+	m_textCtrlPrepFeedRateOnKillFocus()
+	
+	event:Skip()
+	end )
+	
+	UI.m_textCtrlPrepDistance:Connect( wx.wxEVT_KILL_FOCUS, function(event)
+	m_textCtrlPrepDistanceOnKillFocus()
+	
+	event:Skip()
+	end )
+	
+	UI.m_textCtrlPrepDistance:Connect( wx.wxEVT_COMMAND_TEXT_ENTER, function(event)
+	m_textCtrlPrepDistanceOnKillFocus()
+	
+	event:Skip()
+	end )
+	
+	UI.m_textCtrlToolDiam:Connect( wx.wxEVT_KILL_FOCUS, function(event)
+	m_textCtrlToolDiamOnKillFocus()
+	
+	event:Skip()
+	end )
+	
+	UI.m_textCtrlToolDiam:Connect( wx.wxEVT_COMMAND_TEXT_ENTER, function(event)
+	m_textCtrlToolDiamOnKillFocus()
+	
+	event:Skip()
+	end )
+	
+	UI.m_textCtrlTouchPlateHeight:Connect( wx.wxEVT_KILL_FOCUS, function(event)
+	m_textCtrlTouchPlateHeightOnKillFocus()
+	
+	event:Skip()
+	end )
+	
+	UI.m_textCtrlTouchPlateHeight:Connect( wx.wxEVT_COMMAND_TEXT_ENTER, function(event)
+	m_textCtrlTouchPlateHeightOnKillFocus()
+	
+	event:Skip()
+	end )
+	
+	UI.m_choiceProbeCode:Connect( wx. wxEVT_COMMAND_CHOICE_SELECTED, function(event)
+	m_choiceProbeCodeOnChoice()
+	
+	event:Skip()
+	end )
+	
+	UI.m_choiceCornerTouch:Connect( wx. wxEVT_COMMAND_CHOICE_SELECTED, function(event)
+	m_choiceCornerTouchOnChoice()
+	
+	event:Skip()
+	end )
+	
+	UI.m_choiceCenterTouch:Connect( wx. wxEVT_COMMAND_CHOICE_SELECTED, function(event)
+	m_choiceCenterTouchOnChoice()
+	
+	event:Skip()
+	end )
+	
+	UI.m_choiceMeasureAngle:Connect( wx. wxEVT_COMMAND_CHOICE_SELECTED, function(event)
+	m_choiceMeasureAngleOnChoice()
+	
+	event:Skip()
+	end )
+	
+	UI.m_choiceZOnly:Connect( wx. wxEVT_COMMAND_CHOICE_SELECTED, function(event)
+	m_choiceZOnlyOnChoice()
+	
+	event:Skip()
+	end )
+	
+	UI.m_buttonMachineWork:Connect( wx.wxEVT_COMMAND_BUTTON_CLICKED, function(event)
+	m_buttonMachineWorkOnButtonClick()
+	
+	--event:Skip()
+	end )
+	
+	UI.m_bpButtonTopLeft:Connect( wx.wxEVT_COMMAND_BUTTON_CLICKED, function(event)
+	m_bpButtonTopLeftOnButtonClick()
+	
+	--event:Skip()
+	end )
+	
+	UI.m_bpButtonTop:Connect( wx.wxEVT_COMMAND_BUTTON_CLICKED, function(event)
+	m_bpButtonTopOnButtonClick()
+	
+	--event:Skip()
+	end )
+	
+	UI.m_bpButtonTopRight:Connect( wx.wxEVT_COMMAND_BUTTON_CLICKED, function(event)
+	m_bpButtonTopRightOnButtonClick()
+	
+	--event:Skip()
+	end )
+	
+	UI.m_bpButtonLeft:Connect( wx.wxEVT_COMMAND_BUTTON_CLICKED, function(event)
+	m_bpButtonLeftOnButtonClick()
+	
+	--event:Skip()
+	end )
+	
+	UI.m_bpButtonCenter:Connect( wx.wxEVT_COMMAND_BUTTON_CLICKED, function(event)
+	m_bpButtonCenterOnButtonClick()
+	
+	--event:Skip()
+	end )
+	
+	UI.m_bpButtonRight:Connect( wx.wxEVT_COMMAND_BUTTON_CLICKED, function(event)
+	m_bpButtonRightOnButtonClick()
+	
+	--event:Skip()
+	end )
+	
+	UI.m_bpButtonBottomLeft:Connect( wx.wxEVT_COMMAND_BUTTON_CLICKED, function(event)
+	m_bpButtonBottomLeftOnButtonClick()
+	
+	--event:Skip()
+	end )
+	
+	UI.m_bpButtonBottom:Connect( wx.wxEVT_COMMAND_BUTTON_CLICKED, function(event)
+	m_bpButtonBottomOnButtonClick()
+	
+	--event:Skip()
+	end )
+	
+	UI.m_bpButtonBottomRight:Connect( wx.wxEVT_COMMAND_BUTTON_CLICKED, function(event)
+	m_bpButtonBottomRightOnButtonClick()
+	
+	--event:Skip()
+	end )
+	
+	UI.m_bpButtonMeasureAngle:Connect( wx.wxEVT_COMMAND_BUTTON_CLICKED, function(event)
+	m_bpButtonMeasureAngleOnButtonClick()
+	
+	--event:Skip()
+	end )
+	
+	UI.m_bpButtonZOnly:Connect( wx.wxEVT_COMMAND_BUTTON_CLICKED, function(event)
+	m_bpButtonZOnlyOnButtonClick()
+	
+	--event:Skip()
+	end )
+	
+	UI.frameMain:Show(true)	--Show the frame
+	
+	return (UI.frameMain)
+
+end -- User Interface
+
+--Functions for connect events
+function frameMainOnActivate()
+	
+	MachWorkDRO = true --Sets UI DROs to work coordinates as default
+	UI.m_buttonMachineWork:SetBackgroundColour( wx.wxColour( 0, 0, 0 ) )--set theButton color to work coords state
+	UI.m_buttonMachineWork:SetForegroundColour( wx.wxColour( 255, 255, 255 ) )--set theButton color to work coords state
+	UI.m_buttonMachineWork:SetLabel( "Work/Machine Toggle\nCurrently Displaying\nWork Coordinates" )
+	
+	local GetProbeRate = mc.mcProfileGetString(inst, 'ToffParams', 'ToffProbeRate', '5.0') -- Get the Value from the profile ini.
+	UI.m_textCtrlProbeFeedRate:SetValue(tostring (GetProbeRate))
+	
+	local GetRetractDistance = mc.mcProfileGetString(inst, 'ToffParams', 'ToffRetractDistance', '0.1') -- Get the Value from the profile ini.
+	UI.m_textCtrlRetractDistance:SetValue(tostring (GetRetractDistance))
+	
+	local GetPrepFeedRate = mc.mcProfileGetString(inst, 'ToffParams', 'ToffPrepRate', '60') -- Get the Value from the profile ini.
+	UI.m_textCtrlPrepFeedRate:SetValue(tostring (GetPrepFeedRate))
+	
+	local GetPrepDistance = mc.mcProfileGetString(inst, 'ToffParams', 'ToffPrepDistance', '0.5') -- Get the Value from the profile ini.
+	UI.m_textCtrlPrepDistance:SetValue(tostring (GetPrepDistance))
+	
+	local GetTouchToolDiam = mc.mcProfileGetString(inst, 'ToffParams', 'ToffToolDiam', '0.25') -- Get the Value from the profile ini.
+	UI.m_textCtrlToolDiam:SetValue(tostring (GetTouchToolDiam))
+	
+	local GetTouchPlate = mc.mcProfileGetString(inst, 'ToffParams', 'ToffPlate', '0.2') -- Get the Value from the profile ini.
+	UI.m_textCtrlTouchPlateHeight:SetValue(tostring (GetTouchPlate))
+	
+	--UI.m_choiceProbeCode
+	local GetProbeCode = mc.mcProfileGetString(inst, 'ToffParams', 'ToffProbeCode', '31'); -- Get the Value from the profile ini.
+	if tonumber (GetProbeCode)  == 31 then
+		UI.m_choiceProbeCode:SetSelection(0)
+	elseif tonumber (GetProbeCode) == 31.1 then
+		UI.m_choiceProbeCode:SetSelection(1)
+	elseif tonumber (GetProbeCode) == 31.2 then
+		UI.m_choiceProbeCode:SetSelection(2)
+	elseif tonumber (GetProbeCode) == 31.3 then
+		UI.m_choiceProbeCode:SetSelection(3)
+	end
+	
+	local GetCornerOption = mc.mcProfileGetString(inst, 'ToffParams', 'ToffCornerOption', '0'); -- Get the Value from the profile ini.
+	UI.m_choiceCornerTouch:SetSelection(tonumber (GetCornerOption))
+	
+	local GetCenterOption = mc.mcProfileGetString(inst, 'ToffParams', 'ToffCenterOption', '0'); -- Get the Value from the profile ini.
+	UI.m_choiceCenterTouch:SetSelection(tonumber (GetCenterOption))
+	
+	local GetMeasureAngleOptions = mc.mcProfileGetString(inst, 'ToffParams', 'ToffAngleOption', '0'); -- Get the Value from the profile ini.
+	UI.m_bpButtonMeasureAngle:SetBitmapLabel(wx.wxBitmap(ImageMeasureAngle(GetMeasureAngleOptions)))
+	UI.m_choiceMeasureAngle:SetSelection(tonumber (GetMeasureAngleOptions))
+	
+	local GetZOnlyOption = mc.mcProfileGetString(inst, 'ToffParams', 'ToffZOnlyOption', '0'); -- Get the Value from the profile ini.
+	UI.m_bpButtonZOnly:SetBitmapLabel(wx.wxBitmap(ImageZOnly(GetZOnlyOption)))
+	UI.m_choiceZOnly:SetSelection(tonumber (GetZOnlyOption))
+end
+
+function frameMainOnClose() --edited 4/8/2019
+	co = nil
+	Tframe = nil
+	UI.frameMain:Destroy()
+	--UI.frameMain:Hide()	--Hide the frame
+	--co = nil
+end
+
+function frameMainOnUpdateUI()
+
+	mcState, rc = mc.mcCntlGetState(inst)
+	if (co ~= nil) and (mcState == 0) then
+		local state = coroutine.status(co)
+		if state == "suspended" then	--We are about to run some more code so check to see if we have to check the probe state
+			local IsOk = true;
+			if ( m_CheckProbe == true) then	--The probe should be active at the end of the move
+				IsOk = CheckProbe(1)
+			else
+				IsOk = CheckProbe(0)	--The probe should NOT be active at the end of the move
+			end
+			if ( IsOk == false ) then --If the check failed lets kill the Coroutine
+				co = nil
+				IsOk = true
+			else
+				coerrorcheck, rc, m_CheckProbe = coroutine.resume(co)
+				if(coerrorcheck == false) then	--Something happened here to the coroutine so kill it
+					co = nil
+				end
+				--if(rc < 0) then	--Something happened in the Gcode and we have an error So Kill the coroutine
+				--	co = nil
+				--end
+			end
+		end
+		
+		if state == "dead" then	 --Kill the coroutine
+			co = nil
+		end
+	end
+	
+	if mcState ~= 0 then	--Disable input fields, selections and buttons if not in idle state
+		UI.m_menuItemDocs:Enable(false)
+		UI.m_textCtrlProbeFeedRate:Enable(false)
+		UI.m_textCtrlRetractDistance:Enable(false)
+		UI.m_textCtrlPrepFeedRate:Enable(false)
+		UI.m_textCtrlPrepDistance:Enable(false)
+		UI.m_textCtrlToolDiam:Enable(false)
+		UI.m_textCtrlTouchPlateHeight:Enable(false)
+		UI.m_choiceProbeCode:Enable(false)
+		UI.m_choiceCornerTouch:Enable(false)
+		UI.m_choiceCenterTouch:Enable(false)
+		UI.m_choiceMeasureAngle:Enable(false)
+		UI.m_choiceZOnly:Enable(false)
+		UI.m_bpButtonTopLeft:Enable(false)
+		UI.m_bpButtonTop:Enable(false)
+		UI.m_bpButtonTopRight:Enable(false)
+		UI.m_bpButtonLeft:Enable(false)
+		UI.m_bpButtonCenter:Enable(false)
+		UI.m_bpButtonRight:Enable(false)
+		UI.m_bpButtonBottomLeft:Enable(false)
+		UI.m_bpButtonBottom:Enable(false)
+		UI.m_bpButtonBottomRight:Enable(false)
+		UI.m_bpButtonMeasureAngle:Enable(false)
+		UI.m_bpButtonZOnly:Enable(false)
+	else	--Enable input fields, selections and buttons if in idle state
+		UI.m_menuItemDocs:Enable(true)
+		UI.m_textCtrlProbeFeedRate:Enable(true)
+		UI.m_textCtrlRetractDistance:Enable(true)
+		UI.m_textCtrlPrepFeedRate:Enable(true)
+		UI.m_textCtrlPrepDistance:Enable(true)
+		UI.m_textCtrlToolDiam:Enable(true)
+		UI.m_textCtrlTouchPlateHeight:Enable(true)
+		UI.m_choiceProbeCode:Enable(true)
+		UI.m_choiceCornerTouch:Enable(true)
+		UI.m_choiceCenterTouch:Enable(true)
+		UI.m_choiceMeasureAngle:Enable(true)
+		UI.m_choiceZOnly:Enable(true)
+		UI.m_bpButtonTopLeft:Enable(true)
+		UI.m_bpButtonTop:Enable(true)
+		UI.m_bpButtonTopRight:Enable(true)
+		UI.m_bpButtonLeft:Enable(true)
+		UI.m_bpButtonCenter:Enable(true)
+		UI.m_bpButtonRight:Enable(true)
+		UI.m_bpButtonBottomLeft:Enable(true)
+		UI.m_bpButtonBottom:Enable(true)
+		UI.m_bpButtonBottomRight:Enable(true)
+		UI.m_bpButtonMeasureAngle:Enable(true)
+		UI.m_bpButtonZOnly:Enable(true)
+	end
+	
+	-- Set Machine/Work DROs to requested coordinates
+	if (MachWorkDRO == true) then	--Set Machine/Work DROs to work coordinates
+		xmachine = mc.mcAxisGetPos(inst, mc.X_AXIS)
+		ymachine = mc.mcAxisGetPos(inst, mc.Y_AXIS)
+		zmachine = mc.mcAxisGetPos(inst, mc.Z_AXIS)
+	else --Set Machine/Work DROs to machine coordinates
+		xmachine = mc.mcAxisGetMachinePos(inst, mc.X_AXIS)
+		ymachine = mc.mcAxisGetMachinePos(inst, mc.Y_AXIS)
+		zmachine = mc.mcAxisGetMachinePos(inst, mc.Z_AXIS)
+	end
+	
+	UI.m_textCtrlX:SetValue (string.format ('%0.4f', xmachine))
+	UI.m_textCtrlY:SetValue (string.format ('%0.4f', ymachine))
+	UI.m_textCtrlZ:SetValue (string.format ('%0.4f', zmachine))
+	
+	-- Set Probe LED state
+	-- Select probe signal depending on probe code selected
+	ReadIni()
+	ProbeSignal = mc.ISIG_PROBE --Default probe signal, probe (G31)
+	if ToffProbeCode == 31.1 then
+		ProbeSignal = mc.ISIG_PROBE1
+	elseif ToffProbeCode == 31.2 then
+		ProbeSignal = mc.ISIG_PROBE2
+	elseif ToffProbeCode == 31.3 then
+		ProbeSignal = mc.ISIG_PROBE3
+	end
+	
+	local hsig = mc.mcSignalGetHandle(inst, ProbeSignal)
+	local ProbeState = (mc.mcSignalGetState(hsig))
+	if (ProbeState ~= LastCheck) then --The probe input status has changed
+		if (ProbeState == 1) then --The probe input is active
+			UI.m_staticTextProbeStatus:SetBackgroundColour( wx.wxColour( 130, 180, 224) )
+			UI.m_staticTextProbeStatus:SetLabel("\nSelected Probe Is\nCurrently Active")
+		else
+			UI.m_staticTextProbeStatus:SetBackgroundColour( wx.wxColour( 0, 0, 0 ) )
+			UI.m_staticTextProbeStatus:SetLabel("\nSelected Probe Is\nCurrently Inactive")
+		end
+		UI.m_staticTextProbeStatus:Refresh()
+	end
+	LastCheck = ProbeState --Set LastCheck so we only run this statement once for each probe state change. 
+end
+
+function m_menuItemDocsOnMenuSelection()
+	local major, minor = wx.wxGetOsVersion()
+    local dir = mc.mcCntlGetMachDir(inst);
+    local cmd = "explorer.exe /open," .. dir .. "\\Docs\\TouchOffHelp.pdf"
+    if(minor <= 5) then -- Xp we don't need the /open
+        cmd = "explorer.exe ," .. dir .. "\\Docs\\TouchOffHelp.pdf"
+    end
+    wx.wxExecute(cmd);
+end
+
+function m_textCtrlProbeFeedRateOnKillFocus()
+	local SetProbeRate = UI.m_textCtrlProbeFeedRate:GetValue()
+	SetProbeRate = math.abs (SetProbeRate) --Make sure value is unsigned
+	mc.mcProfileWriteString(inst, 'ToffParams', 'ToffProbeRate', tostring (SetProbeRate))
+end
+
+function m_textCtrlRetractDistanceOnKillFocus()
+	local SetRetractDistance = UI.m_textCtrlRetractDistance:GetValue()
+	SetRetractDistance = math.abs (SetRetractDistance) --Make sure value is unsigned
+	mc.mcProfileWriteString(inst, 'ToffParams', 'ToffRetractDistance', tostring (SetRetractDistance))
+end
+
+function m_textCtrlPrepFeedRateOnKillFocus()
+	local SetPrepFeedRate = UI.m_textCtrlPrepFeedRate:GetValue()
+	SetPrepFeedRate = math.abs (SetPrepFeedRate) --Make sure value is unsigned
+	mc.mcProfileWriteString(inst, 'ToffParams', 'ToffPrepRate', tostring (SetPrepFeedRate))
+end
+
+function m_textCtrlPrepDistanceOnKillFocus()
+	local SetPrepDistance = UI.m_textCtrlPrepDistance:GetValue()
+	SetPrepDistance = math.abs (SetPrepDistance) --Make sure value is unsigned
+	mc.mcProfileWriteString(inst, 'ToffParams', 'ToffPrepDistance', tostring (SetPrepDistance))
+end
+
+function m_textCtrlToolDiamOnKillFocus()
+	local SetTouchToolDiam = UI.m_textCtrlToolDiam:GetValue()
+	SetTouchToolDiam = math.abs (SetTouchToolDiam) --Make sure value is unsigned
+	mc.mcProfileWriteString(inst, 'ToffParams', 'ToffToolDiam', tostring (SetTouchToolDiam))
+end
+
+function m_textCtrlTouchPlateHeightOnKillFocus()
+	local SetTouchPlate = UI.m_textCtrlTouchPlateHeight:GetValue()
+	SetTouchPlate = math.abs (SetTouchPlate) --Make sure value is unsigned
+	mc.mcProfileWriteString(inst, 'ToffParams', 'ToffPlate', tostring (SetTouchPlate))
+end
+
+function m_choiceProbeCodeOnChoice()
+	rc = UI.m_choiceProbeCode:GetSelection()
+	if rc == 0 then
+		mc.mcProfileWriteString(inst, 'ToffParams', 'ToffProbeCode', '31')
+	elseif rc == 1 then
+		mc.mcProfileWriteString(inst, 'ToffParams', 'ToffProbeCode', '31.1')
+	elseif rc == 2 then
+		mc.mcProfileWriteString(inst, 'ToffParams', 'ToffProbeCode', '31.2')
+	elseif rc == 3 then
+		mc.mcProfileWriteString(inst, 'ToffParams', 'ToffProbeCode', '31.3')
+	end
+end
+
+function m_choiceCornerTouchOnChoice()
+	rc = UI.m_choiceCornerTouch:GetSelection()
+	rc = math.tointeger(rc)
+	mc.mcProfileWriteString(inst, 'ToffParams', 'ToffCornerOption', tostring(rc))
+	UI.m_bpButtonTopLeft:SetBitmapLabel(wx.wxBitmap(ImageTopLeft(tostring(rc)))) --Set button image based on selected option.
+	UI.m_bpButtonTopRight:SetBitmapLabel(wx.wxBitmap(ImageTopRight(tostring(rc)))) --Set button image based on selected option.
+	UI.m_bpButtonBottomLeft:SetBitmapLabel(wx.wxBitmap(ImageBottomLeft(tostring(rc)))) --Set button image based on selected option.
+	UI.m_bpButtonBottomRight:SetBitmapLabel(wx.wxBitmap(ImageBottomRight(tostring(rc)))) --Set button image based on selected option.
+end
+
+function m_choiceCenterTouchOnChoice()
+	rc = UI.m_choiceCenterTouch:GetSelection()
+	rc = math.tointeger(rc)
+	mc.mcProfileWriteString(inst, 'ToffParams', 'ToffCenterOption', tostring(rc))
+	UI.m_bpButtonCenter:SetBitmapLabel(wx.wxBitmap(ImageCenter(tostring(rc)))) --Set button image based on selected option.
+end
+
+function m_choiceMeasureAngleOnChoice()
+	rc = UI.m_choiceMeasureAngle:GetSelection()
+	rc = math.tointeger(rc)
+	mc.mcProfileWriteString(inst, 'ToffParams', 'ToffAngleOption', (tostring(rc)))
+	
+	UI.m_bpButtonMeasureAngle:SetBitmapLabel(wx.wxBitmap(ImageMeasureAngle(tostring(rc)))) --Set button image based on selected option.
+end
+
+function m_choiceZOnlyOnChoice()
+	rc = UI.m_choiceZOnly:GetSelection()
+	rc = math.tointeger(rc)
+	mc.mcProfileWriteString(inst, 'ToffParams', 'ToffZOnlyOption', (tostring(rc)))
+	UI.m_bpButtonZOnly:SetBitmapLabel(wx.wxBitmap(ImageZOnly(tostring(rc)))) --Set button image based on selected option.
+end
+
+function m_buttonMachineWorkOnButtonClick()
+	--Toggle
+	if (MachWorkDRO == true) then
+		MachWorkDRO = false
+	else
+		MachWorkDRO = true
+	end
+	
+	if (MachWorkDRO == true) then 	--Set Machine/Work to work coordinates
+		UI.m_buttonMachineWork:SetBackgroundColour( wx.wxColour( 0, 0, 0 ) )
+		UI.m_buttonMachineWork:SetForegroundColour( wx.wxColour( 255, 255, 255 ) )
+		UI.m_buttonMachineWork:SetLabel( "Work/Machine Toggle\nCurrently Displaying\nWork Coordinates" )
+	else 							--Set Machine/Work to machine coordinates
+		UI.m_buttonMachineWork:SetBackgroundColour( wx.wxColour( 255, 0, 0 ) )
+		UI.m_buttonMachineWork:SetForegroundColour( wx.wxColour( 0, 0, 0 ) )
+		UI.m_buttonMachineWork:SetLabel( "Work/Machine Toggle\nCurrently Displaying\nMachine Coordinates" )
+	end
+end
+
+function m_bpButtonTopLeftOnButtonClick()
+	--rc = UI.m_choiceCornerTouch:GetSelection()
+	--if rc == 0 then
+	co = coroutine.create (TouchZnegYnegXpos0)
+	--elseif rc == 1 then
+	--co = coroutine.create (TouchZnegYnegXpos1)
+	--elseif rc == 2 then
+	--co = coroutine.create (TouchZnegYnegXpos2)
+	--elseif rc == 3 then
+	--co = coroutine.create (TouchZnegYnegXpos3)
+	--end
+end
+
+function m_bpButtonTopOnButtonClick()
+	co = coroutine.create (TouchOffYNeg0)
+end
+
+function m_bpButtonTopRightOnButtonClick()
+	--rc = UI.m_choiceCornerTouch:GetSelection()
+	--if rc == 0 then
+	co = coroutine.create (TouchZnegYnegXneg0)
+	--elseif rc == 1 then
+	--co = coroutine.create (TouchZnegYnegXneg1)
+	--elseif rc == 2 then
+	--co = coroutine.create (TouchZnegYnegXneg2)
+	--elseif rc == 3 then
+	--co = coroutine.create (TouchZnegYnegXneg3)
+	--end
+end
+
+function m_bpButtonLeftOnButtonClick()
+	co = coroutine.create (TouchOffXPos0)
+end
+
+function m_bpButtonCenterOnButtonClick()
+	--rc = UI.m_choiceCenterTouch:GetSelection()
+	--if rc == 0 then
+	co = coroutine.create (TouchCenter0)
+	--elseif rc == 1 then
+	--co = coroutine.create (TouchCenter1)
+	--elseif rc == 2 then
+	--co = coroutine.create (TouchCenter2)
+	--elseif rc == 3 then
+	--co = coroutine.create (TouchCenter3)
+	--end
+end
+
+function m_bpButtonRightOnButtonClick()
+	co = coroutine.create (TouchOffXNeg0)
+end
+
+function m_bpButtonBottomLeftOnButtonClick()
+	--rc = UI.m_choiceCornerTouch:GetSelection()
+	--if rc == 0 then
+	co = coroutine.create (TouchZnegYposXpos0)
+	--elseif rc == 1 then
+	--co = coroutine.create (TouchZnegYposXpos1)
+	--elseif rc == 2 then
+	--co = coroutine.create (TouchZnegYposXpos2)
+	--elseif rc == 3 then
+	--co = coroutine.create (TouchZnegYposXpos3)
+	--end
+end
+
+function m_bpButtonBottomOnButtonClick()
+	co = coroutine.create (TouchOffYPos0)
+end
+
+function m_bpButtonBottomRightOnButtonClick()
+	--rc = UI.m_choiceCornerTouch:GetSelection()
+	--if rc == 0 then
+	co = coroutine.create (TouchZnegYposXneg0)
+	--elseif rc == 1 then
+	--co = coroutine.create (TouchZnegYposXneg1)
+	--elseif rc == 2 then
+	--co = coroutine.create (TouchZnegYposXneg2)
+	--elseif rc == 3 then
+	--co = coroutine.create (TouchZnegYposXneg3)
+	--end
+end
+
+function m_bpButtonMeasureAngleOnButtonClick()
+	--rc = UI.m_choiceMeasureAngle:GetSelection()
+	--if rc == 0 then	--Find X+ angle
+	co = coroutine.create (Angle0)
+	--elseif rc == 1 then	--Find X- angle
+	--co = coroutine.create (Angle1)
+	--elseif rc == 2 then	--Find Y+ angle
+	--co = coroutine.create (Angle2)
+	--elseif rc == 3 then	--Find Y- angle
+	--co = coroutine.create (Angle3)
+	--end
+end
+
+function m_bpButtonZOnlyOnButtonClick()
+	rc = UI.m_choiceZOnly:GetSelection()
+	if rc == 0 then	--Material top
+	co = coroutine.create (TouchOffZNeg0)
+	elseif rc == 1 then	--TLO
+	co = coroutine.create (TouchOffZNeg1)
+	--elseif rc == 2 then	--Material bottom
+	--co = coroutine.create (TouchOffZNeg2)
+	--elseif rc == 3 then	--Material thickness
+	--co = coroutine.create (TouchOffZNeg3)
+	end
+end
+
+--place image functions here
+
+return mcTouchOff -- Module End
+
+--Button script
+--Touch Button script
+--if (Tframe == nil) then
+--    --TouchOff module
+--    package.loaded.mcTouchOff = nil
+--	mcTouchOff = require "mcTouchOff"
+--    
+--	Tframe = mcTouchOff.Dialog()
+--else
+--	Tframe:Show()
+--	Tframe:Raise()
+--end

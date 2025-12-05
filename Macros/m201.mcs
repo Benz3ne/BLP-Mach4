@@ -1,0 +1,5 @@
+function m201()
+    local inst = mc.mcGetInstance()
+    ProbeScripts.ProbeZ(inst)
+    return mc.MERROR_NOERROR
+end
