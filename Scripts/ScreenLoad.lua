@@ -28,20 +28,7 @@ dofile(_G.ROOT .. "\\ButtonScripts.lua")
 
 
 
-handles = {
-    sig_mpg = mc.mcSignalGetHandle(inst, mc.OSIG_JOG_MPG),
-    sig_cont = mc.mcSignalGetHandle(inst, mc.OSIG_JOG_CONT),
-    sig_inc = mc.mcSignalGetHandle(inst, mc.OSIG_JOG_INC),
-    sig_enabled = mc.mcSignalGetHandle(inst, mc.OSIG_MACHINE_ENABLED),
-    sig_running = mc.mcSignalGetHandle(inst, mc.OSIG_RUNNING_GCODE),
-    sig_jogging = mc.mcSignalGetHandle(inst, mc.OSIG_JOG_ENABLED)
-}
-state = {
-    mach_state = -1,      -- Machine state (100-299 = running)
-    mpg_mode = -1,        -- MPG jog active
-    fro = -1,             -- Feed rate override
-    motor_mode = nil      -- Current motor dynamics mode
-}
+state = {}  -- Used by SyncMPG() for axis_rates and mpg0_inc tracking
 
 -- Signal Library
 SigLib = {

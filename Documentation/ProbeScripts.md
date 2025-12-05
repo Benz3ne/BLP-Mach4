@@ -19,16 +19,11 @@ All functions are accessed via `ProbeScripts.FunctionName()`.
 
 ### Cross-File Interactions
 
-1. **PLC.lua** - The PLC script calls `ProcessDialogRequest()` when the dialog system is triggered:
-   ```lua
-   -- In PLC.lua (lines 29-34)
-   local hRequest = mc.mcRegGetHandle(inst, "iRegs0/DialogRequest")
-   if hRequest ~= 0 and mc.mcRegGetValue(hRequest) == 1 then
-       ProcessDialogRequest()
-   end
-   ```
-
-2. **ScreenLoad.lua** - Contains `ShowDialogScreen()` which renders the wxWidgets dialog when `ProbeScripts.ShowDialog()` is called.
+| File | Interaction |
+|------|-------------|
+| **PLC.lua** | Monitors `iRegs0/DialogRequest` register each cycle. When set to 1, calls `ProcessDialogRequest()` in ScreenLoad.lua to display the dialog |
+| **ScreenLoad.lua** | Contains `ProcessDialogRequest()` which reads the dialog configuration files and calls `ShowDialogScreen()` to render the wxWidgets dialog |
+| **Temp files** | Dialog system uses file-based IPC via `C:\Mach4Hobby\Profiles\BLP\Temp\` for passing field definitions and responses between macro and screen contexts |
 
 ---
 
@@ -70,8 +65,8 @@ All functions are accessed via `ProbeScripts.FunctionName()`.
 ### Center Finding (PV 300-301)
 | PV | Description |
 |----|-------------|
-| 300 | Stored X edge position for Set/Center |
-| 301 | Stored Y edge position for Set/Center |
+| 300 | Stored X edge **machine** position for Set/Center (0 = no edge stored) |
+| 301 | Stored Y edge **machine** position for Set/Center (0 = no edge stored) |
 
 ### Probe Results (PV 391-393)
 | PV | Description |
@@ -83,10 +78,10 @@ All functions are accessed via `ProbeScripts.FunctionName()`.
 ### System State (PV 499, 540-541, 550)
 | PV | Description |
 |----|-------------|
-| 499 | M6 tool change in-progress flag |
-| 540 | Bore X position (keytop system) |
-| 541 | Bore Y position (keytop system) |
-| 550 | Current tool number |
+| 499 | M6 tool change in-progress flag (1 = in progress, 0 = complete) |
+| 540 | Left bore X position in **machine** coordinates (keytop fixture) |
+| 541 | Left bore Y position in **machine** coordinates (keytop fixture) |
+| 550 | Current tool number (updated by M6_ToolChange) |
 
 ---
 
@@ -274,12 +269,19 @@ Shows 3-button dialog when G68 is active:
 function ProbeScripts.CheckProbeDeployed(inst)
 ```
 
-**Returns:** `true` if T90 active or user accepted tool change, `false` otherwise
+**Returns:**
+- `true` if T90 is already active
+- `false` if user declined tool change
+- `nil` if user accepted tool change (tool change was performed)
 
 **Behavior:**
 1. Checks `mc.mcToolGetCurrent(inst)`
-2. If not T90, prompts user to change
-3. If user accepts, executes `T90` then calls `ProbeScripts.M6_ToolChange()`
+2. If T90, returns `true`
+3. If not T90, prompts user with Yes/No dialog
+4. If user selects Yes: executes `T90`, calls `ProbeScripts.M6_ToolChange()`, returns `nil`
+5. If user selects No: returns `false`
+
+**Note:** Callers use `if not ProbeScripts.CheckProbeDeployed(inst) then return end` which aborts on both `false` and `nil`. This is intentional - after a tool change, the machine retracts to Z-0.050, so the user must reposition before running the probe routine again.
 
 ---
 
@@ -299,7 +301,12 @@ function ProbeScripts.ShowDialog(inst, title, fields, profileSection, options)
 | title | string | Dialog window title |
 | fields | table | Array of field definitions |
 | profileSection | string | INI section for persistence |
-| options | table | Optional: width, buttonLabels.ok, buttonLabels.cancel |
+| options | table | Optional settings (see below) |
+
+**Options Table:**
+- `width` - Dialog window width in pixels
+- `buttonLabels.ok` - Custom OK button text
+- `buttonLabels.cancel` - Custom Cancel button text
 
 **Returns:** Table of results (key/value pairs), or `nil` if cancelled
 
@@ -309,19 +316,23 @@ function ProbeScripts.ShowDialog(inst, title, fields, profileSection, options)
 |------|------------|-------------|
 | `instructions` | text, tooltip | Read-only text (smaller font) |
 | `separator` | none | Horizontal line |
-| `number` | key, label, default, min, max, tooltip, isInteger, decimals, validateMsg | Numeric input |
-| `text` | key, label, default, tooltip | Text input |
-| `checkbox` | key, label, default, tooltip | Boolean toggle |
-| `radio` | key, label, options, columns, default, tooltip | Single selection |
-| `choice` | key, label, options, default, tooltip | Dropdown selection |
-| `direction` | key, label, default, tooltip | 4-way direction picker (+X/-X/+Y/-Y) |
-| `grid` | columns, spacing, children | Multi-column layout |
+| `number` | key, label, default, min, max, tooltip, isInteger, decimals, validateMsg, width, persist | Numeric input |
+| `text` | key, label, default, tooltip, validate, persist | Text input (`validate` is a function returning `true` or `false, errorMsg`) |
+| `checkbox` | key, label, default, tooltip, persist | Boolean toggle (default 0 or 1) |
+| `radio` | key, label, options, columns, default, tooltip, persist | Single selection from options array |
+| `choice` | key, label, options, default, tooltip, persist | Dropdown selection |
+| `direction` | key, label, default, tooltip, persist | 4-way direction picker (0=+X, 1=-X, 2=+Y, 3=-Y) |
+| `grid` | columns, spacing, children | Multi-column layout container |
 | `section` | label, children | Grouped fields with border |
 | `description` | key, text | Italic informational text |
 
+**Common Field Properties:**
+- `key` - Identifier for result retrieval and profile persistence
+- `persist` - Set to `false` to disable automatic profile save/load (default: `true`)
+- `width` - Control width in pixels (for `number` fields)
+
 **Persistence:**
-- Fields with `key` are automatically saved to/loaded from profile INI
-- Set `persist = false` to disable persistence for a field
+- Fields with `key` are automatically saved to/loaded from profile INI under `profileSection`
 - Uses `mc.mcProfileGetDouble/Int/String` and `mc.mcProfileWriteDouble/Int/String`
 
 **Communication Flow:**
@@ -373,7 +384,7 @@ function ProbeScripts.M6_ToolChange(inst)
 
 **Tool Categories:**
 - **Physical tools (T1-T89):** Stored in pockets, picked up by spindle
-- **Virtual tools (T90-T99):** Pneumatically deployed (T90=probe, T91=laser)
+- **Virtual tools (T90+):** No physical pickup, just apply G43 offsets. T90 (probe) and T91 (laser) have pneumatic deployment; others only apply offsets
 - **T0:** Clear tool / bare spindle
 
 **Tool Pocket Data (from tool table):**
@@ -550,11 +561,27 @@ Measures single-tap vs double-tap offset for high-speed probing.
 
 Probes a tool holder to measure and save pocket position.
 
+**Dialog Options:**
+- Tool Number (1-89, virtual tools not allowed)
+
+**Hardcoded Parameters:**
+- Pull stud width: 1.0"
+- Traverse height: 0.2"
+- Holder taper height: 2.8"
+- Holder drop height: 0.1"
+
 **Process:**
-1. Probes pull stud top surface
-2. Probes X/Y edges to find center
-3. Calculates spindle position accounting for probe offsets
-4. Saves to tool table XToolChange/YToolChange/ZToolChange
+1. Probes pull stud top surface (-Z)
+2. Uses `ProbeOutside()` to probe all 4 edges of pull stud
+3. Calculates center from edge measurements
+4. Moves probe to center
+5. Calculates spindle position by subtracting T90 probe offsets
+6. Calculates Z pickup height: `surfaceZ - probeHeight - taperHeight`
+7. Saves to tool table: XToolChange, YToolChange, ZToolChange
+
+**Prerequisites:**
+- Probe must be positioned directly over pull stud
+- T90 offsets must be calibrated (uses probe X/Y offsets to find spindle position)
 
 ---
 
@@ -582,80 +609,31 @@ Probes a tool holder to measure and save pocket position.
 
 ### ProbeScripts.InitialKeytopTrim()
 
-**Generates G-code for initial keytop surface trimming.**
+**Generates and queues G-code for initial keytop surface trimming.**
 
-Uses similar bore alignment and calibration as ProbeKeys.
+**Dialog Options:**
+- Top Trim Depth (inches)
+- Trim Operation: Full Trim / Top Only / Front Only
+
+**Process:**
+1. Performs bore alignment and G68 rotation (same as ProbeKeys)
+2. Reads fixture ID from binary holes
+3. Searches log files for matching fixture ID to get average Z height from previous ProbeKeys run
+4. Calculates trim height: `avgZ - trimDepth`
+5. Loads and modifies template G-code files, adjusting Z values
+6. Writes combined G-code to piano folder
+7. Creates deferred load marker for PLC to load file when idle
+
+**Prerequisites:**
+- Must run ProbeKeys first (needs average Z height from log)
+- Front vacuum must be ON
+- Must be on GCode tab (not MDI)
 
 ---
 
 ### ProbeScripts.Debug()
 
-Development/testing function.
-
----
-
-## Error Handling
-
-### Probe Stuck Detection
-
-`ProbeXYZ()` includes automatic unstick logic:
-1. After retract, checks if probe still triggered
-2. Pushes probe INTO surface (0.01", 0.05", 0.1" progressively)
-3. Retracts to original start position
-4. Repeats up to 3 times
-
-### Motion Error Handling
-
-Tool change uses wrapper function:
-```lua
-local function GcodeExecuteWait(gcode)
-    local rc = mc.mcCntlGcodeExecuteWait(inst, gcode)
-    if rc ~= mc.MERROR_NOERROR then
-        -- Restore FRO/RRO
-        -- Clear M6 flag
-        error("Motion aborted")
-    end
-end
-```
-
----
-
-## Usage Examples
-
-### Basic Edge Probe
-```lua
-local inst = mc.mcGetInstance()
-local edge, success = ProbeScripts.Probe(inst, 1, true, true)
--- Probes +X, sets datum, returns to start
-if success then
-    mc.mcCntlSetLastError(inst, "X edge set to 0")
-end
-```
-
-### Dialog with Validation
-```lua
-local fields = {
-    {type = "number", key = "depth", label = "Depth:",
-     default = 0.1, min = 0.001, max = 1.0,
-     validateMsg = "Depth must be 0.001-1.0"},
-    {type = "checkbox", key = "setDatum", label = "Set Datum",
-     default = 1}
-}
-local params = ProbeScripts.ShowDialog(inst, "Probe Setup", fields, "MyProbeSection")
-if params then
-    -- params.depth and params.setDatum contain user input
-end
-```
-
-### Protected Move with Collision Detection
-```lua
--- Move to X=5 in work coordinates with collision detection
-if ProbeScripts.ProtectedMove(inst, "work", 5, nil, nil, 200) then
-    mc.mcCntlSetLastError(inst, "Move successful")
-else
-    mc.mcCntlSetLastError(inst, "Collision detected!")
-end
-```
+Development/testing function. Must be named .Debug to work.
 
 ---
 
@@ -668,15 +646,3 @@ end
 | `PLC.lua` | Dialog request detection |
 | `C:\...\Temp\dialog_*.txt/lua` | IPC files for dialog system |
 | `C:\...\Logs\*.txt` | Error and probe data logging |
-
----
-
-## Revision Notes
-
-This documentation reflects the current state of ProbeScripts.mcs as analyzed. Key architectural decisions:
-
-1. **Per-direction probe calibration** allows compensation for non-spherical probe tips
-2. **File-based IPC** for dialog system avoids wxWidgets threading issues
-3. **G31.1** used for both probing and collision detection
-4. **Machine coordinates** preferred for return-to-start reliability
-5. **Single-tap calibration** enables high-speed probing with offset compensation
