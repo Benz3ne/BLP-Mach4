@@ -2529,6 +2529,39 @@ end
 
 
 function ProbeScripts.ProbeKeys(inst)
+    -- Check Fusion add-in is running (heartbeat file)
+    local HEARTBEAT_FILE = "C:\\Mach4Hobby\\Profiles\\BLP\\Logs\\FUSION_HEARTBEAT.txt"
+    local HEARTBEAT_MAX_AGE = 30  -- seconds - allow some slack for network latency
+
+    local heartbeatFile = io.open(HEARTBEAT_FILE, "r")
+    if not heartbeatFile then
+        wx.wxMessageBox("Fusion 360 add-in is not running.\n\nPlease start Fusion 360 and enable the Keytop Parametric Update add-in before probing.",
+            "Fusion Not Running", wx.wxOK + wx.wxICON_ERROR)
+        return
+    end
+
+    local heartbeatTimestamp = tonumber(heartbeatFile:read("*a"))
+    heartbeatFile:close()
+
+    if not heartbeatTimestamp then
+        wx.wxMessageBox("Fusion 360 heartbeat file is invalid.\n\nPlease restart the Keytop Parametric Update add-in in Fusion 360.",
+            "Fusion Error", wx.wxOK + wx.wxICON_ERROR)
+        return
+    end
+
+    local currentTime = os.time()
+    local heartbeatAge = currentTime - heartbeatTimestamp
+
+    if heartbeatAge > HEARTBEAT_MAX_AGE then
+        wx.wxMessageBox(string.format("Fusion 360 add-in appears to be stale (last heartbeat %d seconds ago).\n\nPlease check that Fusion 360 is running and the add-in is enabled.",
+            heartbeatAge),
+            "Fusion Not Responding", wx.wxOK + wx.wxICON_ERROR)
+        return
+    end
+
+    -- Heartbeat is valid - delete it so it doesn't grow (Fusion will recreate it)
+    os.remove(HEARTBEAT_FILE)
+
     -- Check probe deployment first
     if not ProbeScripts.CheckProbeDeployed(inst) then return end
 
@@ -2659,23 +2692,21 @@ function ProbeScripts.ProbeKeys(inst)
     local traverseHeight  -- calculated after Z probing
     local probeZ  -- calculated after Z probing
     local keyHeights = {}  -- Store individual key heights indexed by enumKey
-    
-    -- Files - create piano-specific folder
-    local pianoFolder = string.format("C:\\Mach4Hobby\\Profiles\\BLP\\Logs\\%s_%s", params.make, params.serial)
-    os.execute('mkdir "' .. pianoFolder .. '" 2>nul')
 
-    local pianoName = string.format("%s_%s", params.make, params.serial)
-    local csvPath = nil  -- Set after key set is determined (auto-detect or manual selection)
-    local reportPath = string.format("%s\\%s_Report.txt", pianoFolder, pianoName)
-
-    -- Open report file in append mode to handle multiple halves
-    local reportFile = io.open(reportPath, "a")
+    -- Files - set after key section is determined (either from user selection or auto-detect)
+    -- Each section (Upper/Lower) gets its own folder: {Make}_{Serial}_{Section}/
+    local pianoFolder = nil
+    local pianoName = nil
+    local csvPath = nil
+    local reportFile = nil
     
-    -- Helper function to write to report
+    -- Helper function to write to report (only writes if file is open)
     local function writeReport(message)
-        local timestamp = os.date("%Y-%m-%d %H:%M:%S")
-        reportFile:write(string.format("[%s] %s\n", timestamp, message))
-        reportFile:flush()
+        if reportFile then
+            local timestamp = os.date("%Y-%m-%d %H:%M:%S")
+            reportFile:write(string.format("[%s] %s\n", timestamp, message))
+            reportFile:flush()
+        end
     end
     
     -- Calculate maximum orthogonal distance of middle point from line through endpoints
@@ -2724,13 +2755,6 @@ function ProbeScripts.ProbeKeys(inst)
         end
         csvFile:flush()
     end
-    
-    writeReport(string.format("===== ProbeKeys %s Half - %s S/N %s Started =====",
-        keyHalfName or "Auto-detect", params.make, params.serial))
-    writeReport(string.format("Probe Drop Depth: %.4f", ProbeDropDepth))
-    writeReport(string.format("Shoulder Drop Depth: %.4f", ShoulderDropDepth))
-    writeReport(string.format("Linearity Threshold: %.4f", LINEARITY_THRESHOLD))
-    writeReport(string.format("Single Tap Feedrate: %.1f IPM", SINGLE_TAP_FEEDRATE))
 
     local function probeKeySide(keyIndex, direction, xPosition)
         local keyInfo = TEST_KEYS[keyIndex]
@@ -3167,8 +3191,23 @@ function ProbeScripts.ProbeKeys(inst)
         mc.mcCntlGcodeExecuteWait(inst, string.format("G90 G0 Z%.4f", safeTraverseZ))
     end
 
-    -- Now that key section is determined, create csvPath
-    csvPath = string.format("%s\\%s_%s.csv", pianoFolder, pianoName, keyHalfName)
+    -- Now that key section is determined, create folder and files
+    -- Each section gets its own folder: {Make}_{Serial}_{Upper|Lower}/
+    pianoName = string.format("%s_%s_%s", params.make, params.serial, keyHalfName)
+    pianoFolder = string.format("C:\\Mach4Hobby\\Profiles\\BLP\\Logs\\%s", pianoName)
+    os.execute('mkdir "' .. pianoFolder .. '" 2>nul')
+
+    csvPath = string.format("%s\\%s.csv", pianoFolder, pianoName)
+    local reportPath = string.format("%s\\%s_Report.txt", pianoFolder, pianoName)
+    reportFile = io.open(reportPath, "w")  -- New file for each run
+
+    writeReport(string.format("===== ProbeKeys %s - %s S/N %s =====", keyHalfName, params.make, params.serial))
+    writeReport(string.format("Fixture ID: %d", fixtureID))
+    writeReport(string.format("Bore alignment angle: %.4f degrees", angleDegrees))
+    writeReport(string.format("Probe Drop Depth: %.4f", ProbeDropDepth))
+    writeReport(string.format("Shoulder Drop Depth: %.4f", ShoulderDropDepth))
+    writeReport(string.format("Linearity Threshold: %.4f", LINEARITY_THRESHOLD))
+    writeReport(string.format("Single Tap Feedrate: %.1f IPM", SINGLE_TAP_FEEDRATE))
     writeReport(string.format("CSV output file: %s", csvPath))
 
     -- ========== Z HEIGHT PROBING ==========
@@ -3358,6 +3397,24 @@ function ProbeScripts.ProbeKeys(inst)
     mc.mcCntlSetLastError(inst, string.format("ProbeKeys %s half completed successfully", keyHalfName))
     writeReport(string.format("===== ProbeKeys %s Half Completed Successfully =====", keyHalfName))
     reportFile:close()
+
+    -- ========== TRIGGER FUSION ADD-IN ==========
+    -- Create trigger file for Fusion 360 to process the probe data
+    -- Format: JSON with csv_path and piano_id
+    local triggerPath = "C:\\Mach4Hobby\\Profiles\\BLP\\Logs\\PROBE_COMPLETE_" .. pianoName .. ".txt"
+    local triggerData = string.format('{"csv_path": "%s", "piano_id": "%s"}',
+        csvPath:gsub("\\", "\\\\"),  -- Escape backslashes for JSON
+        pianoName)
+
+    local triggerFile = io.open(triggerPath, "w")
+    if triggerFile then
+        triggerFile:write(triggerData)
+        triggerFile:close()
+        mc.mcCntlSetLastError(inst, string.format("ProbeKeys complete - trigger sent to Fusion"))
+    else
+        wx.wxMessageBox("Warning: Could not create trigger file for Fusion 360.\n\nManually trigger the add-in or re-run ProbeKeys.",
+            "Trigger Warning", wx.wxOK + wx.wxICON_WARNING)
+    end
 
     return true
 end
@@ -3630,6 +3687,7 @@ function ProbeScripts.InitialKeytopTrim(inst)
         local foundFolder = nil
 
         -- Search through each piano folder
+        -- Folder name is now {Make}_{Serial}_{Section}
         for folderName in folders:gmatch("[^\r\n]+") do
             local reportPath = logsDir .. "\\" .. folderName .. "\\" .. folderName .. "_Report.txt"
             local file = io.open(reportPath, "r")
@@ -3638,14 +3696,18 @@ function ProbeScripts.InitialKeytopTrim(inst)
                 file:close()
 
                 -- Search for fixture ID line
-                local foundID = content:match("Fixture ID detected: (%d+)")
+                local foundID = content:match("Fixture ID: (%d+)")
                 if foundID and tonumber(foundID) == searchFixtureID then
                     -- Found matching fixture ID, now get average Z
                     local avgZMatch = content:match("Average Z height: ([%d%.]+)")
                     if avgZMatch then
                         avgZ = tonumber(avgZMatch)
-                        -- Extract make and serial from folder name
-                        foundMake, foundSerial = folderName:match("(.+)_(.+)")
+                        -- Extract make and serial from folder name (format: Make_Serial_Section)
+                        if folderName:match("_Upper$") then
+                            foundMake, foundSerial = folderName:match("(.+)_(.+)_Upper$")
+                        elseif folderName:match("_Lower$") then
+                            foundMake, foundSerial = folderName:match("(.+)_(.+)_Lower$")
+                        end
                         foundFolder = folderName
                         writeReport(string.format("Found matching fixture ID %d in folder: %s", searchFixtureID, folderName))
                         writeReport(string.format("Piano: %s S/N %s", foundMake or "Unknown", foundSerial or "Unknown"))
@@ -3896,6 +3958,432 @@ function ProbeScripts.InitialKeytopTrim(inst)
     return true
 end
 
+
+
+-- ============================================================================
+-- FinalKeytopShaping - Load and run Fusion-generated shaping G-code
+-- ============================================================================
+function ProbeScripts.FinalKeytopShaping(inst)
+    -- Check probe deployment first
+    if not ProbeScripts.CheckProbeDeployed(inst) then return end
+
+    -- Check that user is on GCode tab (not MDI)
+    local tabCheckOk, tabResult = pcall(function()
+        local tab1 = scr.GetProperty("nbGCodeMDI1", "Current Tab")
+        local tab2 = scr.GetProperty("nbGCodeMDI2", "Current Tab")
+        return (tab1 == "0" or tab1 == 0) or (tab2 == "0" or tab2 == 0)
+    end)
+
+    if tabCheckOk and not tabResult then
+        wx.wxMessageBox("Please switch to the GCode tab before running Final Keytop Shaping.\n\nThe MDI tab is currently active.",
+            "Wrong Tab", wx.wxOK + wx.wxICON_WARNING)
+        return
+    end
+
+    -- Check front vacuum is on (OUTPUT6)
+    local vacFrontHandle = mc.mcSignalGetHandle(inst, mc.OSIG_OUTPUT6)
+    local vacFrontState = mc.mcSignalGetState(vacFrontHandle)
+    if vacFrontState ~= 1 then
+        wx.wxMessageBox("Front vacuum must be ON before running Final Keytop Shaping.\n\nPlease turn on the front vacuum and try again.",
+            "Vacuum Required", wx.wxOK + wx.wxICON_WARNING)
+        return
+    end
+
+    mc.mcCntlGcodeExecuteWait(inst, "G55")
+
+    -- Scan for available shaping files to populate dropdown
+    local logsDir = "C:\\Mach4Hobby\\Profiles\\BLP\\Logs"
+    local availableFiles = {}
+    local fileOptions = {"Auto-detect from fixture"}
+
+    -- Search through piano folders for shaping files
+    local handle = io.popen('dir "' .. logsDir .. '" /b /ad /o-d 2>nul')
+    local folders = handle:read("*a")
+    handle:close()
+
+    for folderName in folders:gmatch("[^\r\n]+") do
+        local folderPath = logsDir .. "\\" .. folderName
+        -- Look for shaping .tap files in this folder
+        local fileHandle = io.popen('dir "' .. folderPath .. '\\*Shaping*.tap" /b /o-d 2>nul')
+        local files = fileHandle:read("*a")
+        fileHandle:close()
+
+        for fileName in files:gmatch("[^\r\n]+") do
+            local displayName = folderName .. " - " .. fileName:gsub("%.tap$", "")
+            table.insert(fileOptions, displayName)
+            table.insert(availableFiles, {
+                folder = folderName,
+                file = fileName,
+                path = folderPath .. "\\" .. fileName
+            })
+        end
+    end
+
+    -- Show dialog with dropdown of available files
+    local fields = {
+        {type = "instructions",
+         text = "Select shaping G-code file to run.\nAuto-detect will probe the fixture ID and find the matching file."},
+        {type = "choice", key = "fileSelection", label = "Shaping File",
+         options = fileOptions,
+         default = 0,
+         tooltip = "Select Auto-detect or choose a specific file"}
+    }
+
+    local params = ProbeScripts.ShowDialog(inst, "Final Keytop Shaping", fields, "FinalKeytopShaping", {width = 450})
+    if not params then return end
+
+    -- Cancel any existing G68 rotation
+    mc.mcCntlGcodeExecuteWait(inst, "G69")
+
+    -- Config
+    local SINGLE_TAP_FEEDRATE = 40  -- IPM for single tap probes
+    local BORE_SEPARATION = 46.0  -- inches between calibration bores
+    local ID_HOLE_DEPTH_THRESHOLD = -0.05  -- Threshold for fixture ID hole detection
+    local safeTraverseZ = 2.0  -- Safe Z height for traversing
+
+    -- Storage
+    local centeringHeightMachine  -- bore centering height in machine coords
+    local calibrationOffsets = {}  -- single-tap calibration offsets
+    local fixtureID = nil  -- detected fixture ID
+    local reportFile = nil
+    local reportMessages = {}
+
+    -- Helper function to write to report (buffers until file is opened)
+    local function writeReport(message)
+        local timestamp = os.date("%Y-%m-%d %H:%M:%S")
+        local formattedMsg = string.format("[%s] %s\n", timestamp, message)
+        table.insert(reportMessages, formattedMsg)
+        if reportFile then
+            reportFile:write(formattedMsg)
+            reportFile:flush()
+        end
+    end
+
+    writeReport("===== Final Keytop Shaping Started =====")
+
+    -- Helper function for bore center probing
+    local function probeBoreCenter(boreName)
+        local xEdge1 = ProbeScripts.Probe(inst, 1, false, true, nil, nil, false, nil)
+        local xEdge2 = ProbeScripts.Probe(inst, 2, false, true, nil, nil, false, nil)
+        local centerX = (xEdge1 + xEdge2) / 2
+
+        local yEdge1 = ProbeScripts.Probe(inst, 3, false, true, nil, nil, false, nil)
+        local yEdge2 = ProbeScripts.Probe(inst, 4, false, true, nil, nil, false, nil)
+        local centerY = (yEdge1 + yEdge2) / 2
+
+        return centerX, centerY
+    end
+
+    -- ========== LEFT BORE POSITIONING ==========
+
+    -- Get bore location from settings (pv 540 and 541)
+    local boreMachineX = mc.mcCntlGetPoundVar(inst, 540)
+    local boreMachineY = mc.mcCntlGetPoundVar(inst, 541)
+
+    if boreMachineX == 0 and boreMachineY == 0 then
+        wx.wxMessageBox("Bore location not configured.\n\nPlease set the bore machine coordinates in System Settings > Keytop Replacement.",
+            "Configuration Required", wx.wxOK + wx.wxICON_ERROR)
+        return false
+    end
+
+    -- Get T90 tool table offsets
+    local toolXOffset = mc.mcToolGetData(inst, mc.MTOOL_MILL_X, 90) or 0
+    local toolYOffset = mc.mcToolGetData(inst, mc.MTOOL_MILL_Y, 90) or 0
+
+    -- Calculate spindle position needed to put probe tip at bore center
+    local spindleTargetX = boreMachineX + toolXOffset
+    local spindleTargetY = boreMachineY + toolYOffset
+
+    -- Move to safe Z height first
+    mc.mcCntlSetLastError(inst, "Moving to bore location...")
+    mc.mcCntlGcodeExecuteWait(inst, "G90 G53 G0 Z-0.05")
+
+    -- Move spindle to calculated position
+    if not ProbeScripts.ProtectedMove(inst, "mach", spindleTargetX, spindleTargetY, nil, 300) then
+        return false
+    end
+
+    -- ========== LEFT BORE CALIBRATION ==========
+
+    -- Probe down to find bore bottom
+    local doubleResults = {}
+    doubleResults["-Z"] = ProbeScripts.Probe(inst, 5, false, false, nil, nil, false, nil)
+    local boreBottomZ = doubleResults["-Z"]
+
+    -- Move up 0.25" and note position
+    mc.mcCntlGcodeExecuteWait(inst, "G91 G0 Z0.25")
+    centeringHeightMachine = mc.mcAxisGetMachinePos(inst, mc.Z_AXIS)
+
+    -- Double tap all four sides for centering
+    doubleResults["+X"] = ProbeScripts.Probe(inst, 1, false, true, nil, nil, false, nil)
+    doubleResults["-X"] = ProbeScripts.Probe(inst, 2, false, true, nil, nil, false, nil)
+    doubleResults["+Y"] = ProbeScripts.Probe(inst, 3, false, true, nil, nil, false, nil)
+    doubleResults["-Y"] = ProbeScripts.Probe(inst, 4, false, true, nil, nil, false, nil)
+
+    -- Calculate and move to center
+    local leftBoreCenterX = (doubleResults["+X"] + doubleResults["-X"]) / 2
+    local leftBoreCenterY = (doubleResults["+Y"] + doubleResults["-Y"]) / 2
+    mc.mcCntlGcodeExecuteWait(inst, string.format("G90 G1 X%.4f Y%.4f F200", leftBoreCenterX, leftBoreCenterY))
+
+    -- Single tap calibration for -Z only
+    local singleZResult = ProbeScripts.Probe(inst, 5, false, true, nil, SINGLE_TAP_FEEDRATE, true, nil)
+    calibrationOffsets["-Z"] = singleZResult - doubleResults["-Z"]
+
+    writeReport("Single-tap calibration offset:")
+    writeReport(string.format("  -Z: %.6f", calibrationOffsets["-Z"]))
+
+    -- Log left bore center and set datum
+    writeReport(string.format("Left bore center: X%.4f Y%.4f", leftBoreCenterX, leftBoreCenterY))
+    mc.mcAxisSetPos(inst, mc.X_AXIS, 0)
+    mc.mcAxisSetPos(inst, mc.Y_AXIS, 0)
+
+    -- Move out of bore and probe surface
+    mc.mcCntlGcodeExecuteWait(inst, string.format("G90 G0 Z%.4f", boreBottomZ + 1))
+    if not ProbeScripts.ProtectedMove(inst, "inc", 0.6, nil, nil, 200) then
+        return false
+    end
+    local surfaceZ = ProbeScripts.Probe(inst, 5, true, true, nil, nil, false, nil)
+    writeReport(string.format("Surface Z datum set at: %.4f", surfaceZ))
+
+    -- Move back to bore center (0,0)
+    if not ProbeScripts.ProtectedMove(inst, "work", 0, 0, nil, 200) then
+        return false
+    end
+
+    -- ========== FIXTURE ID PROBING ==========
+
+    local fixtureIDBits = {}
+
+    -- Probe each of the 10 ID holes
+    for i = 1, 10 do
+        local yPos = 1.0 + (i - 1) * 0.5
+        if not ProbeScripts.ProtectedMove(inst, "work", 0, yPos, nil, 200) then
+            return false
+        end
+        local holeZ = ProbeScripts.Probe(inst, 5, false, true, nil, SINGLE_TAP_FEEDRATE, true, nil)
+        holeZ = holeZ - calibrationOffsets["-Z"]
+
+        local bitValue = (holeZ < ID_HOLE_DEPTH_THRESHOLD) and 1 or 0
+        fixtureIDBits[i] = bitValue
+
+        writeReport(string.format("ID hole %d: Z=%.4f (calibrated), bit=%d", i, holeZ, bitValue))
+    end
+
+    -- Verify check bits (9th should be 0, 10th should be 1)
+    if fixtureIDBits[9] ~= 0 or fixtureIDBits[10] ~= 1 then
+        writeReport(string.format("WARNING: Check bits invalid! Bit 9=%d (expected 0), Bit 10=%d (expected 1)",
+            fixtureIDBits[9], fixtureIDBits[10]))
+    end
+
+    -- Calculate fixture ID from first 8 bits
+    fixtureID = 0
+    for i = 1, 8 do
+        fixtureID = fixtureID + fixtureIDBits[i] * (2 ^ (i - 1))
+    end
+
+    writeReport(string.format("Fixture ID detected: %d (binary: %s%s%s%s%s%s%s%s)",
+        fixtureID,
+        tostring(fixtureIDBits[8]), tostring(fixtureIDBits[7]),
+        tostring(fixtureIDBits[6]), tostring(fixtureIDBits[5]),
+        tostring(fixtureIDBits[4]), tostring(fixtureIDBits[3]),
+        tostring(fixtureIDBits[2]), tostring(fixtureIDBits[1])))
+
+    -- ========== RIGHT BORE PROBING ==========
+
+    mc.mcCntlGcodeExecuteWait(inst, string.format("G90 G0 Z%.4f", safeTraverseZ))
+    if not ProbeScripts.ProtectedMove(inst, "work", BORE_SEPARATION, 0, nil, 300) then
+        return false
+    end
+
+    if not ProbeScripts.ProtectedMove(inst, "mach", nil, nil, centeringHeightMachine) then
+        return false
+    end
+    local rightBoreCenterX, rightBoreCenterY = probeBoreCenter("right")
+    writeReport(string.format("Right bore center (in datum coords): X%.4f Y%.4f", rightBoreCenterX, rightBoreCenterY))
+
+    -- Calculate and apply G68 rotation
+    local yDifference = rightBoreCenterY
+    local xDifference = rightBoreCenterX
+    local angleDegrees = 0
+    if math.abs(xDifference) > 0.001 then
+        local angleRadians = math.atan(yDifference / xDifference)
+        angleDegrees = angleRadians * 180 / math.pi
+    end
+
+    writeReport(string.format("Right bore position relative to left: X%.4f Y%.4f", xDifference, yDifference))
+    writeReport(string.format("Bore alignment angle: %.4f degrees", angleDegrees))
+
+    mc.mcCntlGcodeExecuteWait(inst, string.format("G68 X0 Y0 R%.4f", angleDegrees))
+    writeReport(string.format("G68 rotation applied: %.4f degrees centered at 0,0", angleDegrees))
+
+    -- ========== FIND SHAPING FILE ==========
+
+    local shapingFilePath = nil
+    local pianoMake = nil
+    local pianoSerial = nil
+    local pianoFolder = nil
+    local keySection = nil  -- "Upper" or "Lower"
+
+    if params.fileSelection == 0 then
+        -- Auto-detect: search log files for matching fixture ID
+        mc.mcCntlSetLastError(inst, "Searching for fixture ID in logs...")
+
+        local function findFixtureInLogs(searchFixtureID)
+            local foundMake = nil
+            local foundSerial = nil
+            local foundFolder = nil
+            local foundSection = nil
+
+            for folderName in folders:gmatch("[^\r\n]+") do
+                local reportPath = logsDir .. "\\" .. folderName .. "\\" .. folderName .. "_Report.txt"
+                local file = io.open(reportPath, "r")
+                if file then
+                    local content = file:read("*a")
+                    file:close()
+
+                    local foundID = content:match("Fixture ID: (%d+)")
+                    if foundID and tonumber(foundID) == searchFixtureID then
+                        -- Folder name is now {Make}_{Serial}_{Section}
+                        -- Extract section from folder name (last part)
+                        if folderName:match("_Upper$") then
+                            foundSection = "Upper"
+                            foundMake, foundSerial = folderName:match("(.+)_(.+)_Upper$")
+                        elseif folderName:match("_Lower$") then
+                            foundSection = "Lower"
+                            foundMake, foundSerial = folderName:match("(.+)_(.+)_Lower$")
+                        end
+                        foundFolder = folderName
+
+                        writeReport(string.format("Found matching fixture ID %d in folder: %s", searchFixtureID, folderName))
+                        writeReport(string.format("Piano: %s S/N %s, Section: %s", foundMake or "Unknown", foundSerial or "Unknown", foundSection or "Unknown"))
+                        break
+                    end
+                end
+            end
+
+            return foundMake, foundSerial, foundFolder, foundSection
+        end
+
+        pianoMake, pianoSerial, pianoFolder, keySection = findFixtureInLogs(fixtureID)
+
+        if not pianoFolder then
+            wx.wxMessageBox(string.format("Could not find previous probing data for fixture ID %d.\n\nPlease run ProbeKeys first.", fixtureID),
+                "Log Data Not Found", wx.wxOK + wx.wxICON_ERROR)
+            mc.mcCntlGcodeExecuteWait(inst, "G69")
+            return false
+        end
+
+        if not keySection then
+            wx.wxMessageBox(string.format("Could not determine Upper/Lower section from logs for fixture ID %d.", fixtureID),
+                "Section Unknown", wx.wxOK + wx.wxICON_ERROR)
+            mc.mcCntlGcodeExecuteWait(inst, "G69")
+            return false
+        end
+
+        -- Look for shaping file matching the section
+        local pianoFolderPath = logsDir .. "\\" .. pianoFolder
+        local shapingPattern = keySection .. " Shaping"
+
+        local fileHandle = io.popen('dir "' .. pianoFolderPath .. '\\*' .. keySection .. '*Shaping*.tap" /b /o-d 2>nul')
+        local files = fileHandle:read("*a")
+        fileHandle:close()
+
+        local firstFile = files:match("[^\r\n]+")
+        if firstFile then
+            shapingFilePath = pianoFolderPath .. "\\" .. firstFile
+            writeReport(string.format("Found shaping file: %s", shapingFilePath))
+        else
+            wx.wxMessageBox(string.format("No %s Shaping file found for %s.\n\nPlease ensure Fusion360 has exported the shaping G-code.", keySection, pianoFolder),
+                "Shaping File Not Found", wx.wxOK + wx.wxICON_ERROR)
+            mc.mcCntlGcodeExecuteWait(inst, "G69")
+            return false
+        end
+
+    else
+        -- User selected a specific file
+        local selectedIdx = params.fileSelection  -- 0 = auto-detect, 1+ = file index
+        local fileInfo = availableFiles[selectedIdx]
+        if fileInfo then
+            shapingFilePath = fileInfo.path
+            pianoFolder = fileInfo.folder
+
+            -- Determine section from filename
+            if fileInfo.file:lower():match("upper") then
+                keySection = "Upper"
+            elseif fileInfo.file:lower():match("lower") then
+                keySection = "Lower"
+            end
+
+            writeReport(string.format("User selected file: %s", shapingFilePath))
+        else
+            wx.wxMessageBox("Invalid file selection.", "Error", wx.wxOK + wx.wxICON_ERROR)
+            mc.mcCntlGcodeExecuteWait(inst, "G69")
+            return false
+        end
+    end
+
+    -- Verify file exists
+    local testFile = io.open(shapingFilePath, "r")
+    if not testFile then
+        wx.wxMessageBox(string.format("Shaping file not found:\n%s", shapingFilePath),
+            "File Not Found", wx.wxOK + wx.wxICON_ERROR)
+        mc.mcCntlGcodeExecuteWait(inst, "G69")
+        return false
+    end
+    testFile:close()
+
+    -- ========== OPEN REPORT FILE ==========
+
+    local pianoFolderPath = logsDir .. "\\" .. pianoFolder
+    local pianoName = pianoFolder
+    local reportPath = pianoFolderPath .. "\\" .. pianoName .. "_Report.txt"
+    reportFile = io.open(reportPath, "a")
+    if reportFile then
+        for _, msg in ipairs(reportMessages) do
+            reportFile:write(msg)
+        end
+        reportFile:flush()
+    end
+
+    -- ========== CLEANUP AND QUEUE FILE ==========
+
+    -- Retract to machine Z0
+    mc.mcCntlGcodeExecuteWait(inst, "G90 G53 G0 Z0")
+
+    -- Clear G68 rotation
+    mc.mcCntlGcodeExecuteWait(inst, "G69")
+    writeReport("G68 rotation cleared")
+
+    -- Close any currently loaded G-code file
+    mc.mcCntlCloseGCodeFile(inst)
+
+    -- Update the piano's log file
+    local timestamp = os.date("%Y-%m-%d %H:%M:%S")
+    writeReport(string.format("===== Final Shaping Started ====="))
+    writeReport(string.format("Fixture ID: %d", fixtureID))
+    writeReport(string.format("Section: %s", keySection or "Unknown"))
+    writeReport(string.format("G-code file: %s", shapingFilePath))
+
+    if reportFile then
+        reportFile:close()
+    end
+
+    -- ========== DEFERRED FILE LOAD ==========
+
+    local markerPath = "C:\\Mach4Hobby\\Profiles\\BLP\\Temp\\DeferredGCode.txt"
+    local markerFile = io.open(markerPath, "w")
+    if markerFile then
+        markerFile:write(shapingFilePath)
+        markerFile:close()
+        writeReport("Deferred load marker created: " .. markerPath)
+    else
+        wx.wxMessageBox("Failed to queue G-code file for execution.", "Error", wx.wxOK + wx.wxICON_ERROR)
+        return false
+    end
+
+    mc.mcCntlSetLastError(inst, string.format("Shaping file ready - %s %s", pianoFolder, keySection or ""))
+    return true
+end
 
 
 -- Debug function

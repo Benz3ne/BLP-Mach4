@@ -35,15 +35,28 @@ CONFIG = {
     'front_overhang': 0.005,
 }
 
-WATCH_DIR = r"C:\Users\benja\Downloads"
+# Network path to Mach4 Logs folder on CNC machine (BLPCN)
+# The add-in watches this folder for probe completion triggers and exports G-code here
+MACH4_LOGS_DIR = r"\\BLPCN\Mach4Hobby\Profiles\BLP\Logs"
+# Local watch directory for trigger files (ProbeKeys writes triggers here)
+WATCH_DIR = MACH4_LOGS_DIR
+# Heartbeat file path - written every 10 seconds to indicate add-in is running
+HEARTBEAT_FILE = os.path.join(MACH4_LOGS_DIR, "FUSION_HEARTBEAT.txt")
+HEARTBEAT_INTERVAL = 10  # seconds between heartbeat writes
+
 current_piano_id = None  # Track current piano being processed
+
+def get_piano_folder(piano_id):
+    """Get the path to the piano's folder in Logs directory"""
+    return os.path.join(MACH4_LOGS_DIR, piano_id)
+
 
 def log(msg):
     """Write debug info to debug log file"""
     if current_piano_id:
-        gcode_folder = os.path.join(WATCH_DIR, f"GCode_{current_piano_id}")
-        os.makedirs(gcode_folder, exist_ok=True)
-        debug_log_path = os.path.join(gcode_folder, f"DEBUG_{current_piano_id}.txt")
+        piano_folder = get_piano_folder(current_piano_id)
+        os.makedirs(piano_folder, exist_ok=True)
+        debug_log_path = os.path.join(piano_folder, f"DEBUG_{current_piano_id}.txt")
 
         with open(debug_log_path, 'a') as f:
             f.write(f"{time.strftime('%H:%M:%S')} - {msg}\n")
@@ -284,26 +297,34 @@ class ProbeDataHandler(adsk.core.CustomEventHandler):
 
         try:
             # Parse input data
+            # New folder structure: {Make}_{Serial}_{Section}/ with CSV: {Make}_{Serial}_{Section}.csv
             input_data = {}
             if args.additionalInfo:
                 try:
                     input_data = json.loads(args.additionalInfo)
                     csv_path = input_data.get('csv_path', '')
+                    # piano_id now includes section: {Make}_{Serial}_{Section}
                     piano_id = input_data.get('piano_id', 'Unknown')
 
-                    # Determine section from CSV filename
-                    if '_Upper.csv' in csv_path:
+                    # Determine section from piano_id (last part after underscore)
+                    if piano_id.endswith('_Upper'):
                         section = 'Upper'
-                    elif '_Lower.csv' in csv_path:
+                    elif piano_id.endswith('_Lower'):
                         section = 'Lower'
+                    else:
+                        # Fallback: try to get from CSV filename
+                        if '_Upper' in csv_path:
+                            section = 'Upper'
+                        elif '_Lower' in csv_path:
+                            section = 'Lower'
 
                     # Set global piano ID for logging
                     global current_piano_id
                     current_piano_id = piano_id
 
                     # Now we have piano_id, start logging
-                    log(f"Processing probe data event - {piano_id} {section} section")
-                    result.append(f"Processing: {piano_id} - {section} section")
+                    log(f"Processing probe data event - {piano_id}")
+                    result.append(f"Processing: {piano_id}")
                 except:
                     result.append("ERROR: No valid input data")
                     csv_path = ''
@@ -326,51 +347,22 @@ class ProbeDataHandler(adsk.core.CustomEventHandler):
                 if not design:
                     result.append("ERROR: No design found in document")
                 else:
-                    # Create output folder
-                    gcode_folder = os.path.join(WATCH_DIR, f"GCode_{piano_id}")
-                    os.makedirs(gcode_folder, exist_ok=True)
+                    # Use the piano folder in Logs directory (same folder ProbeKeys uses)
+                    piano_folder = get_piano_folder(piano_id)
+                    os.makedirs(piano_folder, exist_ok=True)
 
-                    # Check for existing parameters file
-                    params_file = os.path.join(gcode_folder, f"PARAMETERS_{piano_id}.txt")
-                    existing_params = {}
-                    sections_processed = set()
-
-                    if os.path.exists(params_file):
-                        log(f"Found existing parameters file for {piano_id}")
-                        with open(params_file, 'r') as f:
-                            for line in f:
-                                if '=' in line and not line.startswith('#'):
-                                    key, value = line.strip().split('=', 1)
-                                    # Only convert numeric values to float
-                                    if key in ['ShoulderLength', 'KeyHeight']:
-                                        existing_params[key] = float(value)
-                                    else:
-                                        existing_params[key] = value
-                                elif line.startswith('# Upper Section') or line.startswith('# Lower Section'):
-                                    # Track which sections have been processed
-                                    if 'Upper' in line:
-                                        sections_processed.add('Upper')
-                                    elif 'Lower' in line:
-                                        sections_processed.add('Lower')
-
-                    # Check if this section was already processed
-                    if section in sections_processed:
-                        log(f"WARNING: {section} section already processed for {piano_id}")
-                        result.append(f"WARNING: {section} section already processed")
-                        result.append("Re-processing with same parameters...")
-
-                        # Clean up old G-code files for this section
-                        if os.path.exists(gcode_folder):
-                            for file in os.listdir(gcode_folder):
-                                if file.endswith('.tap') or file.endswith('.nc') or file.endswith('.cnc'):
-                                    file_lower = file.lower()
-                                    # Remove old files for this section
-                                    if section == 'Upper' and 'upper' in file_lower:
-                                        os.remove(os.path.join(gcode_folder, file))
-                                        log(f"Removed old file: {file}")
-                                    elif section == 'Lower' and 'lower' in file_lower:
-                                        os.remove(os.path.join(gcode_folder, file))
-                                        log(f"Removed old file: {file}")
+                    # Check for existing shaping file for this section and remove it
+                    if os.path.exists(piano_folder):
+                        for file in os.listdir(piano_folder):
+                            if file.endswith('.tap') or file.endswith('.nc') or file.endswith('.cnc'):
+                                file_lower = file.lower()
+                                # Remove old shaping files for this section
+                                if section == 'Upper' and 'upper' in file_lower and 'shaping' in file_lower:
+                                    os.remove(os.path.join(piano_folder, file))
+                                    log(f"Removed old file: {file}")
+                                elif section == 'Lower' and 'lower' in file_lower and 'shaping' in file_lower:
+                                    os.remove(os.path.join(piano_folder, file))
+                                    log(f"Removed old file: {file}")
 
                     # Parse CSV and calculate parameters
                     if csv_path and os.path.exists(csv_path):
@@ -378,22 +370,9 @@ class ProbeDataHandler(adsk.core.CustomEventHandler):
                         probe_data = parse_csv(csv_path)
                         log(f"Found data for {len(probe_data)} keys")
 
-                        # Use existing global params if available, else calculate new ones
-                        if 'ShoulderLength' in existing_params and 'KeyHeight' in existing_params:
-                            shoulder_length = existing_params['ShoulderLength']
-                            key_height = existing_params['KeyHeight']
-                            log(f"Using existing global params: ShoulderLength={shoulder_length:.4f}, KeyHeight={key_height:.4f}")
-                            result.append(f"Using existing global parameters from previous {piano_id} probe")
-                        else:
-                            shoulder_length, key_height = calculate_global_params(probe_data)
-                            log(f"Calculated new global params: ShoulderLength={shoulder_length:.4f}, KeyHeight={key_height:.4f}")
-
-                            # Save parameters for future use
-                            with open(params_file, 'w') as f:
-                                f.write(f"ShoulderLength={shoulder_length}\n")
-                                f.write(f"KeyHeight={key_height}\n")
-                                f.write(f"FirstSection={section}\n")
-                            log(f"Saved global parameters to {params_file}")
+                        # Each section is treated independently - calculate params from this section's data only
+                        shoulder_length, key_height = calculate_global_params(probe_data)
+                        log(f"Calculated {section} section params: ShoulderLength={shoulder_length:.4f}, KeyHeight={key_height:.4f}")
 
                         # Process each white key in this section
                         # Upper section: keys 1-26, Lower section: keys 27-52
@@ -459,30 +438,6 @@ class ProbeDataHandler(adsk.core.CustomEventHandler):
                         result.append(f"Updated {updated_count} parameters")
                         log(f"All parameters updated. Count: {updated_count}")
 
-                        # Save all key parameters to file for reference
-                        if section not in sections_processed:
-                            # Section not processed before
-                            if not os.path.exists(params_file):
-                                # First section ever, create new file
-                                with open(params_file, 'w') as f:
-                                    f.write(f"ShoulderLength={shoulder_length}\n")
-                                    f.write(f"KeyHeight={key_height}\n")
-                                    f.write(f"FirstSection={section}\n")
-                                    f.write(f"\n# {section} Section Parameters\n")
-                                    for key_num, params in sorted(key_params.items()):
-                                        f.write(f"\nKey{key_num}:\n")
-                                        for param, value in params.items():
-                                            f.write(f"  {param}={value}\n")
-                            else:
-                                # Append this new section's parameters
-                                with open(params_file, 'a') as f:
-                                    f.write(f"\n# {section} Section Parameters\n")
-                                    for key_num, params in sorted(key_params.items()):
-                                        f.write(f"\nKey{key_num}:\n")
-                                        for param, value in params.items():
-                                            f.write(f"  {param}={value}\n")
-                        # else: Section already processed, parameters already in file
-
                         # Resume computation - this triggers ONE geometry rebuild
                         design.isComputeDeferred = False
                         log("Resuming geometry computation (this may take a few minutes)...")
@@ -503,26 +458,24 @@ class ProbeDataHandler(adsk.core.CustomEventHandler):
                         else:
                             log("Warning: Could not find Manufacturing workspace")
 
-                        # Regenerate only relevant toolpaths
+                        # Regenerate only relevant toolpaths (Shaping programs only, no Initial Trim)
                         cam = adsk.cam.CAM.cast(doc.products.itemByProductType('CAMProductType'))
                         if cam and cam.setups.count > 0:
                             # Determine which toolpaths to regenerate based on section
+                            # Only include Shaping setups - Initial Trim is handled by Mach4 directly
                             relevant_setups = []
                             for i in range(cam.setups.count):
                                 setup = cam.setups.item(i)
                                 setup_name = setup.name.lower()
 
-                                # Always include Initial Trim (but only export once)
-                                if 'initial' in setup_name or 'trim' in setup_name:
-                                    relevant_setups.append(setup)
-                                # Include Upper setups only for Upper section
-                                elif section == 'Upper' and 'upper' in setup_name:
-                                    relevant_setups.append(setup)
-                                # Include Lower setups only for Lower section
-                                elif section == 'Lower' and 'lower' in setup_name:
-                                    relevant_setups.append(setup)
+                                # Only include Shaping setups for this section
+                                if 'shaping' in setup_name:
+                                    if section == 'Upper' and 'upper' in setup_name:
+                                        relevant_setups.append(setup)
+                                    elif section == 'Lower' and 'lower' in setup_name:
+                                        relevant_setups.append(setup)
 
-                            result.append(f"Regenerating {len(relevant_setups)} relevant toolpaths for {section} section")
+                            result.append(f"Regenerating {len(relevant_setups)} Shaping toolpaths for {section} section")
                             log(f"Starting toolpath generation for {len(relevant_setups)} setups: {[s.name for s in relevant_setups]}")
 
                             try:
@@ -549,53 +502,39 @@ class ProbeDataHandler(adsk.core.CustomEventHandler):
                                 result.append(f"ERROR generating toolpaths: {e}")
                                 log(f"Toolpath generation error: {e}")
 
-                            # Export G-code only for relevant programs
+                            # Export G-code only for Shaping programs (no Initial Trim)
                             if hasattr(cam, 'ncPrograms'):
-                                # Check if Initial Trim already exists
-                                initial_trim_exists = any(
-                                    os.path.exists(os.path.join(gcode_folder, f))
-                                    for f in os.listdir(gcode_folder)
-                                    if 'initial' in f.lower() or 'trim' in f.lower()
-                                ) if os.path.exists(gcode_folder) else False
-
                                 exported_count = 0
                                 for i in range(cam.ncPrograms.count):
                                     prog = cam.ncPrograms.item(i)
                                     prog_name_lower = prog.name.lower()
 
-                                    # Skip if not relevant to this section
-                                    if section == 'Upper':
-                                        # For Upper: export Upper programs and Initial Trim (if not exists)
-                                        if 'lower' in prog_name_lower:
-                                            continue
-                                        if ('initial' in prog_name_lower or 'trim' in prog_name_lower) and initial_trim_exists:
-                                            log(f"Skipping {prog.name} - already exported")
-                                            continue
-                                    elif section == 'Lower':
-                                        # For Lower: export Lower programs and Initial Trim (if not exists)
-                                        if 'upper' in prog_name_lower:
-                                            continue
-                                        if ('initial' in prog_name_lower or 'trim' in prog_name_lower) and initial_trim_exists:
-                                            log(f"Skipping {prog.name} - already exported")
-                                            continue
+                                    # Only export Shaping programs for this section
+                                    if 'shaping' not in prog_name_lower:
+                                        continue
+                                    if section == 'Upper' and 'upper' not in prog_name_lower:
+                                        continue
+                                    if section == 'Lower' and 'lower' not in prog_name_lower:
+                                        continue
 
                                     if prog.postConfiguration:
                                         try:
-                                            # Export with original name (Fusion ignores our programName)
+                                            # Export to a temp location first, then move to piano folder
+                                            # Use local temp dir to avoid network issues during post
+                                            temp_dir = os.environ.get('TEMP', r'C:\Temp')
                                             opts = adsk.cam.NCProgramPostProcessOptions.create()
                                             opts.postConfiguration = prog.postConfiguration
-                                            opts.outputFolder = WATCH_DIR
-                                            opts.programName = prog.name  # This gets ignored anyway
+                                            opts.outputFolder = temp_dir
+                                            opts.programName = prog.name
                                             prog.postProcess(opts)
 
-                                            # Find and move the exported file
-                                            # Look for file with just the program name (no piano ID)
+                                            # Find and move the exported file to piano folder
                                             for ext in ['.tap', '.nc', '.cnc']:
-                                                source_file = os.path.join(WATCH_DIR, f"{prog.name}{ext}")
+                                                source_file = os.path.join(temp_dir, f"{prog.name}{ext}")
                                                 if os.path.exists(source_file):
-                                                    # Rename with piano ID and move to folder
+                                                    # Rename with piano ID and move to piano folder
                                                     dest_name = f"{prog.name}_{piano_id}{ext}"
-                                                    dest_file = os.path.join(gcode_folder, dest_name)
+                                                    dest_file = os.path.join(piano_folder, dest_name)
 
                                                     if os.path.exists(dest_file):
                                                         os.remove(dest_file)
@@ -612,9 +551,7 @@ class ProbeDataHandler(adsk.core.CustomEventHandler):
                                             result.append(f"ERROR exporting {prog.name}: {e}")
                                             log(f"Export error: {e}")
 
-                                result.append(f"Complete! Exported {exported_count} files to: {gcode_folder}")
-
-                                result.append(f"Complete! Files in: {gcode_folder}")
+                                result.append(f"Complete! Exported {exported_count} Shaping file(s) to: {piano_folder}")
                         else:
                             result.append("ERROR: No CAM setups found")
                     else:
@@ -622,10 +559,10 @@ class ProbeDataHandler(adsk.core.CustomEventHandler):
 
             # Write summary to log file (not the debug details)
             if piano_id != 'Unknown':
-                gcode_folder = os.path.join(WATCH_DIR, f"GCode_{piano_id}")
-                os.makedirs(gcode_folder, exist_ok=True)
+                piano_folder = get_piano_folder(piano_id)
+                os.makedirs(piano_folder, exist_ok=True)
 
-                log_file = os.path.join(gcode_folder, f"LOG_{piano_id}.txt")
+                log_file = os.path.join(piano_folder, f"FusionExport_{piano_id}.txt")
                 timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
 
                 # Write clean summary to log file
@@ -638,13 +575,15 @@ class ProbeDataHandler(adsk.core.CustomEventHandler):
                             f.write(f"  {line}\n")
                     f.write("\n")
 
-            # Write simple completion marker for external script
-            response_path = os.path.join(WATCH_DIR, f"COMPLETE_{piano_id}.txt")
-            with open(response_path, 'w') as f:
-                if any("ERROR" in line for line in result):
-                    f.write("ERROR\n")
-                else:
-                    f.write("SUCCESS\n")
+            # Write simple completion marker for external script (in piano folder)
+            if piano_id != 'Unknown':
+                piano_folder = get_piano_folder(piano_id)
+                response_path = os.path.join(piano_folder, f"SHAPING_READY_{section}.txt")
+                with open(response_path, 'w') as f:
+                    if any("ERROR" in line for line in result):
+                        f.write("ERROR\n")
+                    else:
+                        f.write("SUCCESS\n")
 
         except:
             error_msg = traceback.format_exc()
@@ -658,12 +597,31 @@ class WatchThread(threading.Thread):
     def __init__(self):
         super().__init__()
         self.daemon = True
+        self.last_heartbeat = 0
+
+    def write_heartbeat(self):
+        """Write current timestamp to heartbeat file"""
+        try:
+            with open(HEARTBEAT_FILE, 'w') as f:
+                f.write(str(time.time()))
+        except:
+            pass  # Ignore write errors (network issues, etc.)
 
     def run(self):
         trigger_pattern = "PROBE_COMPLETE_"
 
+        # Write initial heartbeat
+        self.write_heartbeat()
+        self.last_heartbeat = time.time()
+
         while not stop_flag.is_set():
             try:
+                # Write heartbeat every HEARTBEAT_INTERVAL seconds
+                if time.time() - self.last_heartbeat >= HEARTBEAT_INTERVAL:
+                    self.write_heartbeat()
+                    self.last_heartbeat = time.time()
+
+                # Check for trigger files
                 for filename in os.listdir(WATCH_DIR):
                     if filename.startswith(trigger_pattern) and filename.endswith(".txt"):
                         trigger_path = os.path.join(WATCH_DIR, filename)
@@ -725,5 +683,12 @@ def stop(context):
             app.unregisterCustomEvent(custom_event_id)
 
         _handlers.clear()
+
+        # Remove heartbeat file on clean shutdown
+        try:
+            if os.path.exists(HEARTBEAT_FILE):
+                os.remove(HEARTBEAT_FILE)
+        except:
+            pass
     except:
         pass  # Silently fail on stop
