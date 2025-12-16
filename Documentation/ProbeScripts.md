@@ -114,8 +114,8 @@ function ProbeScripts.ProbeXYZ(inst, direction, fastFeed, backoff, slowFeed, max
 2. Gets per-direction probe diameter from PVs 511-515
 3. Clamps travel to soft limits
 4. Executes G31.1 fast probe
-5. If `slowFeed > 0`: retracts `backoff`, does slow G31.1
-6. Handles final retract based on `finalRetract` value
+5. If `slowFeed > 0`: retracts `backoff` at 50 IPM, does slow G31.1
+6. Handles final retract based on `finalRetract` value (100 IPM)
 7. Applies probe radius compensation to get true edge position
 8. Optionally sets work offset if `setDatum == 1`
 9. Updates PVs 391, 392, 393 with results
@@ -193,7 +193,7 @@ function ProbeScripts.ProtectedMove(inst, moveType, X, Y, Z, feedrate)
 **Probes the outside edge of a feature.** Moves out, drops down, probes back in.
 
 ```lua
-function ProbeScripts.ProbeOutside(inst, direction, outDistance, zDown)
+function ProbeScripts.ProbeOutside(inst, direction, outDistance, zDown, moveSpeed)
 ```
 
 **Parameters:**
@@ -202,15 +202,16 @@ function ProbeScripts.ProbeOutside(inst, direction, outDistance, zDown)
 | direction | number | 1=+X, 2=-X, 3=+Y, 4=-Y (direction to move OUT) |
 | outDistance | number | Distance to move out from current position |
 | zDown | number | Distance to drop Z before probing |
+| moveSpeed | number | Optional feed rate for XY traverse and retract moves (default 200 IPM) |
 
 **Returns:** Edge work coordinate, or `nil` on failure
 
 **Behavior:**
 1. Stores starting machine position (all axes)
-2. Uses `ProtectedMove()` to move out (clamped to soft limits)
-3. Uses `ProtectedMove()` to drop Z
+2. Uses `ProtectedMove()` to move out (clamped to soft limits) at `moveSpeed`
+3. Uses `ProtectedMove()` to drop Z at 100 IPM
 4. Probes BACK toward original position (opposite direction)
-5. Returns to starting position via Z up, then X/Y
+5. Returns to starting position via Z up (rapid), then X/Y at `moveSpeed`
 
 **Quirks:**
 - Probe direction is opposite of move direction (move +X, probe -X)
@@ -569,6 +570,7 @@ Probes a tool holder to measure and save pocket position.
 - Traverse height: 0.2"
 - Holder taper height: 2.8"
 - Holder drop height: 0.1"
+- Traverse feedrate: 50 IPM
 
 **Process:**
 1. Probes pull stud top surface (-Z)

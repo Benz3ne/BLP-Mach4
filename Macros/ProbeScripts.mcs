@@ -255,6 +255,12 @@ end
 
 -- Core probe function wrapper to .ProbeXYZ (depricated M311)
 function ProbeScripts.Probe(inst, direction, setDatum, returnToStart, maxTravel, fastFeed, singleTap, finalRetract)
+    -- Abort immediately if machine was stopped (cycle stop, e-stop, etc.)
+    local state = mc.mcCntlGetState(inst)
+    if state == 0 or state == 1 then  -- IDLE or HOLD
+        error("MACHINE_STOPPED", 0)
+    end
+
     -- Map parameters to ProbeXYZ signature
     local mappedFastFeed = fastFeed or mc.mcCntlGetPoundVar(inst, 516)
     local mappedBackoff = mc.mcCntlGetPoundVar(inst, 519)
@@ -658,7 +664,10 @@ end
 
 
 -- Probe outside an edge by moving out first to avoid collisions
-function ProbeScripts.ProbeOutside(inst, direction, outDistance, zDown)
+function ProbeScripts.ProbeOutside(inst, direction, outDistance, zDown, moveSpeed)
+    -- moveSpeed: optional feed rate for XY traverse and retract moves (default 200)
+    local xySpeed = moveSpeed or 200
+
     local dirMap = {
         [1] = {axis = mc.X_AXIS, letter = "X", sign = 1},   -- +X
         [2] = {axis = mc.X_AXIS, letter = "X", sign = -1},  -- -X
@@ -666,19 +675,19 @@ function ProbeScripts.ProbeOutside(inst, direction, outDistance, zDown)
         [4] = {axis = mc.Y_AXIS, letter = "Y", sign = -1}   -- -Y
     }
     local info = dirMap[direction]
-    
+
     -- Capture starting machine positions for all axes
     local startXMachine = mc.mcAxisGetMachinePos(inst, mc.X_AXIS)
     local startYMachine = mc.mcAxisGetMachinePos(inst, mc.Y_AXIS)
     local startZMachine = mc.mcAxisGetMachinePos(inst, mc.Z_AXIS)
-    
+
     -- Move out clamped just under the soft limit
     local cur   = mc.mcAxisGetMachinePos(inst, info.axis)
     local minL  = mc.mcAxisGetSoftlimitMin(inst, info.axis) + 0.05
     local maxL  = mc.mcAxisGetSoftlimitMax(inst, info.axis) - 0.05
     local span  = (info.sign > 0) and (maxL - cur) or (cur - minL)
     local inc   = info.sign * math.max(0, math.min(math.abs(outDistance or 0), span))
-    local moveOutSuccess = ProbeScripts.ProtectedMove(inst, "inc", (info.letter=="X") and inc or nil, (info.letter=="Y") and inc or nil, nil, 200)
+    local moveOutSuccess = ProbeScripts.ProtectedMove(inst, "inc", (info.letter=="X") and inc or nil, (info.letter=="Y") and inc or nil, nil, xySpeed)
 
     if not moveOutSuccess then
         -- Horizontal move failed, already returned to start by ProtectedMove
@@ -692,7 +701,7 @@ function ProbeScripts.ProbeOutside(inst, direction, outDistance, zDown)
     if not dropSuccess then
         -- Z drop failed (hit something), ProtectedMove returned to position after X/Y move
         -- Need to return to original starting position
-        mc.mcCntlGcodeExecuteWait(inst, string.format("G90 G53 G1 X%.4f Y%.4f F200", startXMachine, startYMachine))
+        mc.mcCntlGcodeExecuteWait(inst, string.format("G90 G53 G1 X%.4f Y%.4f F%.0f", startXMachine, startYMachine, xySpeed))
         mc.mcCntlSetLastError(inst, string.format("%s width too small - collision during Z drop", info.letter))
         return nil
     end
@@ -711,16 +720,16 @@ function ProbeScripts.ProbeOutside(inst, direction, outDistance, zDown)
         mc.mcCntlSetLastError(inst, string.format("Probe failed in %s direction", info.letter))
             -- Return to start using machine coords
         mc.mcCntlGcodeExecuteWait(inst, string.format("G90 G53 G0 Z%.4f", startZMachine))
-        mc.mcCntlGcodeExecuteWait(inst, string.format("G90 G53 G1 X%.4f Y%.4f F200", startXMachine, startYMachine))
+        mc.mcCntlGcodeExecuteWait(inst, string.format("G90 G53 G1 X%.4f Y%.4f F%.0f", startXMachine, startYMachine, xySpeed))
         return nil
     end
-    
+
     -- Return to start using machine coords
     -- First move Z up
     mc.mcCntlGcodeExecuteWait(inst, string.format("G90 G53 G0 Z%.4f", startZMachine))
     -- Then move X and Y back
-    mc.mcCntlGcodeExecuteWait(inst, string.format("G90 G53 G1 X%.4f Y%.4f F200", startXMachine, startYMachine))
-    
+    mc.mcCntlGcodeExecuteWait(inst, string.format("G90 G53 G1 X%.4f Y%.4f F%.0f", startXMachine, startYMachine, xySpeed))
+
     return edgeWork
 end
 
@@ -866,7 +875,7 @@ function ProbeScripts.ProbeXYZ(inst, direction, fastFeed, backoff, slowFeed, max
         local firstStrike = mc.mcAxisGetProbePos(inst, axis, 1)  -- Get machine position
         local firstStrikeWork = mc.mcAxisGetProbePos(inst, axis, 0)  -- Get work position
         -- Incremental retract from probe strike
-        mc.mcCntlGcodeExecuteWait(inst, string.format("G91 G1 %s%.4f F100", axisLetter, -dir * backoff))
+        mc.mcCntlGcodeExecuteWait(inst, string.format("G91 G1 %s%.4f F50", axisLetter, -dir * backoff))
 
         -- Check if probe is still triggered after retract and attempt unstick if needed
         if mc.mcSignalGetState(probeSig) == 1 then
@@ -1016,7 +1025,7 @@ function ProbeScripts.M310_ProbeToolHeight(inst)
     
     -- Move to probe station using helper functions
     mc.mcCntlGcodeExecuteWait(inst, "G49")
-    mc.mcCntlGcodeExecuteWait(inst, "G90 G53 G0 Z-0.050")
+    mc.mcCntlGcodeExecuteWait(inst, "G90 G53 G0 Z0")
     mc.mcCntlGcodeExecuteWait(inst, string.format("G90 G53 G0 X%.4f Y%.4f", stationX, stationY))
 
     -- Save laser state before probing (ESS disables test mode during G31)
@@ -1068,8 +1077,8 @@ function ProbeScripts.M310_ProbeToolHeight(inst)
 
     mc.mcToolSetData(inst, mc.MTOOL_MILL_HEIGHT, tool, toolHeight)
 
-    -- Retract to Z-0.050
-    mc.mcCntlGcodeExecuteWait(inst, "G90 G53 G0 Z-0.050")
+    -- Retract to Z0
+    mc.mcCntlGcodeExecuteWait(inst, "G90 G53 G0 Z0")
 
     -- Apply H offset (only for tools > 0)
     if tool > 0 then
@@ -1111,7 +1120,7 @@ function ProbeScripts.M6_ToolChange(inst)
     mc.mcCntlSetRRO(inst, 100)
 
     -- Configuration from pound variables
-    local SAFE_Z = mc.mcCntlGetPoundVar(inst, 523)          -- Tool change travel Z (between pockets)
+    local Z_CLEARANCE = mc.mcCntlGetPoundVar(inst, 523)     -- Z clearance above tool pocket (relative)
     local PULLOUT_DIST = mc.mcCntlGetPoundVar(inst, 524)    -- Y pullout distance
     local APPROACH_FEED = mc.mcCntlGetPoundVar(inst, 525)   -- Approach feedrate
 
@@ -1166,7 +1175,8 @@ function ProbeScripts.M6_ToolChange(inst)
     end
     
     -- Helper function to drop current physical tool
-    local function dropTool()
+    -- targetTool: the tool we're picking up next (for group-based retract height)
+    local function dropTool(targetTool)
         local pocketX = mc.mcToolGetDataExDbl(inst, current, "XToolChange")
         local pocketY = mc.mcToolGetDataExDbl(inst, current, "YToolChange")
         local pocketZ = mc.mcToolGetDataExDbl(inst, current, "ZToolChange")
@@ -1177,18 +1187,18 @@ function ProbeScripts.M6_ToolChange(inst)
             mc.mcSpindleSetDirection(inst, 0)
         end
 
-        -- Move to Z-0.050
-        GcodeExecuteWait("G90 G53 G0 Z-0.050")
-        
+        -- Move to Z0
+        GcodeExecuteWait("G90 G53 G0 Z0")
+
         -- Move to X and Y-pullout position (behind the pocket)
         GcodeExecuteWait(string.format("G90 G53 G0 X%.4f Y%.4f", pocketX, pocketY - PULLOUT_DIST))
-        
+
         -- Descend to pocket Z
         GcodeExecuteWait(string.format("G90 G53 G0 Z%.4f", pocketZ))
-        
+
         -- Move forward into pocket
         GcodeExecuteWait(string.format("G90 G53 G1 Y%.4f F%.1f", pocketY, APPROACH_FEED))
-        
+
         -- Unlock clamp
         local hOutput2 = mc.mcSignalGetHandle(inst, mc.OSIG_OUTPUT2)
         mc.mcSignalSetState(hOutput2, 1)
@@ -1205,8 +1215,18 @@ function ProbeScripts.M6_ToolChange(inst)
         end
         wx.wxMilliSleep(100)
 
-        -- Retract to safe Z
-        GcodeExecuteWait(string.format("G90 G53 G0 Z%.4f", SAFE_Z))
+        -- Retract height depends on whether target is in same group
+        -- Group 1: tools 1-9, Group 2: tools 10-89
+        local sameGroup = (current <= 9 and targetTool <= 9) or (current >= 10 and targetTool >= 10)
+
+        if sameGroup and targetTool > 0 and targetTool < 90 then
+            -- Same group: retract to target tool Z + clearance
+            local targetZ = mc.mcToolGetDataExDbl(inst, targetTool, "ZToolChange")
+            GcodeExecuteWait(string.format("G90 G53 G0 Z%.4f", targetZ + Z_CLEARANCE))
+        else
+            -- Different group or going to virtual/T0: retract to Z0
+            GcodeExecuteWait("G90 G53 G0 Z0")
+        end
     end
     
     -- Helper function to retract virtual tool
@@ -1230,18 +1250,18 @@ function ProbeScripts.M6_ToolChange(inst)
     if requested >= 90 then
         -- Drop current physical tool if any
         if current > 0 and current < 90 then
-            dropTool()
+            dropTool(requested)
         end
 
         -- Lock clamp
         local hOutput2 = mc.mcSignalGetHandle(inst, mc.OSIG_OUTPUT2)
         mc.mcSignalSetState(hOutput2, 0)
-        
+
         -- Retract current virtual tool if any
         retractVirtual()
 
-        -- Move to Z-0.050 for virtual tool deployment
-        GcodeExecuteWait("G90 G53 G0 Z-0.050")
+        -- Move to Z0 for virtual tool deployment
+        GcodeExecuteWait("G90 G53 G0 Z0")
         
         -- Deploy requested virtual tool
         if requested == 90 then
@@ -1268,17 +1288,17 @@ function ProbeScripts.M6_ToolChange(inst)
         retractVirtual()
         -- Drop physical tool
         if current > 0 and current < 90 then
-            dropTool()
+            dropTool(requested)
         end
 
         -- Lock clamp
         local hOutput2 = mc.mcSignalGetHandle(inst, mc.OSIG_OUTPUT2)
         mc.mcSignalSetState(hOutput2, 0)
-        
+
         mc.mcToolSetCurrent(inst, 0)
         GcodeExecuteWait("G49")
         mc.mcCntlSetPoundVar(inst, 550, 0)
-        GcodeExecuteWait("G90 G53 G0 Z-0.050")
+        GcodeExecuteWait("G90 G53 G0 Z0")
         -- Clear M6 in-progress flag
         mc.mcCntlSetPoundVar(inst, 499, 0)
         return 0
@@ -1288,8 +1308,8 @@ function ProbeScripts.M6_ToolChange(inst)
 
     -- Drop current physical tool or prepare for pickup
     if current > 0 and current < 90 and current ~= requested then
-        dropTool()
-        -- dropTool leaves us at SAFE_Z, ready for next pocket
+        dropTool(requested)
+        -- dropTool leaves us at appropriate Z, ready for next pocket
     else
         retractVirtual()
 
@@ -1298,8 +1318,8 @@ function ProbeScripts.M6_ToolChange(inst)
             mc.mcToolSetCurrent(inst, 0)
         end
 
-        -- Move to Z-0.050 for both T0 and virtual tools
-        GcodeExecuteWait("G90 G53 G0 Z-0.050")
+        -- Move to Z0 for both T0 and virtual tools
+        GcodeExecuteWait("G90 G53 G0 Z0")
 
         -- Open clamp
         local hOutput2 = mc.mcSignalGetHandle(inst, mc.OSIG_OUTPUT2)
@@ -1333,6 +1353,10 @@ function ProbeScripts.M6_ToolChange(inst)
         t = t + 50
     end
     if stable < 100 then
+        -- Tool pickup failed - clear tool state
+        mc.mcToolSetCurrent(inst, 0)
+        mc.mcCntlSetPoundVar(inst, 550, 0)
+        mc.mcCntlGcodeExecuteWait(inst, "G49")
         -- Restore FRO and RRO before error
         mc.mcCntlSetFRO(inst, savedFRO)
         mc.mcCntlSetRRO(inst, savedRRO)
@@ -1344,9 +1368,9 @@ function ProbeScripts.M6_ToolChange(inst)
     -- Pullout movement
     local pulloutY = pocketY - PULLOUT_DIST
     GcodeExecuteWait(string.format("G90 G53 G1 Y%.4f F%.1f", pulloutY, APPROACH_FEED))
-    
-    -- Retract to Z-0.050
-    GcodeExecuteWait("G90 G53 G0 Z-0.050")
+
+    -- Retract to Z0
+    GcodeExecuteWait("G90 G53 G0 Z0")
     
     -- Set current tool
     mc.mcToolSetCurrent(inst, requested)
@@ -2341,6 +2365,7 @@ function ProbeScripts.ProbeToolPosition(inst)
     local traverseHeight = 0.2
     local holderTaperHeight = 2.8
     local holderDropHeight = 0.1
+    local traverseFeedrate = 50
 
     -- Build dialog to get tool number
     local fields = {
@@ -2377,25 +2402,25 @@ function ProbeScripts.ProbeToolPosition(inst)
     -- Probe pull stud XY position
     local dropHeight = traverseHeight + holderDropHeight
 
-    local xPlusResult = ProbeScripts.ProbeOutside(inst, 1, pullStudWidth/2, dropHeight)  -- 1 = +X
+    local xPlusResult = ProbeScripts.ProbeOutside(inst, 1, pullStudWidth/2, dropHeight, traverseFeedrate)  -- 1 = +X
     if not xPlusResult then
         mc.mcCntlSetLastError(inst, "Failed to probe +X edge")
         return false
     end
 
-    local xMinusResult = ProbeScripts.ProbeOutside(inst, 2, pullStudWidth/2, dropHeight)  -- 2 = -X
+    local xMinusResult = ProbeScripts.ProbeOutside(inst, 2, pullStudWidth/2, dropHeight, traverseFeedrate)  -- 2 = -X
     if not xMinusResult then
         mc.mcCntlSetLastError(inst, "Failed to probe -X edge")
         return false
     end
 
-    local yPlusResult = ProbeScripts.ProbeOutside(inst, 3, pullStudWidth/2, dropHeight)  -- 3 = +Y
+    local yPlusResult = ProbeScripts.ProbeOutside(inst, 3, pullStudWidth/2, dropHeight, traverseFeedrate)  -- 3 = +Y
     if not yPlusResult then
         mc.mcCntlSetLastError(inst, "Failed to probe +Y edge")
         return false
     end
 
-    local yMinusResult = ProbeScripts.ProbeOutside(inst, 4, pullStudWidth/2, dropHeight)  -- 4 = -Y
+    local yMinusResult = ProbeScripts.ProbeOutside(inst, 4, pullStudWidth/2, dropHeight, traverseFeedrate)  -- 4 = -Y
     if not yMinusResult then
         mc.mcCntlSetLastError(inst, "Failed to probe -Y edge")
         return false
@@ -2527,42 +2552,30 @@ function ProbeScripts.CalibrateProbeOffset(inst)
 end
 
 
-
 function ProbeScripts.ProbeKeys(inst)
-    -- Check Fusion add-in is running (heartbeat file)
+    -- ========== PRE-CHECKS ==========
+
+    -- Heartbeat check helper (returns true if valid, false otherwise)
     local HEARTBEAT_FILE = "C:\\Mach4Hobby\\Profiles\\BLP\\Logs\\FUSION_HEARTBEAT.txt"
     local HEARTBEAT_MAX_AGE = 30  -- seconds - allow some slack for network latency
 
-    local heartbeatFile = io.open(HEARTBEAT_FILE, "r")
-    if not heartbeatFile then
-        wx.wxMessageBox("Fusion 360 add-in is not running.\n\nPlease start Fusion 360 and enable the Keytop Parametric Update add-in before probing.",
-            "Fusion Not Running", wx.wxOK + wx.wxICON_ERROR)
-        return
+    local function checkHeartbeat()
+        local heartbeatFile = io.open(HEARTBEAT_FILE, "r")
+        if not heartbeatFile then return false end
+
+        local heartbeatTimestamp = tonumber(heartbeatFile:read("*a"))
+        heartbeatFile:close()
+
+        if not heartbeatTimestamp then return false end
+
+        local heartbeatAge = os.time() - heartbeatTimestamp
+        return heartbeatAge <= HEARTBEAT_MAX_AGE
     end
 
-    local heartbeatTimestamp = tonumber(heartbeatFile:read("*a"))
-    heartbeatFile:close()
+    -- First heartbeat check (silent - don't show error yet)
+    local firstHeartbeatOk = checkHeartbeat()
 
-    if not heartbeatTimestamp then
-        wx.wxMessageBox("Fusion 360 heartbeat file is invalid.\n\nPlease restart the Keytop Parametric Update add-in in Fusion 360.",
-            "Fusion Error", wx.wxOK + wx.wxICON_ERROR)
-        return
-    end
-
-    local currentTime = os.time()
-    local heartbeatAge = currentTime - heartbeatTimestamp
-
-    if heartbeatAge > HEARTBEAT_MAX_AGE then
-        wx.wxMessageBox(string.format("Fusion 360 add-in appears to be stale (last heartbeat %d seconds ago).\n\nPlease check that Fusion 360 is running and the add-in is enabled.",
-            heartbeatAge),
-            "Fusion Not Responding", wx.wxOK + wx.wxICON_ERROR)
-        return
-    end
-
-    -- Heartbeat is valid - delete it so it doesn't grow (Fusion will recreate it)
-    os.remove(HEARTBEAT_FILE)
-
-    -- Check probe deployment first
+    -- Check probe deployment
     if not ProbeScripts.CheckProbeDeployed(inst) then return end
 
     -- Check front vacuum is on (OUTPUT6)
@@ -2574,16 +2587,34 @@ function ProbeScripts.ProbeKeys(inst)
         return
     end
 
+    -- Check dust collection automation is enabled (OUTPUT50 = dustAuto, OUTPUT52 = bootAuto)
+    local dustAutoHandle = mc.mcSignalGetHandle(inst, mc.OSIG_OUTPUT50)
+    local dustAutoState = mc.mcSignalGetState(dustAutoHandle)
+    local bootAutoHandle = mc.mcSignalGetHandle(inst, mc.OSIG_OUTPUT52)
+    local bootAutoState = mc.mcSignalGetState(bootAutoHandle)
+
+    if dustAutoState ~= 1 or bootAutoState ~= 1 then
+        local missing = {}
+        if dustAutoState ~= 1 then table.insert(missing, "Dust Collect Auto") end
+        if bootAutoState ~= 1 then table.insert(missing, "Dust Boot Auto") end
+
+        local result = wx.wxMessageBox(
+            "The following automation settings are not enabled:\n\n• " .. table.concat(missing, "\n• ") ..
+            "\n\nIt is recommended to enable these before running ProbeKeys.\n\nContinue anyway?",
+            "Automation Warning", wx.wxYES_NO + wx.wxICON_WARNING)
+
+        if result ~= wx.wxYES then
+            return
+        end
+    end
+
     mc.mcCntlGcodeExecuteWait(inst, "G55")
 
-    -- Get last used probe parameters from profile
-    local lastProbeDropDepth = mc.mcProfileGetDouble(inst, "ProbeKeys", "probeDropDepth", 0.2)
-    local lastLinearityThreshold = mc.mcProfileGetDouble(inst, "ProbeKeys", "linearityThreshold", 0.003)
+    -- ========== DIALOG ==========
 
-    -- Show dialog to get piano information
     local fields = {
         {type = "instructions",
-         text = "Enter piano information for key probing"},
+         text = "Enter piano information for key probing.\nKey section will be auto-detected."},
         {type = "text", key = "make", label = "Piano Make",
          default = "Steinway",
          validate = function(value)
@@ -2605,53 +2636,41 @@ function ProbeScripts.ProbeKeys(inst)
                  return false, "Serial Number cannot be empty"
              end
              return true
-         end},
-        {type = "separator"},
-        {type = "choice", key = "keyHalf", label = "Key Section Half",
-         options = {"Auto-detect", "Lower (1-44)", "Upper (45-88)"},
-         default = 0,
-         tooltip = "Auto-detect determines key set from shoulder geometry"},
-        {type = "separator"},
-        {type = "number", key = "probeDropDepth", label = "Probe Drop Depth (inches)",
-         default = lastProbeDropDepth,
-         tooltip = "Distance below key height average to probe edges",
-         min = 0.001, max = 0.5,
-         validateMsg = "Must be between 0.001-0.5"},
-        {type = "number", key = "linearityThreshold", label = "Linearity Threshold (inches)",
-         default = lastLinearityThreshold,
-         tooltip = "Maximum deviation from straight line before adding extra probe points",
-         min = 0.0001, max = 0.05,
-         validateMsg = "Must be between 0.0001-0.05"}
+         end}
     }
 
     local params = ProbeScripts.ShowDialog(inst, "Piano Key Probing", fields, "ProbeKeys")
     if not params then return end
 
-    -- Save probe parameters to profile for next time
-    mc.mcProfileWriteDouble(inst, "ProbeKeys", "probeDropDepth", params.probeDropDepth)
-    mc.mcProfileWriteDouble(inst, "ProbeKeys", "linearityThreshold", params.linearityThreshold)
-    mc.mcProfileFlush(inst)
+    -- Second heartbeat check - only show error if both checks failed
+    local secondHeartbeatOk = checkHeartbeat()
+    if not firstHeartbeatOk and not secondHeartbeatOk then
+        wx.wxMessageBox("Fusion 360 add-in is not running.\n\nPlease start Fusion 360, open 'Parametrized Keytop Toolpath', and enable the Keytop Parametric Update add-in before probing.",
+            "Fusion Not Running", wx.wxOK + wx.wxICON_ERROR)
+        return
+    end
 
     -- Cancel any existing G68 rotation
     mc.mcCntlGcodeExecuteWait(inst, "G69")
 
-    -- Config
+    -- ========== CONFIGURATION ==========
+
     local SINGLE_TAP_FEEDRATE = 40  -- IPM for single tap probes after calibration
     local KEY_SPACING = 1.7  -- inches between white keys
     local FIRST_KEY_X = 1.75  -- X position of first key center
-    local BORE_SEPARATION = 46.0  -- inches between calibration bores (adjusted for 1" bores)
-    local TRAVERSE_HEIGHT_ABOVE_AVG = 0.5  -- height above average for safe moves
-    local ProbeDropDepth = params.probeDropDepth  -- distance below key height average to probe
-    local ShoulderDropDepth = 0.04  -- distance below specific key height for shoulder -Y probing
-    local LINEARITY_THRESHOLD = params.linearityThreshold  -- Maximum perpendicular distance (inches) of middle point from line
-    local safeTraverseZ = 2.0  -- 2" above surface in work coords
-    local ID_HOLE_DEPTH_THRESHOLD = -0.05  -- Halfway between 0 and -0.1
+    local BORE_SEPARATION = 46.0  -- inches between calibration bores
+    local PROBE_DROP_DEPTH = 0.05  -- uniform drop depth for X and -Y probing
+    local LINEARITY_THRESHOLD = 0.01  -- maximum deviation before adding extra probe points
+    local safeTraverseZ = 2.0  -- safe Z height in work coords
+    local ID_HOLE_DEPTH_THRESHOLD = -0.05  -- halfway between 0 and -0.1
+    local SAMPLE_KEY_INTERVAL = 6  -- probe every 6th key (1, 7, 13, 19, 25)
+    local NUM_KEYS = 26  -- total white keys per section
 
     -- Y positions for X edge probing
     local Y_POSITIONS = {-0.95, -0.35, 0.25, 1.10, 2.75, 4.25}
     local Y_POSITIONS_EXTRA_FRONT = {-1.05, -0.65, -0.05, 0.35}
     local Y_POSITIONS_EXTRA_BACK = {0.95, 1.95, 3.55, 4.35}
-    
+
     -- Lower half key index table
     local LOWER_KEYS = {
         {1, 1}, {3, 2}, {4, 3}, {6, 4}, {8, 5}, {9, 6}, {11, 7}, {13, 8},
@@ -2659,7 +2678,7 @@ function ProbeScripts.ProbeKeys(inst)
         {27, 16}, {28, 17}, {30, 18}, {32, 19}, {33, 20}, {35, 21}, {37, 22},
         {39, 23}, {40, 24}, {42, 25}, {44, 26}
     }
-    
+
     -- Upper half key index table
     local UPPER_KEYS = {
         {45, 1}, {47, 2}, {49, 3}, {51, 4}, {52, 5}, {54, 6}, {56, 7}, {57, 8},
@@ -2667,40 +2686,24 @@ function ProbeScripts.ProbeKeys(inst)
         {71, 16}, {73, 17}, {75, 18}, {76, 19}, {78, 20}, {80, 21}, {81, 22},
         {83, 23}, {85, 24}, {87, 25}, {88, 26}
     }
-    
-    -- Select active key set based on user selection
-    -- keyHalf: 0 = Auto-detect, 1 = Lower (1-44), 2 = Upper (45-88)
+
+    -- Storage
+    local centeringHeightMachine  -- bore centering height in machine coords
+    local calibrationOffsets = {}  -- single-tap calibration offsets
+    local doubleResults = {}
+    local singleResults = {["+X"] = {}, ["-X"] = {}, ["-Y"] = {}, ["-Z"] = {}}
     local TEST_KEYS = nil
     local keyHalfName = nil
-
-    if params.keyHalf == 1 then
-        TEST_KEYS = LOWER_KEYS
-        keyHalfName = "Lower"
-    elseif params.keyHalf == 2 then
-        TEST_KEYS = UPPER_KEYS
-        keyHalfName = "Upper"
-    else
-        -- Auto-detect: will be determined after shoulder geometry probing
-        -- For now, set to nil - will be populated after auto-detection
-        TEST_KEYS = nil
-        keyHalfName = nil
-    end
-    
-    -- Storage for probe data
-    local centeringHeightMachine  -- store the bore centering height in machine coords
-    local calibrationOffsets = {}  -- store single-tap calibration offsets
     local traverseHeight  -- calculated after Z probing
-    local probeZ  -- calculated after Z probing
-    local keyHeights = {}  -- Store individual key heights indexed by enumKey
+    local probeZ  -- uniform probe depth for X and -Y
 
-    -- Files - set after key section is determined (either from user selection or auto-detect)
-    -- Each section (Upper/Lower) gets its own folder: {Make}_{Serial}_{Section}/
+    -- Files - set after key section is determined
     local pianoFolder = nil
     local pianoName = nil
     local csvPath = nil
     local reportFile = nil
-    
-    -- Helper function to write to report (only writes if file is open)
+
+    -- Helper function to write to report
     local function writeReport(message)
         if reportFile then
             local timestamp = os.date("%Y-%m-%d %H:%M:%S")
@@ -2708,62 +2711,61 @@ function ProbeScripts.ProbeKeys(inst)
             reportFile:flush()
         end
     end
-    
-    -- Calculate maximum orthogonal distance of middle point from line through endpoints
-    -- For 3 points, returns the perpendicular distance of point 2 from the line through points 1 and 3
-    -- Points are {y, x} where y is position along key, x is edge measurement
-    local function calculateLinearity(points)
-        local n = #points
-        if n ~= 3 then return 0 end  -- Only works for exactly 3 points
-        
-        -- Get the three points (assuming they're ordered by Y position)
-        local p1 = points[1]  -- First point
-        local p2 = points[2]  -- Middle point  
-        local p3 = points[3]  -- Last point
-        
-        -- Calculate perpendicular distance of p2 from line through p1 and p3
-        -- Using formula: d = |ax + by + c| / sqrt(a² + b²)
-        -- Where line through p1,p3 is: (y3-y1)x - (x3-x1)y + x3*y1 - x1*y3 = 0
-        
-        local dx = p3.x - p1.x
-        local dy = p3.y - p1.y
-        
-        -- Handle vertical or horizontal lines
-        if math.abs(dy) < 0.0001 then
-            -- Nearly horizontal line in Y, distance is just X difference
-            return math.abs(p2.x - p1.x)
-        elseif math.abs(dx) < 0.000001 then
-            -- Nearly vertical line in X (all X values same), distance is 0
-            return 0
-        end
-        
-        -- General case: calculate perpendicular distance
-        local a = dy
-        local b = -dx  
-        local c = dx * p1.y - dy * p1.x
-        
-        local distance = math.abs(a * p2.x + b * p2.y + c) / math.sqrt(a * a + b * b)
-        
-        return distance
-    end
-    
+
     -- Helper to write to CSV
     local function writeBatchToCSV(csvFile, dataPoints)
         for _, point in ipairs(dataPoints) do
-            csvFile:write(string.format("%d,%d,%d,%.6f,%.6f,%.6f,%s\n", 
+            csvFile:write(string.format("%d,%d,%d,%.6f,%.6f,%.6f,%s\n",
                 point.enumKey, point.pianoKey, point.direction, point.x, point.y, point.z, point.timestamp))
         end
         csvFile:flush()
     end
 
+    -- Calculate linearity of 3 points
+    local function calculateLinearity(points)
+        local n = #points
+        if n ~= 3 then return 0 end
+
+        local p1 = points[1]
+        local p2 = points[2]
+        local p3 = points[3]
+
+        local dx = p3.x - p1.x
+        local dy = p3.y - p1.y
+
+        if math.abs(dy) < 0.0001 then
+            return math.abs(p2.x - p1.x)
+        elseif math.abs(dx) < 0.000001 then
+            return 0
+        end
+
+        local a = dy
+        local b = -dx
+        local c = dx * p1.y - dy * p1.x
+
+        local distance = math.abs(a * p2.x + b * p2.y + c) / math.sqrt(a * a + b * b)
+        return distance
+    end
+
+    -- Helper for bore center probing
+    local function probeBoreCenter()
+        local xEdge1 = ProbeScripts.Probe(inst, 1, false, true, nil, nil, false, nil)
+        local xEdge2 = ProbeScripts.Probe(inst, 2, false, true, nil, nil, false, nil)
+        local centerX = (xEdge1 + xEdge2) / 2
+
+        local yEdge1 = ProbeScripts.Probe(inst, 3, false, true, nil, nil, false, nil)
+        local yEdge2 = ProbeScripts.Probe(inst, 4, false, true, nil, nil, false, nil)
+        local centerY = (yEdge1 + yEdge2) / 2
+
+        return centerX, centerY
+    end
+
+    -- Helper to probe key side (X edges)
     local function probeKeySide(keyIndex, direction, xPosition)
         local keyInfo = TEST_KEYS[keyIndex]
         local pianoKey = keyInfo[1]
         local enumKey = keyInfo[2]
         local results = {}
-
-        local keyZ = keyHeights[enumKey]
-        local keyProbeZ = keyZ - ProbeDropDepth
 
         local XTolerance = 0.005
         local currentX = mc.mcAxisGetPos(inst, mc.X_AXIS)
@@ -2771,7 +2773,7 @@ function ProbeScripts.ProbeKeys(inst)
         if math.abs(currentX - xPosition) > XTolerance then
             mc.mcCntlGcodeExecuteWait(inst, string.format("G90 G0 Z%.4f", traverseHeight))
             if not ProbeScripts.ProtectedMove(inst, "work", xPosition, Y_POSITIONS[1], traverseHeight, 300) then return false end
-            if not ProbeScripts.ProtectedMove(inst, "work", nil, nil, keyProbeZ) then return false end
+            if not ProbeScripts.ProtectedMove(inst, "work", nil, nil, probeZ) then return false end
         else
             if not ProbeScripts.ProtectedMove(inst, "work", nil, Y_POSITIONS[1], nil, 200) then return false end
         end
@@ -2781,11 +2783,8 @@ function ProbeScripts.ProbeKeys(inst)
             if i > 1 then
                 if not ProbeScripts.ProtectedMove(inst, "work", xPosition, yPos, nil) then return false end
             end
-            
-            -- Single tap return to start
+
             local xEdge = ProbeScripts.Probe(inst, direction, false, true, nil, SINGLE_TAP_FEEDRATE, true, nil)
-            
-            -- Apply calibration offset based on direction
             local offsetKey = direction == 1 and "+X" or "-X"
             xEdge = xEdge - calibrationOffsets[offsetKey]
             xMeasurements[i] = xEdge
@@ -2796,83 +2795,73 @@ function ProbeScripts.ProbeKeys(inst)
                 direction = direction,
                 x = xEdge,
                 y = yPos,
-                z = keyProbeZ,
+                z = probeZ,
                 timestamp = os.date("%Y-%m-%d %H:%M:%S")
             })
         end
-        
+
         -- Check linearity of front points (indices 1-3)
         local frontPoints = {}
         for i = 1, 3 do
             table.insert(frontPoints, {y = Y_POSITIONS[i], x = xMeasurements[i]})
         end
-        
+
         local frontDistance = calculateLinearity(frontPoints)
-        local sideName = direction == 1 and "left" or "right"
-        
-        -- Check front linearity and re-probe if needed
+
         if frontDistance > LINEARITY_THRESHOLD then
-            -- Probe additional front points
             for _, yPos in ipairs(Y_POSITIONS_EXTRA_FRONT) do
                 if not ProbeScripts.ProtectedMove(inst, "work", xPosition, yPos, nil) then return false end
-                
+
                 local xEdge = ProbeScripts.Probe(inst, direction, false, true, nil, SINGLE_TAP_FEEDRATE, true, nil)
                 local offsetKey = direction == 1 and "+X" or "-X"
                 xEdge = xEdge - calibrationOffsets[offsetKey]
-                
-                -- Add to results
+
                 table.insert(results, {
                     enumKey = enumKey,
                     pianoKey = pianoKey,
                     direction = direction,
                     x = xEdge,
                     y = yPos,
-                    z = keyProbeZ,
+                    z = probeZ,
                     timestamp = os.date("%Y-%m-%d %H:%M:%S")
                 })
-                
-                -- Update xMeasurements for shoulder analysis
+
                 table.insert(xMeasurements, xEdge)
             end
         end
-        
+
         -- Check linearity of back points (indices 4-6)
         local backPoints = {}
         for i = 4, 6 do
             table.insert(backPoints, {y = Y_POSITIONS[i], x = xMeasurements[i]})
         end
-        
+
         local backDistance = calculateLinearity(backPoints)
-        
-        -- Check back linearity and re-probe if needed
+
         if backDistance > LINEARITY_THRESHOLD then
-            -- Probe additional back points
             for _, yPos in ipairs(Y_POSITIONS_EXTRA_BACK) do
                 if not ProbeScripts.ProtectedMove(inst, "work", xPosition, yPos, nil) then return false end
-                
+
                 local xEdge = ProbeScripts.Probe(inst, direction, false, true, nil, SINGLE_TAP_FEEDRATE, true, nil)
                 local offsetKey = direction == 1 and "+X" or "-X"
                 xEdge = xEdge - calibrationOffsets[offsetKey]
-                
-                -- Add to results
+
                 table.insert(results, {
                     enumKey = enumKey,
                     pianoKey = pianoKey,
                     direction = direction,
                     x = xEdge,
                     y = yPos,
-                    z = keyProbeZ,
+                    z = probeZ,
                     timestamp = os.date("%Y-%m-%d %H:%M:%S")
                 })
-                
-                -- Update xMeasurements for shoulder analysis
+
                 table.insert(xMeasurements, xEdge)
             end
         end
-        
+
         -- Analyze shoulder accessibility
         local shoulderInfo = nil
-        -- Use the maximum probe diameter from all directions for clearance calculations
         local probeDiamPlusX = mc.mcCntlGetPoundVar(inst, 511)
         local probeDiamMinusX = mc.mcCntlGetPoundVar(inst, 512)
         local probeDiamPlusY = mc.mcCntlGetPoundVar(inst, 513)
@@ -2882,7 +2871,7 @@ function ProbeScripts.ProbeKeys(inst)
         local minDiff = math.huge
         local closestFrontIdx = 0
         local closestBackIdx = 0
-  
+
         for frontIdx = 1, 3 do
             for backIdx = 4, 6 do
                 local diff = math.abs(xMeasurements[frontIdx] - xMeasurements[backIdx])
@@ -2894,7 +2883,6 @@ function ProbeScripts.ProbeKeys(inst)
             end
         end
 
-        -- Check if shoulder is accessible
         if minDiff > minClearance then
             local xMidpoint = (xMeasurements[closestFrontIdx] + xMeasurements[closestBackIdx]) / 2
             shoulderInfo = {
@@ -2911,84 +2899,23 @@ function ProbeScripts.ProbeKeys(inst)
         writeBatchToCSV(csvFile, results)
         csvFile:close()
 
-        -- Report shoulder if accessible
         if shoulderInfo and shoulderInfo.accessible then
             local sideName = direction == 1 and "left" or "right"
             writeReport(string.format("Key %d: %s side shoulder accessible (clearance: %.4f)", pianoKey, sideName, shoulderInfo.clearance))
         end
-        
+
         return results, shoulderInfo
     end
 
-    -- Helper to probe Y front edge
-    local function probeKeyYFront(keyIndex, xPosition)
-        local keyInfo = TEST_KEYS[keyIndex]
-        local pianoKey = keyInfo[1]
-        local enumKey = keyInfo[2]
-
-        -- Calculate key-specific probe Z for Y probing
-        local keyZ = keyHeights[enumKey]
-        local keyProbeZ = keyZ - ProbeDropDepth
-
-        -- Move to probe position
-        if not ProbeScripts.ProtectedMove(inst, "work", xPosition, nil, nil, 300) then return nil end
-
-        -- Single tap probe +Y
-        local yFront = ProbeScripts.Probe(inst, 3, false, true, nil, SINGLE_TAP_FEEDRATE, true, nil)
-        yFront = yFront - calibrationOffsets["+Y"]
-
-        -- Create data point
-        local dataPoint = {
-            enumKey = enumKey,
-            pianoKey = pianoKey,
-            direction = 3,
-            x = xPosition,
-            y = yFront,
-            z = keyProbeZ,
-            timestamp = os.date("%Y-%m-%d %H:%M:%S")
-        }
-        
-        return dataPoint
-    end
-    
-    -- Helper function for bore center probing
-    local function probeBoreCenter(boreName)
-        local xEdge1 = ProbeScripts.Probe(inst, 1, false, true, nil, nil, false, nil)
-        local xEdge2 = ProbeScripts.Probe(inst, 2, false, true, nil, nil, false, nil)
-        local centerX = (xEdge1 + xEdge2) / 2
-        
-        local yEdge1 = ProbeScripts.Probe(inst, 3, false, true, nil, nil, false, nil)
-        local yEdge2 = ProbeScripts.Probe(inst, 4, false, true, nil, nil, false, nil)
-        local centerY = (yEdge1 + yEdge2) / 2
-
-        return centerX, centerY
-    end
-    
     -- ========== MAIN SCRIPT START ==========
-    
-    -- Store starting position
-    local startX = mc.mcAxisGetPos(inst, mc.X_AXIS)
-    local startY = mc.mcAxisGetPos(inst, mc.Y_AXIS)
-    local startZ = mc.mcAxisGetPos(inst, mc.Z_AXIS)
-    writeReport(string.format("Starting position: X%.4f Y%.4f Z%.4f", startX, startY, startZ))
 
-    -- Results storage
-    local doubleResults = {}
-    local singleResults = {
-        ["+X"] = {},
-        ["-X"] = {},
-        ["+Y"] = {},
-        ["-Y"] = {},
-        ["-Z"] = {}
-    }
-
+    -- Get bore location from settings
     local boreMachineX = mc.mcCntlGetPoundVar(inst, 540)
     local boreMachineY = mc.mcCntlGetPoundVar(inst, 541)
 
     if boreMachineX == 0 and boreMachineY == 0 then
         wx.wxMessageBox("Bore location not configured.\n\nPlease set the bore machine coordinates in System Settings > Keytop Replacement.",
             "Configuration Required", wx.wxOK + wx.wxICON_ERROR)
-        reportFile:close()
         return false
     end
 
@@ -2996,7 +2923,7 @@ function ProbeScripts.ProbeKeys(inst)
     local toolXOffset = mc.mcToolGetData(inst, mc.MTOOL_MILL_X, 90) or 0
     local toolYOffset = mc.mcToolGetData(inst, mc.MTOOL_MILL_Y, 90) or 0
 
-    -- Calculate spindle position needed to put probe tip at bore center
+    -- Calculate spindle position to put probe tip at bore center
     local spindleTargetX = boreMachineX + toolXOffset
     local spindleTargetY = boreMachineY + toolYOffset
 
@@ -3006,6 +2933,8 @@ function ProbeScripts.ProbeKeys(inst)
 
     -- Move spindle to calculated position
     if not ProbeScripts.ProtectedMove(inst, "mach", spindleTargetX, spindleTargetY, nil, 300) then return false end
+
+    -- ========== LEFT BORE CALIBRATION ==========
 
     -- Probe down to find bore bottom
     doubleResults["-Z"] = ProbeScripts.Probe(inst, 5, false, false, nil, nil, false, nil)
@@ -3020,23 +2949,21 @@ function ProbeScripts.ProbeKeys(inst)
     doubleResults["-X"] = ProbeScripts.Probe(inst, 2, false, true, nil, nil, false, nil)
     doubleResults["+Y"] = ProbeScripts.Probe(inst, 3, false, true, nil, nil, false, nil)
     doubleResults["-Y"] = ProbeScripts.Probe(inst, 4, false, true, nil, nil, false, nil)
-    
+
     -- Calculate and move to center
     local leftBoreCenterX = (doubleResults["+X"] + doubleResults["-X"]) / 2
     local leftBoreCenterY = (doubleResults["+Y"] + doubleResults["-Y"]) / 2
     mc.mcCntlGcodeExecuteWait(inst, string.format("G90 G1 X%.4f Y%.4f F200", leftBoreCenterX, leftBoreCenterY))
-    
-    -- Single tap probe calibration cycles from center
+
+    -- Single tap calibration for +X, -X, -Y, -Z (skip +Y - no front probing)
     for cycle = 1, 3 do
         singleResults["+X"][cycle] = ProbeScripts.Probe(inst, 1, false, true, nil, SINGLE_TAP_FEEDRATE, true, nil)
         singleResults["-X"][cycle] = ProbeScripts.Probe(inst, 2, false, true, nil, SINGLE_TAP_FEEDRATE, true, nil)
-        singleResults["+Y"][cycle] = ProbeScripts.Probe(inst, 3, false, true, nil, SINGLE_TAP_FEEDRATE, true, nil)
         singleResults["-Y"][cycle] = ProbeScripts.Probe(inst, 4, false, true, nil, SINGLE_TAP_FEEDRATE, true, nil)
         singleResults["-Z"][cycle] = ProbeScripts.Probe(inst, 5, false, true, nil, SINGLE_TAP_FEEDRATE, true, nil)
     end
-    
+
     -- Calculate calibration offsets
-    calibrationOffsets = {}
     for direction, singles in pairs(singleResults) do
         local sum = 0
         for _, singleValue in ipairs(singles) do
@@ -3044,47 +2971,39 @@ function ProbeScripts.ProbeKeys(inst)
         end
         calibrationOffsets[direction] = sum / #singles
     end
-    
-    -- Report calibration offsets
-    writeReport("Single-tap calibration offsets:")
-    for direction, offset in pairs(calibrationOffsets) do
-        writeReport(string.format("  %s: %.6f", direction, offset))
-    end
 
-    -- Log left bore center and set datum
-    writeReport(string.format("Left bore center: X%.4f Y%.4f", leftBoreCenterX, leftBoreCenterY))
+    -- Set XY datum at bore center
     mc.mcAxisSetPos(inst, mc.X_AXIS, 0)
     mc.mcAxisSetPos(inst, mc.Y_AXIS, 0)
 
-    -- Move out of bore and probe surface
+    -- Move out of bore and probe surface for Z datum
     mc.mcCntlGcodeExecuteWait(inst, string.format("G90 G0 Z%.4f", boreBottomZ + 1))
     if not ProbeScripts.ProtectedMove(inst, "inc", 0.6, nil, nil, 200) then return false end
     local surfaceZ = ProbeScripts.Probe(inst, 5, true, true, nil, nil, false, nil)
-    writeReport(string.format("Surface Z datum set at: %.4f", surfaceZ))
 
-    -- Move back to bore center (0,0)
+    -- Move back to bore center
     if not ProbeScripts.ProtectedMove(inst, "work", 0, 0, nil, 200) then return false end
+
+    -- ========== FIXTURE ID PROBING ==========
 
     local fixtureIDBits = {}
 
-    -- Probe each of the 10 ID holes
     for i = 1, 10 do
-        local yPos = 1.0 + (i - 1) * 0.5  -- First hole at Y=1.0, then Y=1.5, 2.0, etc.
+        local yPos = 1.0 + (i - 1) * 0.5
         if not ProbeScripts.ProtectedMove(inst, "work", 0, yPos, nil, 200) then return false end
         local holeZ = ProbeScripts.Probe(inst, 5, false, true, nil, SINGLE_TAP_FEEDRATE, true, nil)
         holeZ = holeZ - calibrationOffsets["-Z"]
 
-        -- Determine bit value (1 if bored, 0 if not)
         local bitValue = (holeZ < ID_HOLE_DEPTH_THRESHOLD) and 1 or 0
         fixtureIDBits[i] = bitValue
-
-        writeReport(string.format("ID hole %d: Z=%.4f (calibrated), bit=%d", i, holeZ, bitValue))
     end
 
-    -- Verify check bits (9th should be 0, 10th should be 1)
+    -- Verify check bits
     if fixtureIDBits[9] ~= 0 or fixtureIDBits[10] ~= 1 then
-        writeReport(string.format("WARNING: Check bits invalid! Bit 9=%d (expected 0), Bit 10=%d (expected 1)",
-            fixtureIDBits[9], fixtureIDBits[10]))
+        wx.wxMessageBox(string.format("Fixture ID check bits invalid!\n\nBit 9 = %d (expected 0)\nBit 10 = %d (expected 1)\n\nCheck fixture orientation.",
+            fixtureIDBits[9], fixtureIDBits[10]),
+            "Fixture ID Error", wx.wxOK + wx.wxICON_ERROR)
+        return false
     end
 
     -- Calculate fixture ID from first 8 bits
@@ -3093,230 +3012,187 @@ function ProbeScripts.ProbeKeys(inst)
         fixtureID = fixtureID + fixtureIDBits[i] * (2 ^ (i - 1))
     end
 
-    writeReport(string.format("Fixture ID detected: %d (binary: %s%s%s%s%s%s%s%s)",
-        fixtureID,
-        tostring(fixtureIDBits[8]), tostring(fixtureIDBits[7]),
-        tostring(fixtureIDBits[6]), tostring(fixtureIDBits[5]),
-        tostring(fixtureIDBits[4]), tostring(fixtureIDBits[3]),
-        tostring(fixtureIDBits[2]), tostring(fixtureIDBits[1])))
+    mc.mcCntlSetLastError(inst, string.format("Fixture ID: %d", fixtureID))
 
-    -- Move to safe traverse height then to right bore
+    -- ========== RIGHT BORE PROBING ==========
+
     mc.mcCntlGcodeExecuteWait(inst, string.format("G90 G0 Z%.4f", safeTraverseZ))
     if not ProbeScripts.ProtectedMove(inst, "work", BORE_SEPARATION, 0, nil, 300) then return false end
 
-    -- Drop down to centering height in bore
+    -- Drop down to centering height
     if not ProbeScripts.ProtectedMove(inst, "mach", nil, nil, centeringHeightMachine) then return false end
-    local rightBoreCenterX, rightBoreCenterY = probeBoreCenter("right")
-    writeReport(string.format("Right bore center (in datum coords): X%.4f Y%.4f", rightBoreCenterX, rightBoreCenterY))
-    mc.mcCntlGcodeExecuteWait(inst, "G90 G0 Z0.5")
-    if not ProbeScripts.ProtectedMove(inst, "inc", -0.6, nil, nil, 200) then return false end
-    local rightZHeight = ProbeScripts.Probe(inst, 5, false, false, nil, nil, false, 2)
-    writeReport(string.format("Right Z datum (relative to left datum): %.4f", rightZHeight))
-    
-    -- Calculate and report bore alignment (left bore is at 0,0)
+    local rightBoreCenterX, rightBoreCenterY = probeBoreCenter()
+
+    -- Calculate and apply G68 rotation
     local yDifference = rightBoreCenterY
     local xDifference = rightBoreCenterX
     local angleDegrees = 0
-    if math.abs(xDifference) > 0.001 then  -- Avoid division by zero
+    if math.abs(xDifference) > 0.001 then
         local angleRadians = math.atan(yDifference / xDifference)
         angleDegrees = angleRadians * 180 / math.pi
     end
-    
-    writeReport(string.format("Right bore position relative to left: X%.4f Y%.4f", xDifference, yDifference))
-    writeReport(string.format("Y alignment difference: %.6f inches", yDifference))
-    writeReport(string.format("Z height difference: %.6f inches", rightZHeight))
-    writeReport(string.format("Bore alignment angle: %.4f degrees", angleDegrees))
 
-    -- Apply G68 rotation to align with bore angle
     mc.mcCntlGcodeExecuteWait(inst, string.format("G68 X0 Y0 R%.4f", angleDegrees))
-    writeReport(string.format("G68 rotation applied: %.4f degrees centered at 0,0", angleDegrees))
+    mc.mcCntlSetLastError(inst, string.format("G68 rotation: %.4f degrees", angleDegrees))
 
-    -- ========== AUTO-DETECT KEY SET ==========
+    -- ========== AUTO-DETECT KEY SECTION ==========
 
-    if TEST_KEYS == nil then
-        -- Auto-detect: probe the left side (+X) of the 26th key at front and tail Y positions
+    local KEY_26_X = FIRST_KEY_X + 25 * KEY_SPACING
+    local FRONT_Y = Y_POSITIONS[2]
+    local TAIL_Y = Y_POSITIONS[4]
+    local SHOULDER_WIDTH_THRESHOLD = 0.1
 
-        local KEY_26_X = FIRST_KEY_X + 25 * KEY_SPACING  -- Position of 26th key
-        local FRONT_Y = Y_POSITIONS[2]
-        local TAIL_Y = Y_POSITIONS[4]
-        local SHOULDER_WIDTH_THRESHOLD = 0.1  -- Minimum X difference to indicate shoulder exists
+    mc.mcCntlGcodeExecuteWait(inst, string.format("G90 G0 Z%.4f", safeTraverseZ))
+    if not ProbeScripts.ProtectedMove(inst, "work", KEY_26_X, 0, nil, 300) then return false end
 
-        writeReport("===== AUTO-DETECT KEY SET =====")
-        writeReport(string.format("Probing 26th key at X=%.4f", KEY_26_X))
+    -- Probe key surface
+    local keyZ = ProbeScripts.Probe(inst, 5, false, false, nil, SINGLE_TAP_FEEDRATE, true, 0.5)
+    keyZ = keyZ - calibrationOffsets["-Z"]
 
-        -- Move to safe height, then to 26th key position
-        mc.mcCntlGcodeExecuteWait(inst, string.format("G90 G0 Z%.4f", safeTraverseZ))
-        if not ProbeScripts.ProtectedMove(inst, "work", KEY_26_X, 0, nil, 300) then return false end
+    -- Move to left of key and front Y position
+    local probeStartX = KEY_26_X - (KEY_SPACING / 2)
+    if not ProbeScripts.ProtectedMove(inst, "work", probeStartX, FRONT_Y, nil, 200) then return false end
 
-        -- Probe key surface (-Z)
-        local keyZ = ProbeScripts.Probe(inst, 5, false, false, nil, SINGLE_TAP_FEEDRATE, true, 0.5)
-        keyZ = keyZ - calibrationOffsets["-Z"]
-        writeReport(string.format("26th key surface Z: %.4f", keyZ))
+    -- Drop to probe height
+    local detectProbeZ = keyZ - PROBE_DROP_DEPTH
+    if not ProbeScripts.ProtectedMove(inst, "work", nil, nil, detectProbeZ) then return false end
 
-        -- Move to left of key and to front Y position
-        local probeStartX = KEY_26_X - (KEY_SPACING / 2)  -- Half key spacing to the left
-        if not ProbeScripts.ProtectedMove(inst, "work", probeStartX, FRONT_Y, nil, 200) then return false end
+    -- Probe +X to find left edge at front
+    local frontEdgeX = ProbeScripts.Probe(inst, 1, false, true, nil, SINGLE_TAP_FEEDRATE, true, nil)
+    frontEdgeX = frontEdgeX - calibrationOffsets["+X"]
 
-        -- Drop to probe height
-        local detectProbeZ = keyZ - ProbeDropDepth
-        if not ProbeScripts.ProtectedMove(inst, "work", nil, nil, detectProbeZ) then return false end
+    -- Move to tail Y position
+    if not ProbeScripts.ProtectedMove(inst, "work", nil, TAIL_Y, nil) then return false end
 
-        -- Probe +X to find left edge at front
-        local frontEdgeX = ProbeScripts.Probe(inst, 1, false, true, nil, SINGLE_TAP_FEEDRATE, true, nil)
-        frontEdgeX = frontEdgeX - calibrationOffsets["+X"]
-        writeReport(string.format("Front left edge (Y=%.2f): X=%.4f", FRONT_Y, frontEdgeX))
+    -- Probe +X to find left edge at tail
+    local tailEdgeX = ProbeScripts.Probe(inst, 1, false, true, nil, SINGLE_TAP_FEEDRATE, true, nil)
+    tailEdgeX = tailEdgeX - calibrationOffsets["+X"]
 
-        -- Move to tail Y position
-        if not ProbeScripts.ProtectedMove(inst, "work", nil, TAIL_Y, nil) then return false end
+    -- Calculate shoulder width
+    local shoulderWidth = tailEdgeX - frontEdgeX
 
-        -- Probe +X to find left edge at tail
-        local tailEdgeX = ProbeScripts.Probe(inst, 1, false, true, nil, SINGLE_TAP_FEEDRATE, true, nil)
-        tailEdgeX = tailEdgeX - calibrationOffsets["+X"]
-        writeReport(string.format("Tail left edge (Y=%.2f): X=%.4f", TAIL_Y, tailEdgeX))
-
-        -- Calculate shoulder width
-        local shoulderWidth = tailEdgeX - frontEdgeX
-        writeReport(string.format("Shoulder width (tail - front): %.4f", shoulderWidth))
-
-        if shoulderWidth > SHOULDER_WIDTH_THRESHOLD then
-            TEST_KEYS = LOWER_KEYS
-            keyHalfName = "Lower"
-            writeReport("Auto-detect result: LOWER set (keys 1-44) - shoulder detected")
-        else
-            TEST_KEYS = UPPER_KEYS
-            keyHalfName = "Upper"
-            writeReport("Auto-detect result: UPPER set (keys 45-88) - no shoulder detected")
-        end
-
-        mc.mcCntlGcodeExecuteWait(inst, string.format("G90 G0 Z%.4f", safeTraverseZ))
+    if shoulderWidth > SHOULDER_WIDTH_THRESHOLD then
+        TEST_KEYS = LOWER_KEYS
+        keyHalfName = "Lower"
+    else
+        TEST_KEYS = UPPER_KEYS
+        keyHalfName = "Upper"
     end
 
-    -- Now that key section is determined, create folder and files
-    -- Each section gets its own folder: {Make}_{Serial}_{Upper|Lower}/
+    mc.mcCntlSetLastError(inst, string.format("Auto-detect: %s keys (shoulder width: %.4f)", keyHalfName, shoulderWidth))
+
+    -- ========== CREATE OUTPUT FILES ==========
+
     pianoName = string.format("%s_%s_%s", params.make, params.serial, keyHalfName)
     pianoFolder = string.format("C:\\Mach4Hobby\\Profiles\\BLP\\Logs\\%s", pianoName)
     os.execute('mkdir "' .. pianoFolder .. '" 2>nul')
 
     csvPath = string.format("%s\\%s.csv", pianoFolder, pianoName)
     local reportPath = string.format("%s\\%s_Report.txt", pianoFolder, pianoName)
-    reportFile = io.open(reportPath, "w")  -- New file for each run
+    reportFile = io.open(reportPath, "w")
 
     writeReport(string.format("===== ProbeKeys %s - %s S/N %s =====", keyHalfName, params.make, params.serial))
     writeReport(string.format("Fixture ID: %d", fixtureID))
     writeReport(string.format("Bore alignment angle: %.4f degrees", angleDegrees))
-    writeReport(string.format("Probe Drop Depth: %.4f", ProbeDropDepth))
-    writeReport(string.format("Shoulder Drop Depth: %.4f", ShoulderDropDepth))
+    writeReport(string.format("Probe Drop Depth: %.4f", PROBE_DROP_DEPTH))
     writeReport(string.format("Linearity Threshold: %.4f", LINEARITY_THRESHOLD))
     writeReport(string.format("Single Tap Feedrate: %.1f IPM", SINGLE_TAP_FEEDRATE))
     writeReport(string.format("CSV output file: %s", csvPath))
 
-    -- ========== Z HEIGHT PROBING ==========
+    -- Report calibration offsets
+    writeReport("Single-tap calibration offsets:")
+    for direction, offset in pairs(calibrationOffsets) do
+        writeReport(string.format("  %s: %.6f", direction, offset))
+    end
+
+    -- ========== SAMPLE Z HEIGHT PROBING ==========
+
+    mc.mcCntlSetLastError(inst, "Probing sample key heights...")
+    mc.mcCntlGcodeExecuteWait(inst, string.format("G90 G0 Z%.4f", safeTraverseZ))
 
     local zProbeData = {}
+    local sampleZHeights = {}
 
-    if not ProbeScripts.ProtectedMove(inst, "work", FIRST_KEY_X, 0, nil, 300) then return false end
-    
-    -- Probe Z height for each test key
-    for i, keyInfo in ipairs(TEST_KEYS) do
-        local pianoKey = keyInfo[1]
-        local enumKey = keyInfo[2]
+    -- Move to first key
+    if not ProbeScripts.ProtectedMove(inst, "work", FIRST_KEY_X, 0, nil, 300) then
+        reportFile:close()
+        return false
+    end
+
+    -- Probe sample keys (1, 7, 13, 19, 25)
+    local sampleCount = 0
+    for keyIndex = 1, NUM_KEYS, SAMPLE_KEY_INTERVAL do
+        local keyX = FIRST_KEY_X + (keyIndex - 1) * KEY_SPACING
+
+        if keyIndex > 1 then
+            if not ProbeScripts.ProtectedMove(inst, "work", keyX, 0, nil, 300) then
+                reportFile:close()
+                return false
+            end
+        end
 
         local zHeight = ProbeScripts.Probe(inst, 5, false, false, nil, SINGLE_TAP_FEEDRATE, true, 0.5)
         zHeight = zHeight - calibrationOffsets["-Z"]
-        
-        -- Store Z height for later use in shoulder probing
-        keyHeights[enumKey] = zHeight
-        
-        -- Store Z height data
+
+        table.insert(sampleZHeights, zHeight)
+        sampleCount = sampleCount + 1
+
+        -- Find which TEST_KEY entry corresponds to this keyIndex
+        local keyInfo = TEST_KEYS[keyIndex]
+        local pianoKey = keyInfo[1]
+        local enumKey = keyInfo[2]
+
         table.insert(zProbeData, {
             enumKey = enumKey,
             pianoKey = pianoKey,
-            direction = 5,  -- Direction 5 for -Z
-            x = mc.mcAxisGetPos(inst, mc.X_AXIS),
-            y = mc.mcAxisGetPos(inst, mc.Y_AXIS),
+            direction = 5,
+            x = keyX,
+            y = 0,
             z = zHeight,
             timestamp = os.date("%Y-%m-%d %H:%M:%S")
         })
-        
-        if i < #TEST_KEYS then
-            mc.mcCntlGcodeExecuteWait(inst, string.format("G91 G1 X%.4f F200", KEY_SPACING))
-            mc.mcCntlGcodeExecuteWait(inst, "G90")
-        end
+
+        writeReport(string.format("Sample key %d (piano key %d): Z=%.4f", keyIndex, pianoKey, zHeight))
     end
-    
-    -- Write all Z probe data at once
+
+    -- Write Z probe data to CSV
     local csvFile = io.open(csvPath, "w")
     csvFile:write("EnumKey#,PianoKey#,Direction,X,Y,Z,Timestamp\n")
     writeBatchToCSV(csvFile, zProbeData)
     csvFile:close()
-    
-    -- Calculate average Z height and set probe/traverse heights
+
+    -- Calculate average Z height
     local avgZ = 0
-    for _, data in ipairs(zProbeData) do
-        avgZ = avgZ + data.z
+    for _, z in ipairs(sampleZHeights) do
+        avgZ = avgZ + z
     end
-    avgZ = avgZ / #zProbeData
-    
-    traverseHeight = avgZ + TRAVERSE_HEIGHT_ABOVE_AVG
-    probeZ = avgZ - ProbeDropDepth
-    
+    avgZ = avgZ / #sampleZHeights
+
+    -- Set uniform traverse and probe heights
+    traverseHeight = avgZ + 0.5
+    probeZ = avgZ - PROBE_DROP_DEPTH
+
     writeReport(string.format("Average Z height: %.4f", avgZ))
     writeReport(string.format("Traverse height: %.4f", traverseHeight))
     writeReport(string.format("Probe Z depth: %.4f", probeZ))
 
-    -- ========== Y FRONT EDGE PROBING ==========
-
-    mc.mcCntlGcodeExecuteWait(inst, string.format("G90 G0 Z%.4f", traverseHeight))
-
-    -- Move to starting position in front of keys
-    local startXForY = 0.90 + KEY_SPACING / 2 
-    if not ProbeScripts.ProtectedMove(inst, "work", startXForY, -1.75, traverseHeight, 300) then return false end
-
-    -- Drop to first key's specific probe Z
-    local firstKeyInfo = TEST_KEYS[1]
-    local firstKeyEnumKey = firstKeyInfo[2]
-    local firstKeyZ = keyHeights[firstKeyEnumKey]
-    local firstKeyProbeZ = firstKeyZ - ProbeDropDepth
-    if not ProbeScripts.ProtectedMove(inst, "work", nil, nil, firstKeyProbeZ) then return false end
-    
-    local yFrontData = {}
-    
-    -- Probe Y front edge for each key
-    for i = 1, #TEST_KEYS do
-        local xPosForY = startXForY + (i - 1) * KEY_SPACING
-        local dataPoint = probeKeyYFront(i, xPosForY)
-        if not dataPoint then
-            reportFile:close()
-            mc.mcCntlSetLastError(inst, "ProbeKeys aborted: Y front probe failed")
-            return false
-        end
-        table.insert(yFrontData, dataPoint)
-    end
-
-    local csvFile = io.open(csvPath, "a")
-    writeBatchToCSV(csvFile, yFrontData)
-    csvFile:close()
-
     -- ========== X EDGE PROBING ==========
 
+    mc.mcCntlSetLastError(inst, "Probing X edges...")
     local accessibleShoulders = {}
-    
-    -- Probe X edges at specified Y and direction
+
     for keyIdx = 1, #TEST_KEYS do
         local pianoKey = TEST_KEYS[keyIdx][1]
-        local pointCount = 0
-        
-        -- Calculate X positions for this key
-        local leftX = FIRST_KEY_X - (KEY_SPACING / 2) + (keyIdx - 1) * KEY_SPACING  -- Left of key
-        local rightX = leftX + KEY_SPACING  -- Right of key
-        
+
+        local leftX = FIRST_KEY_X - (KEY_SPACING / 2) + (keyIdx - 1) * KEY_SPACING
+        local rightX = leftX + KEY_SPACING
+
         -- Probe left side (+X direction)
         local leftData, leftShoulder = probeKeySide(keyIdx, 1, leftX)
         if leftData == false then
-            -- probeKeySide already wrote error and closed reportFile
+            reportFile:close()
             return false
         end
-        pointCount = pointCount + #leftData
         if leftShoulder then
             table.insert(accessibleShoulders, leftShoulder)
         end
@@ -3324,54 +3200,49 @@ function ProbeScripts.ProbeKeys(inst)
         -- Probe right side (-X direction)
         local rightData, rightShoulder = probeKeySide(keyIdx, 2, rightX)
         if rightData == false then
-            -- probeKeySide already wrote error and closed reportFile
+            reportFile:close()
             return false
         end
-        pointCount = pointCount + #rightData
         if rightShoulder then
             table.insert(accessibleShoulders, rightShoulder)
         end
 
-        --writeReport(string.format("Key %d: Total %d X probe points recorded", pianoKey, pointCount))
+        mc.mcCntlSetLastError(inst, string.format("Probing key %d of %d...", keyIdx, #TEST_KEYS))
     end
 
     -- ========== SHOULDER -Y PROBING ==========
-    
+
     if #accessibleShoulders > 0 then
-        --writeReport(string.format("Found %d accessible shoulders for -Y probing", #accessibleShoulders))
-        
-        -- Rapid to traverse height
+        mc.mcCntlSetLastError(inst, "Probing shoulders...")
         mc.mcCntlGcodeExecuteWait(inst, string.format("G90 G0 Z%.4f", traverseHeight))
-        
+
         local shoulderData = {}
-        
+
         for _, shoulder in ipairs(accessibleShoulders) do
-            -- Calculate shoulder probe Z based on specific key height
-            local keyZ = keyHeights[shoulder.enumKey]
-            local shoulderProbeZ = keyZ - ShoulderDropDepth
-            
-            -- Move to shoulder probe position
-            if not ProbeScripts.ProtectedMove(inst, "work", shoulder.xPosition, shoulder.yPosition, traverseHeight, 300) then return false end
-            if not ProbeScripts.ProtectedMove(inst, "work", nil, nil, shoulderProbeZ) then return false end
-            
+            -- Move to shoulder probe position (uniform probeZ for all)
+            if not ProbeScripts.ProtectedMove(inst, "work", shoulder.xPosition, shoulder.yPosition, traverseHeight, 300) then
+                reportFile:close()
+                return false
+            end
+            if not ProbeScripts.ProtectedMove(inst, "work", nil, nil, probeZ) then
+                reportFile:close()
+                return false
+            end
+
             -- Single tap -Y with calibration
             local yBack = ProbeScripts.Probe(inst, 4, false, true, nil, SINGLE_TAP_FEEDRATE, true, nil)
             yBack = yBack - calibrationOffsets["-Y"]
-            
-            -- Store shoulder data
+
             table.insert(shoulderData, {
                 enumKey = shoulder.enumKey,
                 pianoKey = shoulder.pianoKey,
-                direction = 4,  -- Direction 4 for -Y
+                direction = 4,
                 x = shoulder.xPosition,
                 y = yBack,
-                z = shoulderProbeZ,
+                z = probeZ,
                 timestamp = os.date("%Y-%m-%d %H:%M:%S")
             })
-            
-            --writeReport(string.format("Key %d: Shoulder at X%.4f = Y%.4f (Z%.4f)", shoulder.pianoKey, shoulder.xPosition, yBack, shoulderProbeZ))
-            
-            -- Rapid up for next move
+
             mc.mcCntlGcodeExecuteWait(inst, string.format("G90 G0 Z%.4f", traverseHeight))
         end
 
@@ -3381,10 +3252,11 @@ function ProbeScripts.ProbeKeys(inst)
             csvFile:close()
         end
 
+        writeReport(string.format("Probed %d accessible shoulders", #shoulderData))
     else
         writeReport("No accessible shoulders found for -Y probing")
     end
-    
+
     -- ========== RETURN HOME ==========
 
     mc.mcCntlGcodeExecuteWait(inst, string.format("G90 G0 Z%.4f", traverseHeight))
@@ -3399,12 +3271,13 @@ function ProbeScripts.ProbeKeys(inst)
     reportFile:close()
 
     -- ========== TRIGGER FUSION ADD-IN ==========
-    -- Create trigger file for Fusion 360 to process the probe data
-    -- Format: JSON with csv_path and piano_id
+
     local triggerPath = "C:\\Mach4Hobby\\Profiles\\BLP\\Logs\\PROBE_COMPLETE_" .. pianoName .. ".txt"
-    local triggerData = string.format('{"csv_path": "%s", "piano_id": "%s"}',
-        csvPath:gsub("\\", "\\\\"),  -- Escape backslashes for JSON
-        pianoName)
+    local csvPathNetwork = csvPath:gsub("C:\\Mach4Hobby", "\\\\BLPCNC\\Mach4Hobby")
+    local triggerData = string.format('{"csv_path": "%s", "piano_id": "%s", "avg_z": %.6f}',
+        csvPathNetwork:gsub("\\", "\\\\"),
+        pianoName,
+        avgZ)
 
     local triggerFile = io.open(triggerPath, "w")
     if triggerFile then
@@ -3425,7 +3298,6 @@ end
 
 
 
-
 function ProbeScripts.InitialKeytopTrim(inst)
     -- Check probe deployment first
     if not ProbeScripts.CheckProbeDeployed(inst) then return end
@@ -3434,12 +3306,11 @@ function ProbeScripts.InitialKeytopTrim(inst)
     local tabCheckOk, tabResult = pcall(function()
         local tab1 = scr.GetProperty("nbGCodeMDI1", "Current Tab")
         local tab2 = scr.GetProperty("nbGCodeMDI2", "Current Tab")
-        -- Tab 0 = GCode, Tab 1 = MDI
         return (tab1 == "0" or tab1 == 0) or (tab2 == "0" or tab2 == 0)
     end)
 
     if tabCheckOk and not tabResult then
-        wx.wxMessageBox("Please switch to the GCode tab before running Initial Keytop Trim.\n\nThe MDI tab is currently active.",
+        wx.wxMessageBox("Please switch to the GCode tab before running Initial Trim.\n\nThe MDI tab is currently active.",
             "Wrong Tab", wx.wxOK + wx.wxICON_WARNING)
         return
     end
@@ -3448,9 +3319,30 @@ function ProbeScripts.InitialKeytopTrim(inst)
     local vacFrontHandle = mc.mcSignalGetHandle(inst, mc.OSIG_OUTPUT6)
     local vacFrontState = mc.mcSignalGetState(vacFrontHandle)
     if vacFrontState ~= 1 then
-        wx.wxMessageBox("Front vacuum must be ON before running Initial Keytop Trim.\n\nPlease turn on the front vacuum and try again.",
+        wx.wxMessageBox("Front vacuum must be ON before running Initial Trim.\n\nPlease turn on the front vacuum and try again.",
             "Vacuum Required", wx.wxOK + wx.wxICON_WARNING)
         return
+    end
+
+    -- Check dust collection automation is enabled (OUTPUT50 = dustAuto, OUTPUT52 = bootAuto)
+    local dustAutoHandle = mc.mcSignalGetHandle(inst, mc.OSIG_OUTPUT50)
+    local dustAutoState = mc.mcSignalGetState(dustAutoHandle)
+    local bootAutoHandle = mc.mcSignalGetHandle(inst, mc.OSIG_OUTPUT52)
+    local bootAutoState = mc.mcSignalGetState(bootAutoHandle)
+
+    if dustAutoState ~= 1 or bootAutoState ~= 1 then
+        local missing = {}
+        if dustAutoState ~= 1 then table.insert(missing, "Dust Collect Auto") end
+        if bootAutoState ~= 1 then table.insert(missing, "Dust Boot Auto") end
+
+        local result = wx.wxMessageBox(
+            "The following automation settings are not enabled:\n\n• " .. table.concat(missing, "\n• ") ..
+            "\n\nIt is recommended to enable these before running the trim operation.\n\nContinue anyway?",
+            "Automation Warning", wx.wxYES_NO + wx.wxICON_WARNING)
+
+        if result ~= wx.wxYES then
+            return
+        end
     end
 
     mc.mcCntlGcodeExecuteWait(inst, "G55")
@@ -3458,17 +3350,17 @@ function ProbeScripts.InitialKeytopTrim(inst)
     -- Show dialog to get trim parameters
     local fields = {
         {type = "instructions",
-         text = "Initial keytop trim operation.\nEnter the plastic thickness to trim off."},
-        {type = "number", key = "trimDepth", label = "Top Trim Depth (inches)",
-         default = 0.08, persist = false, min = 0.001, max = 0.5,
+         text = "Initial keytop trim operation.\nEnter the plastic thickness to remove."},
+        {type = "number", key = "removalDepth", label = "Removal Depth (inches)",
+         default = 0.08, persist = false, min = 0.001, max = 0.25,
          validateMsg = "Must be between 0.001-0.5"},
         {type = "separator"},
         {type = "radio", key = "trimOperation", label = "Trim Operation",
-         options = {"Full Trim ", "Top Only ", "Front Only"},
-         columns = 3, default = 0}
+         options = {"Top and Front", "Top Only"},
+         columns = 2, default = 0}
     }
 
-    local params = ProbeScripts.ShowDialog(inst, "Initial Keytop Trim", fields, "InitialKeytopTrim", {width = 300})
+    local params = ProbeScripts.ShowDialog(inst, "Initial Trim", fields, "InitialTrim", {width = 300})
     if not params then return end
 
     -- Cancel any existing G68 rotation
@@ -3477,44 +3369,15 @@ function ProbeScripts.InitialKeytopTrim(inst)
     -- Config
     local SINGLE_TAP_FEEDRATE = 40  -- IPM for single tap probes
     local BORE_SEPARATION = 46.0  -- inches between calibration bores
-    local ID_HOLE_DEPTH_THRESHOLD = -0.05  -- Threshold for fixture ID hole detection
-    local safeTraverseZ = 2.0  -- Safe Z height for traversing
+    local KEY_SPACING = 1.7  -- inches between white keys
+    local FIRST_KEY_X = 1.75  -- X position of first key center
+    local SAMPLE_KEY_INTERVAL = 6  -- Probe every 6th key (keys 1, 7, 13, 19, 25)
+    local NUM_KEYS = 26  -- Total white keys per section
+    local safeTraverseZ = 2.0  -- Safe Z height for traversing (work coords, relative to surface)
 
     -- Storage
     local centeringHeightMachine  -- bore centering height in machine coords
     local calibrationOffsets = {}  -- single-tap calibration offsets
-    local fixtureID = nil  -- detected fixture ID
-    local reportFile = nil  -- will be opened after finding piano folder
-    local reportMessages = {}  -- buffer messages until we know the piano folder
-
-    -- Helper function to write to report (buffers until file is opened)
-    local function writeReport(message)
-        local timestamp = os.date("%Y-%m-%d %H:%M:%S")
-        local formattedMsg = string.format("[%s] %s\n", timestamp, message)
-        table.insert(reportMessages, formattedMsg)
-        if reportFile then
-            reportFile:write(formattedMsg)
-            reportFile:flush()
-        end
-    end
-
-    writeReport("===== Initial Keytop Trim Started =====")
-    writeReport(string.format("Trim depth requested: %.4f inches", params.trimDepth))
-    local trimOps = {"Top and Front", "Top Only", "Front Only"}
-    writeReport(string.format("Trim operation: %s", trimOps[params.trimOperation + 1]))
-
-    -- Helper function for bore center probing
-    local function probeBoreCenter(boreName)
-        local xEdge1 = ProbeScripts.Probe(inst, 1, false, true, nil, nil, false, nil)
-        local xEdge2 = ProbeScripts.Probe(inst, 2, false, true, nil, nil, false, nil)
-        local centerX = (xEdge1 + xEdge2) / 2
-
-        local yEdge1 = ProbeScripts.Probe(inst, 3, false, true, nil, nil, false, nil)
-        local yEdge2 = ProbeScripts.Probe(inst, 4, false, true, nil, nil, false, nil)
-        local centerY = (yEdge1 + yEdge2) / 2
-
-        return centerX, centerY
-    end
 
     -- ========== LEFT BORE POSITIONING ==========
 
@@ -3523,9 +3386,8 @@ function ProbeScripts.InitialKeytopTrim(inst)
     local boreMachineY = mc.mcCntlGetPoundVar(inst, 541)
 
     if boreMachineX == 0 and boreMachineY == 0 then
-        wx.wxMessageBox("Bore location not configured.\\n\\nPlease set the bore machine coordinates in System Settings > Keytop Replacement.",
+        wx.wxMessageBox("Bore location not configured.\n\nPlease set the bore machine coordinates in System Settings > Keytop Replacement.",
             "Configuration Required", wx.wxOK + wx.wxICON_ERROR)
-        if reportFile then reportFile:close() end
         return false
     end
 
@@ -3543,7 +3405,6 @@ function ProbeScripts.InitialKeytopTrim(inst)
 
     -- Move spindle to calculated position
     if not ProbeScripts.ProtectedMove(inst, "mach", spindleTargetX, spindleTargetY, nil, 300) then
-        if reportFile then reportFile:close() end
         return false
     end
 
@@ -3554,7 +3415,7 @@ function ProbeScripts.InitialKeytopTrim(inst)
     doubleResults["-Z"] = ProbeScripts.Probe(inst, 5, false, false, nil, nil, false, nil)
     local boreBottomZ = doubleResults["-Z"]
 
-    -- Move up 0.25" and note position
+    -- Move up 0.25" and note position for centering
     mc.mcCntlGcodeExecuteWait(inst, "G91 G0 Z0.25")
     centeringHeightMachine = mc.mcAxisGetMachinePos(inst, mc.Z_AXIS)
 
@@ -3569,90 +3430,42 @@ function ProbeScripts.InitialKeytopTrim(inst)
     local leftBoreCenterY = (doubleResults["+Y"] + doubleResults["-Y"]) / 2
     mc.mcCntlGcodeExecuteWait(inst, string.format("G90 G1 X%.4f Y%.4f F200", leftBoreCenterX, leftBoreCenterY))
 
-    -- Single tap calibration for -Z only (the only direction used for fixture ID probing)
+    -- Single tap calibration for -Z (only direction we need for key probing)
     local singleZResult = ProbeScripts.Probe(inst, 5, false, true, nil, SINGLE_TAP_FEEDRATE, true, nil)
     calibrationOffsets["-Z"] = singleZResult - doubleResults["-Z"]
 
-    -- Report calibration offset
-    writeReport("Single-tap calibration offset:")
-    writeReport(string.format("  -Z: %.6f", calibrationOffsets["-Z"]))
-
-    -- Log left bore center and set datum
-    writeReport(string.format("Left bore center: X%.4f Y%.4f", leftBoreCenterX, leftBoreCenterY))
+    -- Set XY datum at bore center
     mc.mcAxisSetPos(inst, mc.X_AXIS, 0)
     mc.mcAxisSetPos(inst, mc.Y_AXIS, 0)
 
-    -- Move out of bore and probe surface
+    -- Move out of bore and probe surface to set temporary Z datum
     mc.mcCntlGcodeExecuteWait(inst, string.format("G90 G0 Z%.4f", boreBottomZ + 1))
     if not ProbeScripts.ProtectedMove(inst, "inc", 0.6, nil, nil, 200) then
-        if reportFile then reportFile:close() end
         return false
     end
     local surfaceZ = ProbeScripts.Probe(inst, 5, true, true, nil, nil, false, nil)
-    writeReport(string.format("Surface Z datum set at: %.4f", surfaceZ))
 
-    -- Move back to bore center (0,0)
-    if not ProbeScripts.ProtectedMove(inst, "work", 0, 0, nil, 200) then
-        if reportFile then reportFile:close() end
-        return false
-    end
-
-    -- ========== FIXTURE ID PROBING ==========
-
-    local fixtureIDBits = {}
-
-    -- Probe each of the 10 ID holes
-    for i = 1, 10 do
-        local yPos = 1.0 + (i - 1) * 0.5  -- First hole at Y=1.0, then Y=1.5, 2.0, etc.
-        if not ProbeScripts.ProtectedMove(inst, "work", 0, yPos, nil, 200) then
-            if reportFile then reportFile:close() end
-            return false
-        end
-        local holeZ = ProbeScripts.Probe(inst, 5, false, true, nil, SINGLE_TAP_FEEDRATE, true, nil)
-        holeZ = holeZ - calibrationOffsets["-Z"]
-
-        -- Determine bit value (1 if bored, 0 if not)
-        local bitValue = (holeZ < ID_HOLE_DEPTH_THRESHOLD) and 1 or 0
-        fixtureIDBits[i] = bitValue
-
-        writeReport(string.format("ID hole %d: Z=%.4f (calibrated), bit=%d", i, holeZ, bitValue))
-    end
-
-    -- Verify check bits (9th should be 0, 10th should be 1)
-    if fixtureIDBits[9] ~= 0 or fixtureIDBits[10] ~= 1 then
-        writeReport(string.format("WARNING: Check bits invalid! Bit 9=%d (expected 0), Bit 10=%d (expected 1)",
-            fixtureIDBits[9], fixtureIDBits[10]))
-    end
-
-    -- Calculate fixture ID from first 8 bits
-    fixtureID = 0
-    for i = 1, 8 do
-        fixtureID = fixtureID + fixtureIDBits[i] * (2 ^ (i - 1))
-    end
-
-    writeReport(string.format("Fixture ID detected: %d (binary: %s%s%s%s%s%s%s%s)",
-        fixtureID,
-        tostring(fixtureIDBits[8]), tostring(fixtureIDBits[7]),
-        tostring(fixtureIDBits[6]), tostring(fixtureIDBits[5]),
-        tostring(fixtureIDBits[4]), tostring(fixtureIDBits[3]),
-        tostring(fixtureIDBits[2]), tostring(fixtureIDBits[1])))
-
-    -- ========== RIGHT BORE PROBING ==========
+    -- ========== RIGHT BORE PROBING (skip fixture ID) ==========
 
     -- Move to safe traverse height then to right bore
     mc.mcCntlGcodeExecuteWait(inst, string.format("G90 G0 Z%.4f", safeTraverseZ))
     if not ProbeScripts.ProtectedMove(inst, "work", BORE_SEPARATION, 0, nil, 300) then
-        if reportFile then reportFile:close() end
         return false
     end
 
     -- Drop down to centering height in bore
     if not ProbeScripts.ProtectedMove(inst, "mach", nil, nil, centeringHeightMachine) then
-        if reportFile then reportFile:close() end
         return false
     end
-    local rightBoreCenterX, rightBoreCenterY = probeBoreCenter("right")
-    writeReport(string.format("Right bore center (in datum coords): X%.4f Y%.4f", rightBoreCenterX, rightBoreCenterY))
+
+    -- Probe bore center
+    local xEdge1 = ProbeScripts.Probe(inst, 1, false, true, nil, nil, false, nil)
+    local xEdge2 = ProbeScripts.Probe(inst, 2, false, true, nil, nil, false, nil)
+    local rightBoreCenterX = (xEdge1 + xEdge2) / 2
+
+    local yEdge1 = ProbeScripts.Probe(inst, 3, false, true, nil, nil, false, nil)
+    local yEdge2 = ProbeScripts.Probe(inst, 4, false, true, nil, nil, false, nil)
+    local rightBoreCenterY = (yEdge1 + yEdge2) / 2
 
     -- Calculate and apply G68 rotation
     local yDifference = rightBoreCenterY
@@ -3663,279 +3476,139 @@ function ProbeScripts.InitialKeytopTrim(inst)
         angleDegrees = angleRadians * 180 / math.pi
     end
 
-    writeReport(string.format("Right bore position relative to left: X%.4f Y%.4f", xDifference, yDifference))
-    writeReport(string.format("Bore alignment angle: %.4f degrees", angleDegrees))
-
-    -- Apply G68 rotation
     mc.mcCntlGcodeExecuteWait(inst, string.format("G68 X0 Y0 R%.4f", angleDegrees))
-    writeReport(string.format("G68 rotation applied: %.4f degrees centered at 0,0", angleDegrees))
+    mc.mcCntlSetLastError(inst, string.format("G68 rotation: %.4f degrees", angleDegrees))
 
-    -- ========== SEARCH LOG FILES FOR MATCHING FIXTURE ID ==========
+    -- ========== SAMPLE KEY Z HEIGHT PROBING ==========
 
-    mc.mcCntlSetLastError(inst, "Searching for fixture ID in logs...")
+    mc.mcCntlSetLastError(inst, "Probing sample key heights...")
 
-    local function findFixtureInLogs(searchFixtureID)
-        local logsDir = "C:\\Mach4Hobby\\Profiles\\BLP\\Logs"
-        -- Get list of subdirectories sorted by date (newest first)
-        local handle = io.popen('dir "' .. logsDir .. '" /b /ad /o-d 2>nul')
-        local folders = handle:read("*a")
-        handle:close()
+    -- Move to safe height
+    mc.mcCntlGcodeExecuteWait(inst, string.format("G90 G0 Z%.4f", safeTraverseZ))
 
-        local avgZ = nil
-        local foundMake = nil
-        local foundSerial = nil
-        local foundFolder = nil
+    local sampleZHeights = {}
+    local sampleCount = 0
 
-        -- Search through each piano folder
-        -- Folder name is now {Make}_{Serial}_{Section}
-        for folderName in folders:gmatch("[^\r\n]+") do
-            local reportPath = logsDir .. "\\" .. folderName .. "\\" .. folderName .. "_Report.txt"
-            local file = io.open(reportPath, "r")
-            if file then
-                local content = file:read("*a")
-                file:close()
+    -- Probe every 6th key: keys 1, 7, 13, 19, 25 (indices 1, 7, 13, 19, 25)
+    for keyIndex = 1, NUM_KEYS, SAMPLE_KEY_INTERVAL do
+        local keyX = FIRST_KEY_X + (keyIndex - 1) * KEY_SPACING
 
-                -- Search for fixture ID line
-                local foundID = content:match("Fixture ID: (%d+)")
-                if foundID and tonumber(foundID) == searchFixtureID then
-                    -- Found matching fixture ID, now get average Z
-                    local avgZMatch = content:match("Average Z height: ([%d%.]+)")
-                    if avgZMatch then
-                        avgZ = tonumber(avgZMatch)
-                        -- Extract make and serial from folder name (format: Make_Serial_Section)
-                        if folderName:match("_Upper$") then
-                            foundMake, foundSerial = folderName:match("(.+)_(.+)_Upper$")
-                        elseif folderName:match("_Lower$") then
-                            foundMake, foundSerial = folderName:match("(.+)_(.+)_Lower$")
-                        end
-                        foundFolder = folderName
-                        writeReport(string.format("Found matching fixture ID %d in folder: %s", searchFixtureID, folderName))
-                        writeReport(string.format("Piano: %s S/N %s", foundMake or "Unknown", foundSerial or "Unknown"))
-                        writeReport(string.format("Average Z height from log: %.4f", avgZ))
-                        break
-                    end
-                end
-            end
+        if not ProbeScripts.ProtectedMove(inst, "work", keyX, 0, nil, 300) then
+            mc.mcCntlGcodeExecuteWait(inst, "G69")
+            return false
         end
 
-        return avgZ, foundMake, foundSerial, foundFolder
+        -- Single tap probe with calibration
+        local zHeight = ProbeScripts.Probe(inst, 5, false, false, nil, SINGLE_TAP_FEEDRATE, true, 0.5)
+        zHeight = zHeight - calibrationOffsets["-Z"]
+
+        table.insert(sampleZHeights, zHeight)
+        sampleCount = sampleCount + 1
+
+        mc.mcCntlSetLastError(inst, string.format("Sample %d: Z=%.4f", sampleCount, zHeight))
     end
 
-    local avgZ, pianoMake, pianoSerial, pianoFolder = findFixtureInLogs(fixtureID)
+    -- Find maximum Z height (highest key)
+    local maxZ = sampleZHeights[1]
+    for _, z in ipairs(sampleZHeights) do
+        if z > maxZ then
+            maxZ = z
+        end
+    end
 
-    if not avgZ then
-        wx.wxMessageBox(string.format("Could not find previous probing data for fixture ID %d.\\n\\nPlease run ProbeKeys first.", fixtureID),
-            "Log Data Not Found", wx.wxOK + wx.wxICON_ERROR)
+    -- Calculate machining height (max minus removal depth)
+    local machiningHeight = maxZ - params.removalDepth
+
+    mc.mcCntlSetLastError(inst, string.format("Max Z: %.4f, Machining height: %.4f", maxZ, machiningHeight))
+
+    -- Validate machining height is within safe range
+    if machiningHeight < 0.1 or machiningHeight > 2.0 then
+        wx.wxMessageBox(string.format("Calculated machining height is unsafe: %.4f inches\n\nRemoval depth: %.4f\nMax Z: %.4f\n\nResult must be between 0.1 and 2.0 inches.",
+            machiningHeight, params.removalDepth, maxZ),
+            "Unsafe Machining Height", wx.wxOK + wx.wxICON_ERROR)
         mc.mcCntlGcodeExecuteWait(inst, "G69")
         return false
     end
 
-    -- Now that we know the piano, append to the same report file that ProbeKeys uses
-    local pianoFolderPath = "C:\\Mach4Hobby\\Profiles\\BLP\\Logs\\" .. pianoFolder
-    local pianoName = string.format("%s_%s", pianoMake, pianoSerial)
-    local reportPath = pianoFolderPath .. "\\" .. pianoName .. "_Report.txt"
-    reportFile = io.open(reportPath, "a")
-    if reportFile then
-        -- Write all buffered messages
-        for _, msg in ipairs(reportMessages) do
-            reportFile:write(msg)
-        end
-        reportFile:flush()
-    end
+    -- ========== SET FINAL Z DATUM ==========
 
-    -- ========== CALCULATE TRIM HEIGHT ==========
+    -- Get current Z position (still at last probed key location)
+    local currentZ = mc.mcAxisGetPos(inst, mc.Z_AXIS)
 
-    local trimmingHeight = avgZ - params.trimDepth
-    writeReport(string.format("Trimming height calculated: %.4f - %.4f = %.4f", avgZ, params.trimDepth, trimmingHeight))
+    -- Set Z datum so Z=0 is at machining height
+    -- Current position is at currentZ in work coords (surface is Z=0)
+    -- We want new Z=0 to be at machiningHeight above the original surface
+    -- So new Z at current position = currentZ - machiningHeight
+    local newZPosition = currentZ - machiningHeight
+    mc.mcAxisSetPos(inst, mc.Z_AXIS, newZPosition)
 
-    -- Validate trimming height is within safe range
-    if trimmingHeight < 0.1 or trimmingHeight > 2.0 then
-        writeReport(string.format("ERROR: Calculated trimming height %.4f is outside safe range (0.1 to 2.0)", trimmingHeight))
-        wx.wxMessageBox(string.format("Calculated trimming height is unsafe: %.4f inches\\n\\nTrim depth: %.4f\\nAverage Z: %.4f\\n\\nResult must be between 0.1 and 2.0 inches.",
-            trimmingHeight, params.trimDepth, avgZ),
-            "Unsafe Trim Height", wx.wxOK + wx.wxICON_ERROR)
-        mc.mcCntlGcodeExecuteWait(inst, "G69")
-        if reportFile then reportFile:close() end
-        return false
-    end
+    mc.mcCntlSetLastError(inst, string.format("Z datum set: machining height = %.4f", machiningHeight))
 
-    -- ========== LOAD AND MODIFY GCODE FILES ==========
-
-    local gcodeDir = "C:\\Mach4Hobby\\Profiles\\BLP\\Scripts\\GCode"
-    local topTrimFile = gcodeDir .. "\\Initial Trim Top.tap"
-    local frontTrimFile = gcodeDir .. "\\Initial Trim Front.tap"
-
-    local function loadAndModifyTopTrim(sourceFile, targetHeight)
-        local file = io.open(sourceFile, "r")
-        if not file then
-            writeReport("ERROR: Could not open top trim file: " .. sourceFile)
-            return nil
-        end
-
-        local content = file:read("*a")
-        file:close()
-
-        -- Find the lowest Z value in G55 sections
-        local lowestZ = math.huge
-        local inG55 = false
-
-        for line in content:gmatch("[^\r\n]+") do
-            -- Track coordinate system
-            if line:match("G55") then
-                inG55 = true
-            elseif line:match("G53") then
-                inG55 = false
-            end
-
-            -- Only process Z values in G55 sections
-            if inG55 then
-                local zValue = line:match("Z([%d%.%-]+)")
-                if zValue then
-                    local z = tonumber(zValue)
-                    if z and z < lowestZ then
-                        lowestZ = z
-                    end
-                end
-            end
-        end
-
-        if lowestZ == math.huge then
-            writeReport("ERROR: Could not find any Z values in G55 sections")
-            return nil
-        end
-
-        writeReport(string.format("Lowest Z in top trim file: %.4f", lowestZ))
-
-        -- Calculate offset to apply
-        local zOffset = targetHeight - lowestZ
-        writeReport(string.format("Z offset to apply: %.4f - %.4f = %.4f", targetHeight, lowestZ, zOffset))
-
-        -- Modify all Z values in G55 sections
-        local modifiedContent = ""
-        inG55 = false
-
-        for line in content:gmatch("[^\r\n]+") do
-            -- Track coordinate system
-            if line:match("G55") then
-                inG55 = true
-            elseif line:match("G53") then
-                inG55 = false
-            end
-
-            -- Modify Z values in G55 sections
-            if inG55 and line:match("Z[%d%.%-]+") then
-                line = line:gsub("Z([%d%.%-]+)", function(zStr)
-                    local z = tonumber(zStr)
-                    if z then
-                        return string.format("Z%.4f", z + zOffset)
-                    else
-                        return "Z" .. zStr
-                    end
-                end)
-            end
-
-            modifiedContent = modifiedContent .. line .. "\n"
-        end
-
-        return modifiedContent
-    end
-
-    -- ========== EXECUTE TRIM OPERATIONS ==========
+    -- ========== PREPARE G-CODE EXECUTION ==========
 
     -- Retract to machine Z0
     mc.mcCntlGcodeExecuteWait(inst, "G90 G53 G0 Z0")
 
-    -- Build combined G-code based on selected operations
-    local combinedGCode = ""
-    local includeFront = (params.trimOperation == 0 or params.trimOperation == 2)
-    local includeTop = (params.trimOperation == 0 or params.trimOperation == 1)
-
-    if includeFront then
-        writeReport("Loading front trim file: " .. frontTrimFile)
-        local frontFile = io.open(frontTrimFile, "r")
-        if not frontFile then
-            writeReport("ERROR: Failed to open front trim file")
-            wx.wxMessageBox("Failed to open front trim file.", "Error", wx.wxOK + wx.wxICON_ERROR)
-            mc.mcCntlGcodeExecuteWait(inst, "G69")
-            if reportFile then reportFile:close() end
-            return false
-        end
-        local frontContent = frontFile:read("*all")
-        frontFile:close()
-
-        -- If we're also doing top trim, remove M30/M2 from front so it continues
-        if includeTop then
-            frontContent = frontContent:gsub("[Mm]30[^\n]*\n?", "\n")
-            frontContent = frontContent:gsub("[Mm]2[^\n]*\n?", "\n")
-            frontContent = frontContent .. "\n(End of front trim, continuing to top trim)\n\n"
-        end
-
-        combinedGCode = combinedGCode .. frontContent
-        writeReport("Front trim content added to combined G-code")
-    end
-
-    if includeTop then
-        writeReport("Loading and modifying top trim file: " .. topTrimFile)
-
-        -- Load and modify top trim GCode
-        local modifiedTopGCode = loadAndModifyTopTrim(topTrimFile, trimmingHeight)
-        if not modifiedTopGCode then
-            writeReport("ERROR: Failed to load and modify top trim GCode")
-            wx.wxMessageBox("Failed to load and modify top trim GCode.", "Error", wx.wxOK + wx.wxICON_ERROR)
-            mc.mcCntlGcodeExecuteWait(inst, "G69")
-            if reportFile then reportFile:close() end
-            return false
-        end
-
-        combinedGCode = combinedGCode .. modifiedTopGCode
-        writeReport("Modified top trim content added to combined G-code")
-    end
-
-    -- Close any currently loaded G-code file before writing the new one
-    -- (the file might be locked if previously loaded)
+    -- Close any currently loaded G-code file
     mc.mcCntlCloseGCodeFile(inst)
 
-    -- Save combined GCode to temporary file
-    local tempGCodeFile = pianoFolderPath .. "\\TempCombinedTrim.tap"
-    local tempFile = io.open(tempGCodeFile, "w")
-    if not tempFile then
-        writeReport("ERROR: Could not create temp GCode file")
-        wx.wxMessageBox("Failed to create temporary GCode file.", "Error", wx.wxOK + wx.wxICON_ERROR)
-        mc.mcCntlGcodeExecuteWait(inst, "G69")
-        if reportFile then reportFile:close() end
+    -- Determine which G-code file(s) to load
+    local gcodeDir = "C:\\Mach4Hobby\\Profiles\\BLP\\Scripts\\GCode"
+    local topTrimFile = gcodeDir .. "\\Initial Trim Top.tap"
+    local frontTrimFile = gcodeDir .. "\\Initial Trim Front.tap"
+
+    local gcodeFilePath
+    local trimOps = {"Top and Front", "Top Only"}
+
+    if params.trimOperation == 0 then
+        -- Top and Front: need to combine files
+        -- Read front trim, strip M30/M2, append top trim
+        local frontFile = io.open(frontTrimFile, "r")
+        if not frontFile then
+            wx.wxMessageBox("Failed to open front trim file:\n" .. frontTrimFile, "Error", wx.wxOK + wx.wxICON_ERROR)
+            return false
+        end
+        local frontContent = frontFile:read("*a")
+        frontFile:close()
+
+        local topFile = io.open(topTrimFile, "r")
+        if not topFile then
+            wx.wxMessageBox("Failed to open top trim file:\n" .. topTrimFile, "Error", wx.wxOK + wx.wxICON_ERROR)
+            return false
+        end
+        local topContent = topFile:read("*a")
+        topFile:close()
+
+        -- Strip M30/M2 from front content
+        frontContent = frontContent:gsub("[Mm]30[^\n]*\n?", "\n")
+        frontContent = frontContent:gsub("[Mm]2[^\n]*\n?", "\n")
+        frontContent = frontContent .. "\n(End of front trim, continuing to top trim)\n\n"
+
+        -- Combine and write to temp file
+        local tempDir = "C:\\Mach4Hobby\\Profiles\\BLP\\Temp"
+        gcodeFilePath = tempDir .. "\\InitialTrimCombined.tap"
+
+        local tempFile = io.open(gcodeFilePath, "w")
+        if not tempFile then
+            wx.wxMessageBox("Failed to create combined G-code file.", "Error", wx.wxOK + wx.wxICON_ERROR)
+            return false
+        end
+        tempFile:write(frontContent)
+        tempFile:write(topContent)
+        tempFile:close()
+
+    else
+        -- Top Only: use top trim file directly
+        gcodeFilePath = topTrimFile
+    end
+
+    -- Verify file exists
+    local testFile = io.open(gcodeFilePath, "r")
+    if not testFile then
+        wx.wxMessageBox("G-code file not found:\n" .. gcodeFilePath, "Error", wx.wxOK + wx.wxICON_ERROR)
         return false
     end
-    tempFile:write(combinedGCode)
-    tempFile:close()
-    writeReport("Combined G-code saved to: " .. tempGCodeFile)
-
-    -- ========== CLEANUP (before starting cycle) ==========
-
-    -- Clear G68 rotation
-    mc.mcCntlGcodeExecuteWait(inst, "G69")
-    writeReport("G68 rotation cleared")
-
-    -- Update the piano's log file with trim information
-    if pianoFolder then
-        local pianoLogPath = pianoFolderPath .. "\\" .. pianoName .. "_Report.txt"
-        local pianoLog = io.open(pianoLogPath, "a")
-        if pianoLog then
-            local timestamp = os.date("%Y-%m-%d %H:%M:%S")
-            pianoLog:write(string.format("[%s] ===== Initial Trim Started =====\n", timestamp))
-            pianoLog:write(string.format("[%s] Fixture ID: %d\n", timestamp, fixtureID))
-            pianoLog:write(string.format("[%s] Trim depth: %.4f\n", timestamp, params.trimDepth))
-            pianoLog:write(string.format("[%s] Trimming height: %.4f\n", timestamp, trimmingHeight))
-            pianoLog:write(string.format("[%s] Operation: %s\n", timestamp, trimOps[params.trimOperation + 1]))
-            pianoLog:write(string.format("[%s] G-code file: %s\n", timestamp, tempGCodeFile))
-            pianoLog:close()
-            writeReport("Trim information appended to piano log file")
-        end
-    end
-
-    writeReport("===== Queuing trim cycle =====")
-    if reportFile then
-        reportFile:close()
-    end
+    testFile:close()
 
     -- ========== DEFERRED FILE LOAD ==========
     -- Can't load G-code from within a macro (machine state is MRUN, error -18).
@@ -3945,24 +3618,25 @@ function ProbeScripts.InitialKeytopTrim(inst)
     local markerPath = "C:\\Mach4Hobby\\Profiles\\BLP\\Temp\\DeferredGCode.txt"
     local markerFile = io.open(markerPath, "w")
     if markerFile then
-        markerFile:write(tempGCodeFile)
+        markerFile:write(gcodeFilePath)
         markerFile:close()
-        writeReport("Deferred load marker created: " .. markerPath)
     else
-        writeReport("ERROR: Failed to create deferred load marker")
         wx.wxMessageBox("Failed to queue G-code file for execution.", "Error", wx.wxOK + wx.wxICON_ERROR)
         return false
     end
 
-    mc.mcCntlSetLastError(inst, "Trim file ready - " .. trimOps[params.trimOperation + 1])
+    mc.mcCntlSetLastError(inst, string.format("Trim ready - %s (removal: %.3f, height: %.3f)",
+        trimOps[params.trimOperation + 1], params.removalDepth, machiningHeight))
     return true
 end
 
 
 
--- ============================================================================
--- FinalKeytopShaping - Load and run Fusion-generated shaping G-code
--- ============================================================================
+
+
+
+
+
 function ProbeScripts.FinalKeytopShaping(inst)
     -- Check probe deployment first
     if not ProbeScripts.CheckProbeDeployed(inst) then return end
@@ -3987,6 +3661,27 @@ function ProbeScripts.FinalKeytopShaping(inst)
         wx.wxMessageBox("Front vacuum must be ON before running Final Keytop Shaping.\n\nPlease turn on the front vacuum and try again.",
             "Vacuum Required", wx.wxOK + wx.wxICON_WARNING)
         return
+    end
+
+    -- Check dust collection automation is enabled (OUTPUT50 = dustAuto, OUTPUT52 = bootAuto)
+    local dustAutoHandle = mc.mcSignalGetHandle(inst, mc.OSIG_OUTPUT50)
+    local dustAutoState = mc.mcSignalGetState(dustAutoHandle)
+    local bootAutoHandle = mc.mcSignalGetHandle(inst, mc.OSIG_OUTPUT52)
+    local bootAutoState = mc.mcSignalGetState(bootAutoHandle)
+
+    if dustAutoState ~= 1 or bootAutoState ~= 1 then
+        local missing = {}
+        if dustAutoState ~= 1 then table.insert(missing, "Dust Collect Auto") end
+        if bootAutoState ~= 1 then table.insert(missing, "Dust Boot Auto") end
+
+        local result = wx.wxMessageBox(
+            "The following automation settings are not enabled:\n\n• " .. table.concat(missing, "\n• ") ..
+            "\n\nIt is recommended to enable these before running Final Shaping.\n\nContinue anyway?",
+            "Automation Warning", wx.wxYES_NO + wx.wxICON_WARNING)
+
+        if result ~= wx.wxYES then
+            return
+        end
     end
 
     mc.mcCntlGcodeExecuteWait(inst, "G55")
@@ -4347,12 +4042,8 @@ function ProbeScripts.FinalKeytopShaping(inst)
 
     -- ========== CLEANUP AND QUEUE FILE ==========
 
-    -- Retract to machine Z0
+    -- Retract to machine Z0 (G68 rotation remains active for G-code execution)
     mc.mcCntlGcodeExecuteWait(inst, "G90 G53 G0 Z0")
-
-    -- Clear G68 rotation
-    mc.mcCntlGcodeExecuteWait(inst, "G69")
-    writeReport("G68 rotation cleared")
 
     -- Close any currently loaded G-code file
     mc.mcCntlCloseGCodeFile(inst)
@@ -4386,26 +4077,100 @@ function ProbeScripts.FinalKeytopShaping(inst)
 end
 
 
--- Debug function
+
+
+
+
+
 function ProbeScripts.Debug(inst)
-    mc.mcCntlSetLastError(inst, "Debug: Starting test - press Cycle Stop during moves")
+    -- Test Probe() auto-abort on cycle stop
+    -- Probe() now throws error("MACHINE_STOPPED") if state is IDLE/HOLD
 
-    local rc1 = mc.mcCntlGcodeExecuteWait(inst, "G91 G1 X1 F10")
-    local state1 = mc.mcCntlGetState(inst)
+    local logPath = "C:\\Mach4Hobby\\Profiles\\BLP\\Logs\\DebugProbeTest.txt"
+    local logFile = io.open(logPath, "w")
 
-    local rc2 = mc.mcCntlGcodeExecuteWait(inst, "G91 G1 X-1 F10")
-    local state2 = mc.mcCntlGetState(inst)
+    if not logFile then
+        wx.wxMessageBox("Failed to open log file: " .. logPath, "Error", wx.wxOK)
+        return
+    end
 
-    local rc3 = mc.mcCntlGcodeExecuteWait(inst, "G91 G1 Y1 F10")
-    local state3 = mc.mcCntlGetState(inst)
+    local function log(msg)
+        local timestamp = os.date("%H:%M:%S")
+        local line = string.format("[%s] %s\n", timestamp, msg)
+        logFile:write(line)
+        logFile:flush()
+        mc.mcCntlSetLastError(inst, msg)
+    end
 
-    local rc4 = mc.mcCntlGcodeExecuteWait(inst, "G91 G1 Y-1 F10")
-    local state4 = mc.mcCntlGetState(inst)
+    -- Cleanup function
+    local function cleanup()
+        log("=== CLEANUP CALLED ===")
+        log("Would clear G68, close files, etc.")
+    end
 
-    local msg = string.format("rc: %d,%d,%d,%d  state: %d,%d,%d,%d",
-        rc1, rc2, rc3, rc4, state1, state2, state3, state4)
+    log("===== PROBE() AUTO-ABORT TEST =====")
+    log("Probe() now throws MACHINE_STOPPED if state is IDLE/HOLD")
+    log("Press Cycle Stop during probing - should abort on NEXT probe call")
+    log("")
 
-    mc.mcCntlSetLastError(inst, "Debug: " .. msg)
+    local startTime = os.time()
+    local probeCount = 0
+
+    local ok, err = pcall(function()
+        log("Starting probe sequence...")
+
+        for i = 1, 10 do
+            log(string.format("--- Probe %d of 10 ---", i))
+
+            -- Use Probe() directly - it now throws on IDLE/HOLD state
+            local edgeValue, success = ProbeScripts.Probe(inst, 5, false, true, 0.5, 40, true, nil)
+
+            if success then
+                probeCount = i
+                log(string.format("  Success! Edge value: %.6f", edgeValue))
+            else
+                log(string.format("  Probe failed (no hit), edge value: %.6f", edgeValue))
+                -- Note: This is a normal failure, not cycle stop
+                -- Cycle stop would have thrown before we got here
+            end
+
+            wx.wxMilliSleep(500)
+        end
+
+        log("")
+        log("=== ALL PROBES COMPLETED ===")
+    end)
+
+    local elapsed = os.time() - startTime
+
+    log("")
+    log(string.format("pcall returned: ok=%s, err=%s", tostring(ok), tostring(err)))
+    log(string.format("Probes completed: %d", probeCount))
+    log(string.format("Elapsed time: %d seconds", elapsed))
+
+    if not ok then
+        log("")
+        log("=== ABORT DETECTED - RUNNING CLEANUP ===")
+        cleanup()
+        log("=== CLEANUP COMPLETE ===")
+
+        logFile:close()
+
+        wx.wxMessageBox(string.format(
+            "Probing interrupted!\n\nError: %s\nCompleted %d probes before abort.\n\nCleanup executed.\n\nSee log: %s",
+            tostring(err), probeCount, logPath),
+            "Aborted", wx.wxOK + wx.wxICON_WARNING)
+    else
+        log("")
+        log("=== SUCCESS - WOULD CREATE TRIGGER ===")
+
+        logFile:close()
+
+        wx.wxMessageBox(string.format(
+            "All probes completed!\n\nWould create Fusion trigger here.\n\nSee log: %s",
+            logPath),
+            "Success", wx.wxOK + wx.wxICON_INFORMATION)
+    end
 end
 
 
