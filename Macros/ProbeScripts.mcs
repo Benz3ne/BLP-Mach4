@@ -258,6 +258,12 @@ function ProbeScripts.Probe(inst, direction, setDatum, returnToStart, maxTravel,
     -- Abort immediately if machine was stopped (cycle stop, e-stop, etc.)
     local state = mc.mcCntlGetState(inst)
     if state == 0 or state == 1 then  -- IDLE or HOLD
+        -- Clean up machine state BEFORE throwing error
+        -- This prevents UI lockup even if error propagates uncaught
+        pcall(function()
+            mc.mcCntlGcodeExecuteWait(inst, "G69")  -- Cancel any G68 rotation
+            mc.mcCntlMachineStateClear(inst)
+        end)
         error("MACHINE_STOPPED", 0)
     end
 

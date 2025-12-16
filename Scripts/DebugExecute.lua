@@ -1,66 +1,106 @@
--- Debug script to test gcode file reading and line selection detection
+-- DebugExecute.lua - Automated CycleStop bug diagnosis
+-- Fully automatic - no user interaction required
+
 local inst = mc.mcGetInstance()
+local logPath = "C:\\Mach4Hobby\\Profiles\\BLP\\Logs\\CycleStopDebug.txt"
+local logFile = io.open(logPath, "w")
 
-mc.mcCntlSetLastError(inst, "=== GCode File Debug Test ===")
+if not logFile then
+    wx.wxMessageBox("Failed to open log file", "Error", wx.wxOK)
+    return
+end
 
--- Test 1: Get currently loaded file path
-local filePath = mc.mcCntlGetGcodeFileName(inst)
-mc.mcCntlSetLastError(inst, string.format("Loaded file: %s", filePath or "NONE"))
+local function log(msg)
+    local line = string.format("[%s] %s\n", os.date("%H:%M:%S"), msg)
+    logFile:write(line)
+    logFile:flush()
+end
 
--- Test 2: Get selected line number
-local selectedLine = mc.mcCntlGetGcodeLineNbr(inst)
-mc.mcCntlSetLastError(inst, string.format("Selected line: %d", selectedLine))
+local function testGcodeExecution()
+    -- Returns true if G-code execution works, false if blocked
+    local startTime = os.clock()
+    local rc = mc.mcCntlGcodeExecuteWait(inst, "G4 P100")  -- 100ms dwell
+    local elapsed = (os.clock() - startTime) * 1000
+    return rc == 0 and elapsed < 500, rc, elapsed  -- Should complete in < 500ms
+end
 
--- Test 3: Get total line count
-local totalLines = mc.mcCntlGetGcodeLineCount(inst)
-mc.mcCntlSetLastError(inst, string.format("Total lines: %d", totalLines))
+log("========================================")
+log("AUTOMATED CYCLESTOP BUG DIAGNOSIS")
+log("========================================")
+log("")
+log(string.format("Initial state: %d", mc.mcCntlGetState(inst)))
+log("")
 
--- Test 4: Read first 20 lines to detect work offset
-if filePath and filePath ~= "" then
-    mc.mcCntlSetLastError(inst, "Scanning for work offset...")
-    local workOffsetFound = nil
+-- Test 1: Baseline - does G-code work normally?
+log("=== TEST 1: BASELINE ===")
+local works, rc, elapsed = testGcodeExecution()
+log(string.format("G-code execution: %s (rc=%d, %.0fms)", works and "WORKS" or "BLOCKED", rc, elapsed))
+log("")
 
-    for i = 0, math.min(19, totalLines - 1) do
-        local line = mc.mcCntlGetGcodeLine(inst, i)
-        if line then
-            -- Check for G54-G59 or G54.1
-            local g54to59 = line:match("G5[4-9]")
-            local g54p = line:match("G54%.1%s*P(%d+)")
+-- Test 2: Start G-code, call CycleStop, test again
+log("=== TEST 2: INTERRUPT WITH CYCLESTOP ===")
+log("Starting G4 P2000 (2 sec dwell)...")
+mc.mcCntlGcodeExecute(inst, "G4 P2000")  -- Non-blocking
+log(string.format("State after execute: %d", mc.mcCntlGetState(inst)))
 
-            if g54to59 then
-                workOffsetFound = g54to59
-                mc.mcCntlSetLastError(inst, string.format("Line %d: Found %s", i, g54to59))
-                break
-            elseif g54p then
-                workOffsetFound = "G54.1 P" .. g54p
-                mc.mcCntlSetLastError(inst, string.format("Line %d: Found G54.1 P%s", i, g54p))
-                break
-            end
+wx.wxMilliSleep(200)  -- Let it start
+log(string.format("State after 200ms: %d", mc.mcCntlGetState(inst)))
+
+log("Calling CycleStop()...")
+CycleStop()  -- Call the ScreenLoad function
+log(string.format("State after CycleStop: %d", mc.mcCntlGetState(inst)))
+
+wx.wxMilliSleep(100)
+log("")
+log("Testing G-code execution after CycleStop...")
+works, rc, elapsed = testGcodeExecution()
+log(string.format("G-code execution: %s (rc=%d, %.0fms)", works and "WORKS" or "BLOCKED", rc, elapsed))
+log("")
+
+-- Test 3: If blocked, try recovery methods one at a time
+if not works then
+    log("=== TEST 3: RECOVERY ATTEMPTS ===")
+
+    local recoveryMethods = {
+        {"mcCntlCycleStop", function() mc.mcCntlCycleStop(inst) end},
+        {"mcCntlMachineStateClear", function() mc.mcCntlMachineStateClear(inst) end},
+        {"mcCntlReset", function() mc.mcCntlReset(inst) end},
+    }
+
+    for _, method in ipairs(recoveryMethods) do
+        log(string.format("Trying %s...", method[1]))
+        pcall(method[2])
+        wx.wxMilliSleep(100)
+
+        works, rc, elapsed = testGcodeExecution()
+        log(string.format("  Result: %s (rc=%d, %.0fms)", works and "WORKS" or "STILL BLOCKED", rc, elapsed))
+
+        if works then
+            log(string.format("  >>> %s FIXED IT <<<", method[1]))
+            break
         end
+        log("")
     end
-
-    if not workOffsetFound then
-        mc.mcCntlSetLastError(inst, "No work offset found in first 20 lines")
-    end
-end
-
--- Test 5: Get current machine work offset
-local currentOffset = mc.mcCntlGetPoundVar(inst, 4014)  -- Modal group 14
-local offsetString = ""
-if currentOffset >= 54 and currentOffset <= 59 then
-    offsetString = string.format("G%.0f", currentOffset)
-elseif currentOffset == 54.1 then
-    local pval = mc.mcCntlGetPoundVar(inst, mc.SV_BUFP)
-    offsetString = string.format("G54.1 P%.0f", pval)
 else
-    offsetString = string.format("Unknown (%.2f)", currentOffset)
-end
-mc.mcCntlSetLastError(inst, string.format("Current work offset: %s", offsetString))
-
--- Test 6: Get specific line content (the selected line)
-if selectedLine > 0 and selectedLine <= totalLines then
-    local lineContent = mc.mcCntlGetGcodeLine(inst, selectedLine - 1)  -- 0-indexed
-    mc.mcCntlSetLastError(inst, string.format("Selected line content: %s", lineContent or "EMPTY"))
+    log("=== TEST 3: SKIPPED (not blocked) ===")
+    log("Bug not reproduced with non-blocking execute + CycleStop")
+    log("")
+    log("The bug likely requires interrupting mcCntlGcodeExecuteWait specifically.")
+    log("This happens when cycle stop is pressed during a blocking operation")
+    log("like probing or running a macro with GcodeExecuteWait.")
 end
 
-mc.mcCntlSetLastError(inst, "=== Debug Test Complete ===")
+log("")
+log("========================================")
+log("DIAGNOSIS COMPLETE")
+log("========================================")
+log(string.format("Final state: %d", mc.mcCntlGetState(inst)))
+
+logFile:close()
+
+-- Show summary
+local resultFile = io.open(logPath, "r")
+local results = resultFile:read("*a")
+resultFile:close()
+
+wx.wxMessageBox(results, "CycleStop Debug Results", wx.wxOK)

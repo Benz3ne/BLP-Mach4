@@ -37,14 +37,22 @@ CONFIG = {
 
 # Network path to Mach4 Logs folder on CNC machine (BLPCN)
 # The add-in watches this folder for probe completion triggers and exports G-code here
-MACH4_LOGS_DIR = r"\\BLPCN\Mach4Hobby\Profiles\BLP\Logs"
+MACH4_LOGS_DIR = r"\\BLPCNC\Mach4Hobby\Profiles\BLP\Logs"
 # Local watch directory for trigger files (ProbeKeys writes triggers here)
 WATCH_DIR = MACH4_LOGS_DIR
-# Heartbeat file path - written every 10 seconds to indicate add-in is running
+# Heartbeat file path - written every 5 seconds to indicate add-in is running
 HEARTBEAT_FILE = os.path.join(MACH4_LOGS_DIR, "FUSION_HEARTBEAT.txt")
-HEARTBEAT_INTERVAL = 10  # seconds between heartbeat writes
+HEARTBEAT_INTERVAL = 5  # seconds between heartbeat writes
 
 current_piano_id = None  # Track current piano being processed
+current_section = None   # Track current section being processed
+
+
+def update_progress(status, step, detail=""):
+    """Log progress update (previously wrote to ACK file, now just logs)"""
+    if current_piano_id:
+        log(f"Progress: {status} - {step}" + (f" ({detail})" if detail else ""))
+
 
 def get_piano_folder(piano_id):
     """Get the path to the piano's folder in Logs directory"""
@@ -265,8 +273,16 @@ def process_key(key_num, key_data):
     right_points = [[p['X'], p['Y']] for p in key_data.get('2', [])]
     front_points = [[p['X'], p['Y']] for p in key_data.get('3', [])]
 
-    if not (left_points and right_points and front_points):
+    if not (left_points and right_points):
         return None
+
+    # If no front probing data, synthesize front points at Y=-1.2 using leftmost/rightmost X values
+    if not front_points:
+        default_front_y = -1.2
+        # Get the frontmost X measurements from left and right edges
+        left_front_x = min(p[0] for p in left_points)
+        right_front_x = max(p[0] for p in right_points)
+        front_points = [[left_front_x, default_front_y], [right_front_x, default_front_y]]
 
     # Calculate center
     all_points = left_points + right_points + front_points
@@ -318,9 +334,13 @@ class ProbeDataHandler(adsk.core.CustomEventHandler):
                         elif '_Lower' in csv_path:
                             section = 'Lower'
 
-                    # Set global piano ID for logging
-                    global current_piano_id
+                    # Set global piano ID and section for logging and progress updates
+                    global current_piano_id, current_section
                     current_piano_id = piano_id
+                    current_section = section
+
+                    # Update acknowledgement file to show PROCESSING status
+                    update_progress("PROCESSING", "Starting", f"Received trigger for {piano_id}")
 
                     # Now we have piano_id, start logging
                     log(f"Processing probe data event - {piano_id}")
@@ -366,6 +386,7 @@ class ProbeDataHandler(adsk.core.CustomEventHandler):
 
                     # Parse CSV and calculate parameters
                     if csv_path and os.path.exists(csv_path):
+                        update_progress("PROCESSING", "Parsing CSV", csv_path)
                         log(f"Parsing CSV: {csv_path}")
                         probe_data = parse_csv(csv_path)
                         log(f"Found data for {len(probe_data)} keys")
@@ -387,6 +408,7 @@ class ProbeDataHandler(adsk.core.CustomEventHandler):
                         log(f"Calculated parameters for {len(key_params)} keys")
 
                         # Switch to Design workspace for parameter updates
+                        update_progress("PROCESSING", "Switching workspace", "Design workspace")
                         log("Switching to Design workspace...")
                         design_ws = ui.workspaces.itemById('FusionSolidEnvironment')
                         if design_ws:
@@ -403,6 +425,7 @@ class ProbeDataHandler(adsk.core.CustomEventHandler):
 
                         # Suspend computation during parameter updates for speed
                         design.isComputeDeferred = True
+                        update_progress("PROCESSING", "Updating parameters", f"0/{len(key_params)} keys")
                         log("Suspending geometry updates for batch parameter changes")
 
                         # Update global parameters
@@ -431,19 +454,22 @@ class ProbeDataHandler(adsk.core.CustomEventHandler):
                                         param.expression = f"{value} in"
                                     updated_count += 1
 
-                            # Log progress every 5 keys
+                            # Log and report progress every 5 keys
                             if (idx + 1) % 5 == 0:
                                 log(f"Updated parameters for {idx + 1}/{len(key_params)} keys. Total params: {updated_count}")
+                                update_progress("PROCESSING", "Updating parameters", f"{idx + 1}/{len(key_params)} keys")
 
                         result.append(f"Updated {updated_count} parameters")
                         log(f"All parameters updated. Count: {updated_count}")
 
                         # Resume computation - this triggers ONE geometry rebuild
+                        update_progress("PROCESSING", "Rebuilding geometry", "This may take several minutes...")
                         design.isComputeDeferred = False
                         log("Resuming geometry computation (this may take a few minutes)...")
                         adsk.doEvents()  # Let Fusion recalculate
 
                         # Switch to Manufacturing workspace for CAM operations
+                        update_progress("PROCESSING", "Switching workspace", "Manufacturing workspace")
                         log("Switching to Manufacturing workspace...")
                         manufacture_ws = ui.workspaces.itemById('CAMEnvironment')
                         if not manufacture_ws:
@@ -476,6 +502,7 @@ class ProbeDataHandler(adsk.core.CustomEventHandler):
                                         relevant_setups.append(setup)
 
                             result.append(f"Regenerating {len(relevant_setups)} Shaping toolpaths for {section} section")
+                            update_progress("PROCESSING", "Generating toolpaths", f"{len(relevant_setups)} setups")
                             log(f"Starting toolpath generation for {len(relevant_setups)} setups: {[s.name for s in relevant_setups]}")
 
                             try:
@@ -489,7 +516,10 @@ class ProbeDataHandler(adsk.core.CustomEventHandler):
                                     adsk.doEvents()
                                     time.sleep(2)
                                     elapsed = time.time() - start
-                                    if elapsed % 30 == 0:  # Log progress every 30 seconds
+                                    # Update progress every 10 seconds
+                                    if int(elapsed) % 10 == 0:
+                                        update_progress("PROCESSING", "Generating toolpaths", f"{elapsed:.0f}s elapsed")
+                                    if int(elapsed) % 30 == 0:  # Log every 30 seconds
                                         log(f"Still generating toolpaths... {elapsed:.0f} seconds elapsed")
                                     if elapsed > timeout:
                                         result.append(f"Timeout after {elapsed:.0f} seconds")
@@ -503,94 +533,89 @@ class ProbeDataHandler(adsk.core.CustomEventHandler):
                                 log(f"Toolpath generation error: {e}")
 
                             # Export G-code only for Shaping programs (no Initial Trim)
+                            update_progress("PROCESSING", "Exporting G-code", "Starting export...")
+                            log(f"Starting G-code export...")
                             if hasattr(cam, 'ncPrograms'):
+                                log(f"Found {cam.ncPrograms.count} NC programs")
                                 exported_count = 0
+                                downloads_dir = os.path.join(os.environ['USERPROFILE'], 'Downloads')
+
                                 for i in range(cam.ncPrograms.count):
                                     prog = cam.ncPrograms.item(i)
                                     prog_name_lower = prog.name.lower()
+                                    log(f"Checking NC program: '{prog.name}'")
 
                                     # Only export Shaping programs for this section
                                     if 'shaping' not in prog_name_lower:
+                                        log(f"  Skipping: not a shaping program")
                                         continue
                                     if section == 'Upper' and 'upper' not in prog_name_lower:
+                                        log(f"  Skipping: not Upper section")
                                         continue
                                     if section == 'Lower' and 'lower' not in prog_name_lower:
+                                        log(f"  Skipping: not Lower section")
                                         continue
 
+                                    log(f"  Matched! Checking post configuration...")
                                     if prog.postConfiguration:
+                                        log(f"  Post config: {prog.postConfiguration.name if hasattr(prog.postConfiguration, 'name') else 'present'}")
                                         try:
-                                            # Export to a temp location first, then move to piano folder
-                                            # Use local temp dir to avoid network issues during post
-                                            temp_dir = os.environ.get('TEMP', r'C:\Temp')
-                                            opts = adsk.cam.NCProgramPostProcessOptions.create()
-                                            opts.postConfiguration = prog.postConfiguration
-                                            opts.outputFolder = temp_dir
-                                            opts.programName = prog.name
-                                            prog.postProcess(opts)
-
-                                            # Find and move the exported file to piano folder
-                                            for ext in ['.tap', '.nc', '.cnc']:
-                                                source_file = os.path.join(temp_dir, f"{prog.name}{ext}")
-                                                if os.path.exists(source_file):
-                                                    # Rename with piano ID and move to piano folder
-                                                    dest_name = f"{prog.name}_{piano_id}{ext}"
-                                                    dest_file = os.path.join(piano_folder, dest_name)
-
-                                                    if os.path.exists(dest_file):
-                                                        os.remove(dest_file)
-                                                    os.rename(source_file, dest_file)
-
-                                                    exported_count += 1
-                                                    result.append(f"Exported: {dest_name}")
-                                                    log(f"Moved {prog.name}{ext} to {dest_name}")
-                                                    break
-                                            else:
-                                                log(f"Warning: Could not find exported file {prog.name}.*")
+                                            # Post process the NC program to Downloads
+                                            post_input = adsk.cam.PostProcessInput.create(
+                                                prog.name,  # program name
+                                                prog.postConfiguration,  # post config
+                                                downloads_dir,  # output folder
+                                                adsk.cam.PostOutputUnitOptions.DocumentUnitsOutput  # units
+                                            )
+                                            cam.postProcess(prog, post_input)
+                                            log(f"  Post process completed")
+                                            exported_count += 1
 
                                         except Exception as e:
                                             result.append(f"ERROR exporting {prog.name}: {e}")
-                                            log(f"Export error: {e}")
+                                            log(f"  Export error: {e}")
+                                            log(f"  Traceback: {traceback.format_exc()}")
+                                    else:
+                                        log(f"  No post configuration set for this program")
+
+                                # After post-processing, find and move the shaping files from Downloads
+                                # Fusion always exports as "Upper Shaping.tap" or "Lower Shaping.tap"
+                                expected_filename = f"{section} Shaping.tap"
+                                source_file = os.path.join(downloads_dir, expected_filename)
+
+                                log(f"Looking for exported file: {source_file}")
+
+                                if os.path.exists(source_file):
+                                    # Move to piano folder with piano_id in the name
+                                    dest_name = f"{section} Shaping_{piano_id}.tap"
+                                    dest_file = os.path.join(piano_folder, dest_name)
+
+                                    log(f"Moving {source_file} to {dest_file}")
+                                    if os.path.exists(dest_file):
+                                        os.remove(dest_file)
+                                    os.rename(source_file, dest_file)
+
+                                    result.append(f"Exported: {dest_name}")
+                                    log(f"SUCCESS: Moved {expected_filename} to {dest_file}")
+                                else:
+                                    result.append(f"ERROR: Expected file not found: {expected_filename}")
+                                    log(f"ERROR: File not found in Downloads: {source_file}")
 
                                 result.append(f"Complete! Exported {exported_count} Shaping file(s) to: {piano_folder}")
+                                log(f"Export complete. {exported_count} files exported.")
                         else:
                             result.append("ERROR: No CAM setups found")
                     else:
                         result.append(f"ERROR: CSV file not found: {csv_path}")
 
-            # Write summary to log file (not the debug details)
+            # Log completion (marker files removed for simplicity)
             if piano_id != 'Unknown':
-                piano_folder = get_piano_folder(piano_id)
-                os.makedirs(piano_folder, exist_ok=True)
-
-                log_file = os.path.join(piano_folder, f"FusionExport_{piano_id}.txt")
-                timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
-
-                # Write clean summary to log file
-                with open(log_file, 'a') as f:
-                    f.write(f"\n{timestamp} - {section} Section\n")
-                    for line in result:
-                        if line.startswith("ERROR") or line.startswith("WARNING"):
-                            f.write(f"  {line}\n")
-                        elif "Complete!" in line or "Exported" in line or "Updated" in line:
-                            f.write(f"  {line}\n")
-                    f.write("\n")
-
-            # Write simple completion marker for external script (in piano folder)
-            if piano_id != 'Unknown':
-                piano_folder = get_piano_folder(piano_id)
-                response_path = os.path.join(piano_folder, f"SHAPING_READY_{section}.txt")
-                with open(response_path, 'w') as f:
-                    if any("ERROR" in line for line in result):
-                        f.write("ERROR\n")
-                    else:
-                        f.write("SUCCESS\n")
+                has_error = any("ERROR" in line for line in result)
+                log(f"Processing complete - {'ERROR' if has_error else 'SUCCESS'}")
 
         except:
             error_msg = traceback.format_exc()
             log(f"Error: {error_msg}")
-            error_path = os.path.join(WATCH_DIR, "ERROR.txt")
-            with open(error_path, 'w') as f:
-                f.write(error_msg)
 
 
 class WatchThread(threading.Thread):
@@ -600,12 +625,19 @@ class WatchThread(threading.Thread):
         self.last_heartbeat = 0
 
     def write_heartbeat(self):
-        """Write current timestamp to heartbeat file"""
+        """Write current timestamp to heartbeat file, only if correct document is open"""
         try:
-            with open(HEARTBEAT_FILE, 'w') as f:
-                f.write(str(time.time()))
+            # Only send heartbeat if the Keytop Toolpath document is open
+            doc = app.activeDocument
+            if doc and doc.dataFile and doc.dataFile.name == "Parametrized Keytop Toolpath":
+                with open(HEARTBEAT_FILE, 'w') as f:
+                    f.write(str(time.time()))
+            else:
+                # Wrong document or no document - remove heartbeat if it exists
+                if os.path.exists(HEARTBEAT_FILE):
+                    os.remove(HEARTBEAT_FILE)
         except:
-            pass  # Ignore write errors (network issues, etc.)
+            pass  # Ignore errors (network issues, etc.)
 
     def run(self):
         trigger_pattern = "PROBE_COMPLETE_"
@@ -664,12 +696,16 @@ def run(context):
         watch_thread = WatchThread()
         watch_thread.start()
 
-        ui.messageBox("Keytop Parametric Update started!\nWatching for probe data...")
-
     except:
         error = traceback.format_exc()
-        if ui:
-            ui.messageBox(f'Failed:\n{error}')
+        # Log error to file instead of popup
+        try:
+            error_log_path = os.path.join(MACH4_LOGS_DIR, "FUSION_ERROR.txt")
+            with open(error_log_path, 'w') as f:
+                f.write(f"Startup error at {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
+                f.write(error)
+        except:
+            pass
 
 
 def stop(context):

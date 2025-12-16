@@ -87,6 +87,14 @@ end,
         scr.SetProperty('txtJogInc', 'Bg Color', '#C0C0C0');
         scr.SetProperty('txtJogInc', 'Fg Color', '#808080');
     end
+end,
+
+[mc.ISIG_EMERGENCY] = function(state)
+    -- E-stop activated - always require re-homing for safety
+    if state == 1 then
+        mc.mcAxisDerefAll(inst)
+        mc.mcCntlSetLastError(inst, "E-STOP - RE-HOME REQUIRED")
+    end
 end
 }
 
@@ -246,13 +254,48 @@ end
 
 -- Cycle Stop function.
 function CycleStop()
+    -- Check if machine was moving BEFORE stopping
+    -- These states indicate the machine is NOT moving (paused/held/idle)
+    local notMovingStates = {
+        [0] = true,    -- IDLE
+        [1] = true,    -- HOLD
+        [7] = true,    -- CONFIG
+        [101] = true,  -- FRUN_FH (Feed Hold)
+        [103] = true,  -- FRUN_PROBE_FH
+        [105] = true,  -- FRUN_THREAD_FH
+        [108] = true,  -- FRUN_MACROH (Macro Hold)
+        [110] = true,  -- FRUN_SINGLE_BLOCK
+        [113] = true,  -- FRUN_SINGLE_BLOCK_HOLD
+        [199] = true,  -- FRUN_END
+        [201] = true,  -- MRUN_FH (Feed Hold)
+        [203] = true,  -- MRUN_PROBE_FH
+        [205] = true,  -- MRUN_THREAD_FH
+        [207] = true,  -- MRUN_MACROH (Macro Hold)
+        [299] = true,  -- MRUN_END
+    }
+
+    local state = mc.mcCntlGetState(inst)
+    local wasMoving = not notMovingStates[state]
+
     mc.mcCntlCycleStop(inst);
     mc.mcSpindleSetDirection(inst, 0);
 
-    -- Reset dangerous modal states for safety
-    mc.mcCntlGcodeExecute(inst, "G20 G17 G90 G67 G80 G40 G49 G94 G97 G50 M5 M9");
+    -- Wait for cycle stop to take effect before reset
+    wx.wxMilliSleep(50)
 
-    mc.mcCntlSetLastError(inst, "Cycle Stopped");
+    -- Clear state stack then reset (matches RecoverThenReset pattern)
+    -- This fixes the MERROR_NOT_NOW bug where G-code execution gets blocked
+    mc.mcCntlMachineStateClear(inst)
+    mc.mcCntlReset(inst)
+
+    -- If machine was moving when cycle stop was pressed, require re-homing
+    if wasMoving then
+        mc.mcAxisDerefAll(inst)
+        mc.mcCntlSetLastError(inst, "Cycle Stop while moving - RE-HOME REQUIRED")
+    else
+        mc.mcCntlSetLastError(inst, "Cycle Stopped");
+    end
+
     if(wait ~= nil) then
         wait = nil;
     end
@@ -1978,21 +2021,12 @@ SYSTEM_SETTINGS = {
         }
     },
     {
-        title = "Laser (T91)",
-        settings = {
-            {var = 521, label = "X Offset", unit = "in",
-             tooltip = "X distance from spindle to laser crosshair."},
-            {var = 522, label = "Y Offset", unit = "in",
-             tooltip = "Y distance from spindle to laser crosshair."}
-        }
-    },
-    {
         title = "Tool Change",
         settings = {
-            {var = 523, label = "Tool Change Z", unit = "in",
-             tooltip = "Z height in machine coordinates for tool changes."},
+            {var = 523, label = "Tool Change Retract Height", unit = "in",
+             tooltip = "Amount to retract above the tool holder for tool changes within a group."},
             {var = 524, label = "Pullout Distance", unit = "in",
-             tooltip = "Y distance to pull tool forward after grabbing."},
+             tooltip = "Y distance to pull tool forward after grabbing a tool."},
             {var = 525, label = "Approach Feed", unit = "ipm",
              tooltip = "Feedrate when approaching tool holders."}
         }
