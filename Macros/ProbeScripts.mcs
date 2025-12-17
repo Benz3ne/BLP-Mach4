@@ -993,7 +993,10 @@ end
 function ProbeScripts.M310_ProbeToolHeight(inst)
     -- Get current tool
     local tool = mc.mcToolGetCurrent(inst)
-    
+
+    -- Capture previous H offset before probing
+    local previousHeight = mc.mcToolGetData(inst, mc.MTOOL_MILL_HEIGHT, tool) or 0
+
     -- Configuration from pound variables
     local SAFE_Z = mc.mcCntlGetPoundVar(inst, 523)
     local PROBE_STATION_X = mc.mcCntlGetPoundVar(inst, 526)
@@ -1103,7 +1106,7 @@ function ProbeScripts.M310_ProbeToolHeight(inst)
         end
     end
 
-    mc.mcCntlSetLastError(inst, string.format("T%d measured: Height = %.4f", tool, toolHeight))
+    mc.mcCntlSetLastError(inst, string.format("T%d measured: Height = %.4f (was %.4f)", tool, toolHeight, previousHeight))
     return 0
 end
 
@@ -1390,8 +1393,10 @@ function ProbeScripts.M6_ToolChange(inst)
         ProbeScripts.M310_ProbeToolHeight(inst)
     else
         -- Just apply existing H offset
+        local existingHeight = mc.mcToolGetData(inst, mc.MTOOL_MILL_HEIGHT, requested) or 0
         GcodeExecuteWait("G49")
         GcodeExecuteWait(string.format("G43 H%d", requested))
+        mc.mcCntlSetLastError(inst, string.format("T%d: Applied H = %.4f", requested, existingHeight))
     end
     
     SetBootState()
@@ -4089,93 +4094,100 @@ end
 
 
 function ProbeScripts.Debug(inst)
-    -- Test Probe() auto-abort on cycle stop
-    -- Probe() now throws error("MACHINE_STOPPED") if state is IDLE/HOLD
+    -- ========== DEBUG: Simulate ProbeKeys trigger for Fusion 360 ==========
+    -- This function uses existing CSV data to trigger the Fusion add-in
+    -- without running actual probing operations.
 
-    local logPath = "C:\\Mach4Hobby\\Profiles\\BLP\\Logs\\DebugProbeTest.txt"
-    local logFile = io.open(logPath, "w")
+    -- Configuration - edit this path to test different CSV files
+    local testCsvPath = "C:\\Mach4Hobby\\Profiles\\BLP\\Logs\\Test Set_123456_Upper\\Test Set_123456_Upper.csv"
 
-    if not logFile then
-        wx.wxMessageBox("Failed to open log file: " .. logPath, "Error", wx.wxOK)
+    -- Extract piano info from path
+    -- Expected format: ...Logs\{Make}_{Serial}_{Section}\{Make}_{Serial}_{Section}.csv
+    local pianoName = testCsvPath:match("Logs\\([^\\]+)\\[^\\]+%.csv$")
+
+    if not pianoName then
+        wx.wxMessageBox("Could not parse piano name from CSV path:\n" .. testCsvPath,
+            "Parse Error", wx.wxOK + wx.wxICON_ERROR)
         return
     end
 
-    local function log(msg)
-        local timestamp = os.date("%H:%M:%S")
-        local line = string.format("[%s] %s\n", timestamp, msg)
-        logFile:write(line)
-        logFile:flush()
-        mc.mcCntlSetLastError(inst, msg)
+    -- Read CSV and calculate avg_z from Direction 5 (Z height probing) rows
+    local csvFile = io.open(testCsvPath, "r")
+    if not csvFile then
+        wx.wxMessageBox("Could not open CSV file:\n" .. testCsvPath,
+            "File Error", wx.wxOK + wx.wxICON_ERROR)
+        return
     end
 
-    -- Cleanup function
-    local function cleanup()
-        log("=== CLEANUP CALLED ===")
-        log("Would clear G68, close files, etc.")
-    end
+    local zSum = 0
+    local zCount = 0
+    local lineNum = 0
 
-    log("===== PROBE() AUTO-ABORT TEST =====")
-    log("Probe() now throws MACHINE_STOPPED if state is IDLE/HOLD")
-    log("Press Cycle Stop during probing - should abort on NEXT probe call")
-    log("")
-
-    local startTime = os.time()
-    local probeCount = 0
-
-    local ok, err = pcall(function()
-        log("Starting probe sequence...")
-
-        for i = 1, 10 do
-            log(string.format("--- Probe %d of 10 ---", i))
-
-            -- Use Probe() directly - it now throws on IDLE/HOLD state
-            local edgeValue, success = ProbeScripts.Probe(inst, 5, false, true, 0.5, 40, true, nil)
-
-            if success then
-                probeCount = i
-                log(string.format("  Success! Edge value: %.6f", edgeValue))
-            else
-                log(string.format("  Probe failed (no hit), edge value: %.6f", edgeValue))
-                -- Note: This is a normal failure, not cycle stop
-                -- Cycle stop would have thrown before we got here
+    for line in csvFile:lines() do
+        lineNum = lineNum + 1
+        if lineNum > 1 then  -- Skip header
+            -- Parse CSV: EnumKey#,PianoKey#,Direction,X,Y,Z,Timestamp
+            local parts = {}
+            for part in line:gmatch("[^,]+") do
+                table.insert(parts, part)
             end
 
-            wx.wxMilliSleep(500)
+            if #parts >= 6 then
+                local direction = tonumber(parts[3])
+                local z = tonumber(parts[6])
+
+                -- Direction 5 = Z height probing
+                if direction == 5 and z then
+                    zSum = zSum + z
+                    zCount = zCount + 1
+                end
+            end
         end
+    end
+    csvFile:close()
 
-        log("")
-        log("=== ALL PROBES COMPLETED ===")
-    end)
+    if zCount == 0 then
+        wx.wxMessageBox("No Z height data (Direction 5) found in CSV file.",
+            "Data Error", wx.wxOK + wx.wxICON_ERROR)
+        return
+    end
 
-    local elapsed = os.time() - startTime
+    local avgZ = zSum / zCount
 
-    log("")
-    log(string.format("pcall returned: ok=%s, err=%s", tostring(ok), tostring(err)))
-    log(string.format("Probes completed: %d", probeCount))
-    log(string.format("Elapsed time: %d seconds", elapsed))
+    -- Build trigger data (convert path to network path for Fusion on other machine)
+    local csvPathNetwork = testCsvPath:gsub("C:\\Mach4Hobby", "\\\\BLPCNC\\Mach4Hobby")
+    local triggerData = string.format('{"csv_path": "%s", "piano_id": "%s", "avg_z": %.6f}',
+        csvPathNetwork:gsub("\\", "\\\\"),
+        pianoName,
+        avgZ)
 
-    if not ok then
-        log("")
-        log("=== ABORT DETECTED - RUNNING CLEANUP ===")
-        cleanup()
-        log("=== CLEANUP COMPLETE ===")
+    -- Create trigger file
+    local triggerPath = "C:\\Mach4Hobby\\Profiles\\BLP\\Logs\\PROBE_COMPLETE_" .. pianoName .. ".txt"
+    local triggerFile = io.open(triggerPath, "w")
 
-        logFile:close()
+    if triggerFile then
+        triggerFile:write(triggerData)
+        triggerFile:close()
+
+        mc.mcCntlSetLastError(inst, string.format("Debug trigger sent for %s (avgZ=%.4f)", pianoName, avgZ))
 
         wx.wxMessageBox(string.format(
-            "Probing interrupted!\n\nError: %s\nCompleted %d probes before abort.\n\nCleanup executed.\n\nSee log: %s",
-            tostring(err), probeCount, logPath),
-            "Aborted", wx.wxOK + wx.wxICON_WARNING)
+            "Trigger file created successfully!\n\n" ..
+            "Piano ID: %s\n" ..
+            "CSV Path (network): %s\n" ..
+            "Average Z: %.6f\n" ..
+            "Z samples: %d\n\n" ..
+            "Trigger file: %s\n\n" ..
+            "The Fusion add-in should now process this data.",
+            pianoName,
+            csvPathNetwork,
+            avgZ,
+            zCount,
+            triggerPath),
+            "Debug Trigger Sent", wx.wxOK + wx.wxICON_INFORMATION)
     else
-        log("")
-        log("=== SUCCESS - WOULD CREATE TRIGGER ===")
-
-        logFile:close()
-
-        wx.wxMessageBox(string.format(
-            "All probes completed!\n\nWould create Fusion trigger here.\n\nSee log: %s",
-            logPath),
-            "Success", wx.wxOK + wx.wxICON_INFORMATION)
+        wx.wxMessageBox("Could not create trigger file:\n" .. triggerPath,
+            "File Error", wx.wxOK + wx.wxICON_ERROR)
     end
 end
 

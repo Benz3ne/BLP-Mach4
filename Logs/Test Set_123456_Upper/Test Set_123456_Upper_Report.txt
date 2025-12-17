@@ -1,0 +1,36 @@
+[2025-12-13 12:57:45] ===== ProbeKeys Upper - Test Set S/N 123456 =====
+[2025-12-13 12:57:45] Fixture ID: 42
+[2025-12-13 12:57:45] Bore alignment angle: 0.0033 degrees
+[2025-12-13 12:57:45] Probe Drop Depth: 0.0500
+[2025-12-13 12:57:45] Linearity Threshold: 0.0100
+[2025-12-13 12:57:45] Single Tap Feedrate: 40.0 IPM
+[2025-12-13 12:57:45] CSV output file: C:\Mach4Hobby\Profiles\BLP\Logs\Test Set_123456_Upper\Test Set_123456_Upper.csv
+[2025-12-13 12:57:45] Single-tap calibration offsets:
+[2025-12-13 12:57:45]   -Y: -0.033218
+[2025-12-13 12:57:45]   +X: 0.031373
+[2025-12-13 12:57:45]   -Z: -0.030433
+[2025-12-13 12:57:45]   -X: -0.031201
+[2025-12-13 12:57:58] Sample key 1 (piano key 45): Z=0.3240
+[2025-12-13 12:58:02] Sample key 7 (piano key 56): Z=0.3274
+[2025-12-13 12:58:06] Sample key 13 (piano key 66): Z=0.3243
+[2025-12-13 12:58:10] Sample key 19 (piano key 76): Z=0.3205
+[2025-12-13 12:58:14] Sample key 25 (piano key 87): Z=0.3205
+[2025-12-13 12:58:14] Average Z height: 0.3233
+[2025-12-13 12:58:14] Traverse height: 0.8233
+[2025-12-13 12:58:14] Probe Z depth: 0.2733
+[2025-12-13 12:58:57] Key 45: right side shoulder accessible (clearance: 0.3833)
+[2025-12-13 13:00:24] Key 51: left side shoulder accessible (clearance: 0.3512)
+[2025-12-13 13:01:16] Key 52: right side shoulder accessible (clearance: 0.3484)
+[2025-12-13 13:02:08] Key 56: left side shoulder accessible (clearance: 0.3531)
+[2025-12-13 13:03:14] Key 57: right side shoulder accessible (clearance: 0.3592)
+[2025-12-13 13:04:42] Key 63: left side shoulder accessible (clearance: 0.3466)
+[2025-12-13 13:05:48] Key 64: right side shoulder accessible (clearance: 0.3331)
+[2025-12-13 13:06:40] Key 68: left side shoulder accessible (clearance: 0.3278)
+[2025-12-13 13:07:32] Key 69: right side shoulder accessible (clearance: 0.3976)
+[2025-12-13 13:08:59] Key 75: left side shoulder accessible (clearance: 0.3531)
+[2025-12-13 13:09:51] Key 76: right side shoulder accessible (clearance: 0.3492)
+[2025-12-13 13:11:35] Key 81: right side shoulder accessible (clearance: 0.3632)
+[2025-12-13 13:13:17] Key 87: left side shoulder accessible (clearance: 0.3683)
+[2025-12-13 13:15:06] Probed 13 accessible shoulders
+[2025-12-13 13:15:12] G68 rotation cleared
+[2025-12-13 13:15:12] ===== ProbeKeys Upper Half Completed Successfully =====

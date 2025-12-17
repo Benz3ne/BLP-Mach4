@@ -153,7 +153,7 @@ function TargetMove()
     
     -- Z-order checkbox
     local zOrderSizer = wx.wxBoxSizer(wx.wxHORIZONTAL)
-    local zFirstCheckbox = wx.wxCheckBox(panel, wx.wxID_ANY, "Move Z first (safer for clearance)")
+    local zFirstCheckbox = wx.wxCheckBox(panel, wx.wxID_ANY, "Move to Z0 first (safer for clearance)")
     zFirstCheckbox:SetValue(lastZFirst)
     zFirstCheckbox:SetToolTip(
         "When CHECKED: Z axis rises to safe height first, then XY moves to position, then Z descends to target.\n" ..
