@@ -30,7 +30,13 @@ function PLC(inst)
     local hRequest = mc.mcRegGetHandle(inst, "iRegs0/DialogRequest")
     if hRequest ~= 0 and mc.mcRegGetValue(hRequest) == 1 then
         ProcessDialogRequest()
-        --mc.mcCntlSetLastError(inst, "PLC: Dialog request detected")
+    end
+
+    -- Check for maintenance request (from ProbeScripts macros)
+    local hMaintReq = mc.mcRegGetHandle(inst, "iRegs0/MaintenanceRequest")
+    if hMaintReq ~= 0 and mc.mcRegGetValue(hMaintReq) == 1 then
+        MaintenanceItems()  -- This sets MaintenanceResult
+        mc.mcRegSetValue(hMaintReq, 0)  -- Clear AFTER dialog is done
     end
 
     --  Cycle time label update

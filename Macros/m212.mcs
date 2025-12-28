@@ -1,0 +1,5 @@
+function m212()
+    local inst = mc.mcGetInstance()
+    ProbeScripts.ProbeSurfaceGridDialog(inst)
+    return mc.MERROR_NOERROR
+end

@@ -26,7 +26,7 @@ _handlers = []
 
 # Configuration (from KeyParameterUpdate.py)
 CONFIG = {
-    'key_height_offset': 0.079,
+    'plastic_thickness': 0.09,  # Added to shoulder length calculation
     'max_rotation': 2.0,
     'angle_step': 0.01,
     'tail_weight': 3,
@@ -34,6 +34,7 @@ CONFIG = {
     'max_points_per_band': 6,
     'min_points_per_band': 3,
     'front_overhang': 0.005,
+    'tail_overhang': 0.01,
 }
 
 # Network path to Mach4 Logs folder on CNC machine (BLPCN)
@@ -82,6 +83,18 @@ def median(values):
     if n % 2:
         return sorted_vals[n//2]
     return (sorted_vals[n//2-1] + sorted_vals[n//2]) / 2.0
+
+
+def percentile(values, p):
+    """Calculate percentile of a list (p is 0-100)"""
+    if not values:
+        return 0
+    sorted_vals = sorted(values)
+    n = len(sorted_vals)
+    k = (n - 1) * p / 100.0
+    f = int(k)
+    c = f + 1 if f + 1 < n else f
+    return sorted_vals[f] + (k - f) * (sorted_vals[c] - sorted_vals[f])
 
 
 def rotate_point(point, angle_deg, center):
@@ -144,22 +157,34 @@ def parse_csv(csv_path):
 
 def calculate_global_params(probe_data):
     """Calculate shoulder length and key height from all keys"""
-    shoulder_diffs = []
+    y_front_values = []  # Direction 3 (+Y front edge)
+    y_back_values = []   # Direction 4 (-Y shoulder/back edge)
     z_values = []
 
     for key_data in probe_data.values():
-        # Shoulder length: max difference between Y3 and Y4
-        if key_data['3'] and key_data['4']:
-            y3_median = median([p['Y'] for p in key_data['3']])
-            y4_median = median([p['Y'] for p in key_data['4']])
-            shoulder_diffs.append(abs(y4_median - y3_median))
+        # Collect Y front values (Direction 3)
+        if key_data['3']:
+            y_front_values.extend([p['Y'] for p in key_data['3']])
+
+        # Collect Y back/shoulder values (Direction 4)
+        if key_data['4']:
+            y_back_values.extend([p['Y'] for p in key_data['4']])
 
         # Collect Z values from direction 5
         if key_data['5']:
             z_values.extend([p['Z'] for p in key_data['5']])
 
-    shoulder_length = max(shoulder_diffs) if shoulder_diffs else 0
-    key_height = median(z_values) - CONFIG['key_height_offset'] if z_values else 0
+    # Shoulder length: difference between median front Y and 75th percentile back Y
+    # Using 75th percentile for back to skew shoulder width larger
+    # Add plastic thickness to account for material on front edge
+    if y_front_values and y_back_values:
+        median_front_y = median(y_front_values)
+        p75_back_y = percentile(y_back_values, 75)
+        shoulder_length = abs(p75_back_y - median_front_y) + CONFIG['plastic_thickness']
+    else:
+        shoulder_length = 0
+
+    key_height = median(z_values) if z_values else 0
 
     return shoulder_length, key_height
 
@@ -232,22 +257,18 @@ def calculate_key_params(left_points, right_points, front_points, center, angle,
     right_front = [p for p in right_rot if rotate_point(p, -angle, center)[1] <= CONFIG['band_split_y']]
     right_tail = [p for p in right_rot if rotate_point(p, -angle, center)[1] > CONFIG['band_split_y']]
 
-    # Calculate walls
-    xl_front = min((p[0] for p in left_front), default=0)
-    xl_tail = min((p[0] for p in left_tail), default=0)
-    xr_front = max((p[0] for p in right_front), default=0)
-    xr_tail = max((p[0] for p in right_tail), default=0)
+    # Calculate walls with overhangs applied to each region
+    # Left side: subtract overhang (move left/more negative)
+    # Right side: add overhang (move right/more positive)
+    xl_front = min((p[0] for p in left_front), default=0) - CONFIG['front_overhang']
+    xl_tail = min((p[0] for p in left_tail), default=0) - CONFIG['tail_overhang']
+    xr_front = max((p[0] for p in right_front), default=0) + CONFIG['front_overhang']
+    xr_tail = max((p[0] for p in right_tail), default=0) + CONFIG['tail_overhang']
 
     xl_outer = min(xl_front, xl_tail)
     xl_inner = max(xl_front, xl_tail)
     xr_outer = max(xr_front, xr_tail)
     xr_inner = min(xr_front, xr_tail)
-
-    # Apply front overhang if needed
-    if xl_front <= xl_tail:
-        xl_outer -= CONFIG['front_overhang']
-    if xr_front >= xr_tail:
-        xr_outer += CONFIG['front_overhang']
 
     # Calculate center X
     y_front = median([p[1] for p in front_rot])
@@ -365,16 +386,14 @@ class ProbeDataHandler(adsk.core.CustomEventHandler):
                     piano_folder = get_piano_folder(piano_id)
                     os.makedirs(piano_folder, exist_ok=True)
 
-                    # Remove old shaping files for this section
+                    # Remove old shaping files for this section (files ending in _Upper.tap or _Lower.tap)
                     if os.path.exists(piano_folder):
                         for file in os.listdir(piano_folder):
                             file_lower = file.lower()
-                            if file_lower.endswith(('.tap', '.nc', '.cnc')):
-                                if 'shaping' in file_lower:
-                                    if (section == 'Upper' and 'upper' in file_lower) or \
-                                       (section == 'Lower' and 'lower' in file_lower):
-                                        os.remove(os.path.join(piano_folder, file))
-                                        log(f"Removed old file: {file}")
+                            if (section == 'Upper' and file_lower.endswith('_upper.tap')) or \
+                               (section == 'Lower' and file_lower.endswith('_lower.tap')):
+                                os.remove(os.path.join(piano_folder, file))
+                                log(f"Removed old file: {file}")
 
                     # Parse CSV and calculate parameters
                     if csv_path and os.path.exists(csv_path):
@@ -556,7 +575,7 @@ class ProbeDataHandler(adsk.core.CustomEventHandler):
                             # Find and move the exported file from Downloads to piano folder
                             expected_filename = f"{section} Shaping.tap"
                             source_file = os.path.join(downloads_dir, expected_filename)
-                            dest_name = f"{section} Shaping_{piano_id}.tap"
+                            dest_name = f"{piano_id}.tap"
                             dest_file = os.path.join(piano_folder, dest_name)
 
                             log(f"Looking for exported file: {source_file}")

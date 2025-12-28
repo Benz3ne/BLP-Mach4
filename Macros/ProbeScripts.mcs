@@ -1,6 +1,37 @@
 ProbeScripts = {}
 local wx = wx or require("wx")
 
+-- Request maintenance dialog from ScreenLoad via PLC register
+-- Returns true to continue, false to stop (user chose to perform maintenance)
+local function RequestMaintenance()
+    local inst = mc.mcGetInstance()
+    local hMaintReq = mc.mcRegGetHandle(inst, "iRegs0/MaintenanceRequest")
+    local hMaintResult = mc.mcRegGetHandle(inst, "iRegs0/MaintenanceResult")
+
+    if hMaintReq == 0 then return true end
+
+    -- Reset result and set request
+    if hMaintResult ~= 0 then
+        mc.mcRegSetValue(hMaintResult, 0)
+    end
+    mc.mcRegSetValue(hMaintReq, 1)
+
+    -- Wait for PLC to process and clear the register
+    -- wxSafeYield allows PLC to run while we wait
+    local timeout = os.clock() + 30  -- 30 second timeout for user interaction
+    while mc.mcRegGetValue(hMaintReq) == 1 and os.clock() < timeout do
+        wx.wxMilliSleep(50)
+        wx.wxSafeYield()
+    end
+
+    -- Check result: 2 = perform maintenance (stop)
+    if hMaintResult ~= 0 and mc.mcRegGetValue(hMaintResult) == 2 then
+        return false  -- Stop probing
+    end
+
+    return true  -- Continue probing
+end
+
 -- Performs a protected move that will retry if it doesn't reach target
 -- Uses probe signal to detect collisions - if probe triggers, we hit something
 function ProbeScripts.ProtectedMove(inst, moveType, X, Y, Z, feedrate)
@@ -533,6 +564,99 @@ function ProbeScripts.ShowDialog(inst, title, fields, profileSection, options)
 end
 
 
+-- Show heatmap dialog via screen context (avoids crashes from creating dialogs in macro context)
+-- Returns true if user clicked Apply, false if Cancel/closed
+function ProbeScripts.ShowHeatmap(inst, params)
+    local tempPath = "C:\\Mach4Hobby\\Profiles\\BLP\\Temp\\"
+
+    -- Get unique sequence number
+    local hSequence = mc.mcRegGetHandle(inst, "iRegs0/DialogSequence")
+    local sequence = mc.mcRegGetValue(hSequence) + 1
+    mc.mcRegSetValue(hSequence, sequence)
+
+    -- Create temp directory if needed
+    if not wx.wxDirExists(tempPath) then
+        wx.wxMkdir(tempPath)
+    end
+
+    -- Serialize grid data to Lua file
+    local dataFile = io.open(tempPath .. string.format("heatmap_data_%d.lua", sequence), "w")
+    if dataFile then
+        dataFile:write("return {\n")
+        dataFile:write(string.format("  xCount = %d,\n", params.xCount))
+        dataFile:write(string.format("  yCount = %d,\n", params.yCount))
+        dataFile:write(string.format("  zMin = %.8f,\n", params.zMin))
+        dataFile:write(string.format("  zMax = %.8f,\n", params.zMax))
+        dataFile:write(string.format("  gridWidth = %.8f,\n", params.gridWidth or 1))
+        dataFile:write(string.format("  gridHeight = %.8f,\n", params.gridHeight or 1))
+
+        -- Serialize grid as nested table
+        dataFile:write("  grid = {\n")
+        for row = 0, params.yCount - 1 do
+            dataFile:write("    {")
+            for col = 0, params.xCount - 1 do
+                if col > 0 then dataFile:write(", ") end
+                dataFile:write(string.format("%.8f", params.grid[row][col]))
+            end
+            dataFile:write("},\n")
+        end
+        dataFile:write("  }\n")
+        dataFile:write("}\n")
+        dataFile:close()
+    else
+        return false, "Failed to write heatmap data"
+    end
+
+    -- Write request parameters
+    local requestFile = io.open(tempPath .. string.format("heatmap_request_%d.txt", sequence), "w")
+    if requestFile then
+        requestFile:write(string.format("sequence=%d\n", sequence))
+        requestFile:close()
+    end
+
+    -- Signal the screen
+    local hType = mc.mcRegGetHandle(inst, "iRegs0/DialogType")
+    local hRequest = mc.mcRegGetHandle(inst, "iRegs0/DialogRequest")
+    local hResponse = mc.mcRegGetHandle(inst, "iRegs0/DialogResponse")
+
+    mc.mcRegSetValue(hResponse, 0)
+    mc.mcRegSetValueString(hType, "SHOW_HEATMAP")
+    mc.mcRegSetValue(hRequest, 1)
+
+    -- Wait for response
+    local timeout = 300000  -- 5 minute timeout (user may look at heatmap for a while)
+    local startTime = os.clock()
+    while mc.mcRegGetValue(hResponse) == 0 do
+        if (os.clock() - startTime) * 1000 > timeout then
+            return false, "Timeout waiting for heatmap dialog"
+        end
+        wx.wxMilliSleep(50)
+        wx.wxSafeYield()
+    end
+
+    -- Read response
+    local responseFile = tempPath .. string.format("heatmap_response_%d.txt", sequence)
+    local respFile = io.open(responseFile, "r")
+
+    local applyMap = false
+    if respFile then
+        for line in respFile:lines() do
+            local key, value = line:match("^([^=]+)=(.*)$")
+            if key == "apply" then
+                applyMap = (value == "true")
+            end
+        end
+        respFile:close()
+        os.remove(responseFile)
+    end
+
+    -- Clear response flag
+    mc.mcRegSetValue(hResponse, 0)
+
+    return applyMap
+end
+
+
 -- Generic results display with flexible formatting
 function ProbeScripts.DisplayResults(inst, results, title, options)
     options = options or {}
@@ -810,14 +934,26 @@ function ProbeScripts.ProbeXYZ(inst, direction, fastFeed, backoff, slowFeed, max
         local pushDistances = {0.01, 0.05, 0.1}  -- Progressive push distances
 
         for attempt = 1, maxAttempts do
+            -- Check if probe is clear
             if mc.mcSignalGetState(probeSig) ~= 1 then
-                -- Probe is clear
+                -- Probe cleared immediately
                 if attempt > 1 then
                     mc.mcCntlSetLastError(inst, string.format("Probe unstuck after %d attempt(s)", attempt - 1))
                 end
                 return true
             end
 
+            -- Probe still triggered - wait 500ms for signal to settle, then check again
+            wx.wxMilliSleep(500)
+            if mc.mcSignalGetState(probeSig) ~= 1 then
+                -- Probe cleared after settle delay
+                if attempt > 1 then
+                    mc.mcCntlSetLastError(inst, string.format("Probe unstuck after %d attempt(s)", attempt - 1))
+                end
+                return true
+            end
+
+            -- Still stuck, try unstick maneuver
             local pushInDistance = pushDistances[attempt]
             mc.mcCntlSetLastError(inst, string.format("Probe stuck - unstick attempt %d of %d (push %.3f\")",
                                                       attempt, maxAttempts, pushInDistance))
@@ -830,14 +966,33 @@ function ProbeScripts.ProbeXYZ(inst, direction, fastFeed, backoff, slowFeed, max
             mc.mcCntlGcodeExecuteWait(inst, string.format("G90 G53 G0 %s%.4f", axisLetter, axisStartPos))
         end
 
-        -- Check one final time
-        if mc.mcSignalGetState(probeSig) == 1 then
-            mc.mcCntlSetLastError(inst, string.format("Probe stuck after %d unstick attempts - manual intervention required", maxAttempts))
-            return false
+        -- Check one final time - if cleared immediately, we're done
+        if mc.mcSignalGetState(probeSig) ~= 1 then
+            mc.mcCntlSetLastError(inst, string.format("Probe unstuck after %d attempt(s)", maxAttempts))
+            return true
         end
 
-        mc.mcCntlSetLastError(inst, string.format("Probe unstuck after %d attempt(s)", maxAttempts))
-        return true
+        -- Still triggered, wait 500ms and check once more
+        wx.wxMilliSleep(500)
+        if mc.mcSignalGetState(probeSig) ~= 1 then
+            mc.mcCntlSetLastError(inst, string.format("Probe unstuck after %d attempt(s)", maxAttempts))
+            return true
+        end
+
+        mc.mcCntlSetLastError(inst, string.format("Probe stuck after %d unstick attempts - manual intervention required", maxAttempts))
+        return false
+    end
+
+    -- Helper function to check if probe is clear with settle delay
+    -- If probe clears immediately, return true right away
+    -- If probe is still triggered, wait 500ms for signal to settle, then check again
+    local function isProbeCleared(probeSig)
+        if mc.mcSignalGetState(probeSig) ~= 1 then
+            return true  -- Cleared immediately, no delay needed
+        end
+        -- Still triggered, wait for signal to settle and check again
+        wx.wxMilliSleep(500)
+        return mc.mcSignalGetState(probeSig) ~= 1
     end
 
     -- Check probe signal isn't already triggered
@@ -883,18 +1038,35 @@ function ProbeScripts.ProbeXYZ(inst, direction, fastFeed, backoff, slowFeed, max
         -- Incremental retract from probe strike
         mc.mcCntlGcodeExecuteWait(inst, string.format("G91 G1 %s%.4f F50", axisLetter, -dir * backoff))
 
-        -- Check if probe is still triggered after retract and attempt unstick if needed
-        if mc.mcSignalGetState(probeSig) == 1 then
+        -- Check if probe is still triggered after retract (with settle delay) and attempt unstick if needed
+        if not isProbeCleared(probeSig) then
             if not attemptUnstickProbe(probeSig, firstStrike, fastFeed) then
                 mc.mcCntlSetPoundVar(inst, 393, 0)
                 return nil, nil, 0
             end
+            -- After unstick, we're back at axisStartPos - return to backoff position from first strike
+            local slowProbeStartPos = firstStrike - (dir * backoff)
+            mc.mcCntlGcodeExecuteWait(inst, string.format("G90 G53 G0 %s%.4f", axisLetter, slowProbeStartPos))
         end
-        
+
+        -- Store position before slow probe to verify strike occurred
+        local posBeforeSlowProbe = mc.mcAxisGetMachinePos(inst, axis)
+
         -- Slow probe
         mc.mcCntlGcodeExecuteWait(inst, string.format("G91 G31.1 %s%.4f F%.1f", axisLetter, dir * (backoff * 2), slowFeed))
-        -- Update success flag
-        probeSuccess = mc.mcSignalGetState(probeSig)
+
+        -- Check success by verifying probe position changed (probe triggered at some point)
+        -- Don't rely on signal still being latched - probe may have re-seated
+        local slowStrike = mc.mcAxisGetProbePos(inst, axis, 1)
+        local travelDistance = math.abs(slowStrike - posBeforeSlowProbe)
+
+        -- If probe traveled less than the full commanded distance, it hit something
+        if travelDistance < (backoff * 2 - 0.001) then
+            probeSuccess = 1
+        else
+            -- Probe traveled full distance without triggering - actual miss
+            probeSuccess = 0
+        end
     end
     
     -- Final retract handling
@@ -904,8 +1076,8 @@ function ProbeScripts.ProbeXYZ(inst, direction, fastFeed, backoff, slowFeed, max
             mc.mcCntlGcodeExecuteWait(inst, string.format("G90 G53 G0 Z%.4f", startZMachine))
             mc.mcCntlGcodeExecuteWait(inst, string.format("G90 G53 G1 X%.4f Y%.4f F200", startXMachine, startYMachine))
 
-            -- Check if probe is still triggered after retract and attempt unstick if needed
-            if mc.mcSignalGetState(probeSig) == 1 then
+            -- Check if probe is still triggered after retract (with settle delay) and attempt unstick if needed
+            if not isProbeCleared(probeSig) then
                 local contactPos = mc.mcAxisGetProbePos(inst, axis, 1)  -- Get last probe contact in machine coords
 
                 if not attemptUnstickProbe(probeSig, contactPos, fastFeed) then
@@ -921,8 +1093,8 @@ function ProbeScripts.ProbeXYZ(inst, direction, fastFeed, backoff, slowFeed, max
 
             mc.mcCntlGcodeExecuteWait(inst, string.format("G91 G1 %s%.4f F100", axisLetter, tgt - pos))
 
-            -- Check if probe is still triggered after retract and attempt unstick if needed
-            if mc.mcSignalGetState(probeSig) == 1 then
+            -- Check if probe is still triggered after retract (with settle delay) and attempt unstick if needed
+            if not isProbeCleared(probeSig) then
                 local contactPos = mc.mcAxisGetProbePos(inst, axis, 1)  -- Get last probe contact in machine coords
 
                 if not attemptUnstickProbe(probeSig, contactPos, fastFeed) then
@@ -1413,6 +1585,7 @@ end
 
 
 function ProbeScripts.ProbeZ(inst)
+    if not RequestMaintenance() then return end
     if not ProbeScripts.CheckProbeDeployed(inst) then return end
 
     -- Build dialog
@@ -1455,8 +1628,9 @@ end
 
 
 function ProbeScripts.ProbeXY(inst)
+    if not RequestMaintenance() then return end
     if not ProbeScripts.CheckProbeDeployed(inst) then return end
-    
+
     -- Build dialog
     local fields = {
         {type = "instructions", text = "Select probe direction and action"},
@@ -1616,8 +1790,9 @@ end
 
 
 function ProbeScripts.ProbeOutsideCenter(inst)
+    if not RequestMaintenance() then return end
     if not ProbeScripts.CheckProbeDeployed(inst) then return end
-    
+
     -- Build dialog
     local fields = {
         {type = "instructions", text = "Position probe above center of stock.\nProbe will find top surface, then measure edges."},
@@ -1772,8 +1947,9 @@ end
 
 
 function ProbeScripts.ProbeInsideCenter(inst)
+    if not RequestMaintenance() then return end
     if not ProbeScripts.CheckProbeDeployed(inst) then return end
-    
+
     -- Build dialog
     local fields = {
         {type = "instructions", text = "Position probe at approximate center of pocket/bore.\nProbe will find edges and set datum at calculated center."},
@@ -1902,6 +2078,7 @@ end
 
 
 function ProbeScripts.FindAngle(inst)
+    if not RequestMaintenance() then return end
     if not ProbeScripts.CheckProbeDeployed(inst) then return end
 
     local lastTraverseDistance = mc.mcProfileGetDouble(inst, "ProbeFindAngle", "traverseDistance", 1.0)
@@ -2169,6 +2346,20 @@ function ProbeScripts.CalibrateProbeDiameter(inst)
     -- Check and handle G68 rotation
     if not ProbeScripts.CheckG68Rotation(inst) then return end
 
+    -- Store old probe diameter values before zeroing
+    local oldProbeDiamPlusX = mc.mcCntlGetPoundVar(inst, 511)
+    local oldProbeDiamMinusX = mc.mcCntlGetPoundVar(inst, 512)
+    local oldProbeDiamPlusY = mc.mcCntlGetPoundVar(inst, 513)
+    local oldProbeDiamMinusY = mc.mcCntlGetPoundVar(inst, 514)
+
+    -- Helper function to restore original values on failure
+    local function restoreOriginalValues()
+        mc.mcCntlSetPoundVar(inst, 511, oldProbeDiamPlusX)
+        mc.mcCntlSetPoundVar(inst, 512, oldProbeDiamMinusX)
+        mc.mcCntlSetPoundVar(inst, 513, oldProbeDiamPlusY)
+        mc.mcCntlSetPoundVar(inst, 514, oldProbeDiamMinusY)
+    end
+
     -- Set probe diameters to 0 for calibration
     mc.mcCntlSetPoundVar(inst, 511, 0)
     mc.mcCntlSetPoundVar(inst, 512, 0)
@@ -2181,17 +2372,17 @@ function ProbeScripts.CalibrateProbeDiameter(inst)
     mc.mcCntlSetLastError(inst, "Starting BORE calibration...")
 
     -- First probe X to get centered for Y probing
-    -- Using Probe wrapper: (direction, setDatum, returnToStart, maxTravel, fastFeed, singleTap, finalRetract)
-    -- returnToStart=true with finalRetract=0 to properly return to starting position
     local boreXPlus1, xPlusSuccess1 = ProbeScripts.Probe(inst, 1, false, true, nil, nil, false, 0)
     if not xPlusSuccess1 then
         mc.mcCntlSetLastError(inst, "Bore +X probe failed")
+        restoreOriginalValues()
         return
     end
 
     local boreXMinus1, xMinusSuccess1 = ProbeScripts.Probe(inst, 2, false, true, nil, nil, false, 0)
     if not xMinusSuccess1 then
         mc.mcCntlSetLastError(inst, "Bore -X probe failed")
+        restoreOriginalValues()
         return
     end
 
@@ -2205,12 +2396,14 @@ function ProbeScripts.CalibrateProbeDiameter(inst)
     local boreYPlus, yPlusSuccess = ProbeScripts.Probe(inst, 3, false, true, nil, nil, false, 0)
     if not yPlusSuccess then
         mc.mcCntlSetLastError(inst, "Bore +Y probe failed")
+        restoreOriginalValues()
         return
     end
 
     local boreYMinus, yMinusSuccess = ProbeScripts.Probe(inst, 4, false, true, nil, nil, false, 0)
     if not yMinusSuccess then
         mc.mcCntlSetLastError(inst, "Bore -Y probe failed")
+        restoreOriginalValues()
         return
     end
 
@@ -2224,12 +2417,14 @@ function ProbeScripts.CalibrateProbeDiameter(inst)
     local boreXPlus2, xPlusSuccess2 = ProbeScripts.Probe(inst, 1, false, true, nil, nil, false, 0)
     if not xPlusSuccess2 then
         mc.mcCntlSetLastError(inst, "Final bore +X probe failed")
+        restoreOriginalValues()
         return
     end
 
     local boreXMinus2, xMinusSuccess2 = ProbeScripts.Probe(inst, 2, false, true, nil, nil, false, 0)
     if not xMinusSuccess2 then
         mc.mcCntlSetLastError(inst, "Final bore -X probe failed")
+        restoreOriginalValues()
         return
     end
 
@@ -2250,12 +2445,14 @@ function ProbeScripts.CalibrateProbeDiameter(inst)
     local bossXMinus1 = ProbeScripts.ProbeOutside(inst, 2, bossTraverseDistance, params.liftHeight)
     if not bossXMinus1 then
         mc.mcCntlSetLastError(inst, "Boss -X probe failed")
+        restoreOriginalValues()
         return
     end
 
     local bossXPlus1 = ProbeScripts.ProbeOutside(inst, 1, bossTraverseDistance, params.liftHeight)
     if not bossXPlus1 then
         mc.mcCntlSetLastError(inst, "Boss +X probe failed")
+        restoreOriginalValues()
         return
     end
 
@@ -2269,12 +2466,14 @@ function ProbeScripts.CalibrateProbeDiameter(inst)
     local bossYMinus = ProbeScripts.ProbeOutside(inst, 4, bossTraverseDistance, params.liftHeight)
     if not bossYMinus then
         mc.mcCntlSetLastError(inst, "Boss -Y probe failed")
+        restoreOriginalValues()
         return
     end
 
     local bossYPlus = ProbeScripts.ProbeOutside(inst, 3, bossTraverseDistance, params.liftHeight)
     if not bossYPlus then
         mc.mcCntlSetLastError(inst, "Boss +Y probe failed")
+        restoreOriginalValues()
         return
     end
 
@@ -2288,12 +2487,14 @@ function ProbeScripts.CalibrateProbeDiameter(inst)
     local bossXMinus2 = ProbeScripts.ProbeOutside(inst, 2, bossTraverseDistance, params.liftHeight)
     if not bossXMinus2 then
         mc.mcCntlSetLastError(inst, "Final boss -X probe failed")
+        restoreOriginalValues()
         return
     end
 
     local bossXPlus2 = ProbeScripts.ProbeOutside(inst, 1, bossTraverseDistance, params.liftHeight)
     if not bossXPlus2 then
         mc.mcCntlSetLastError(inst, "Final boss +X probe failed")
+        restoreOriginalValues()
         return
     end
 
@@ -2304,36 +2505,14 @@ function ProbeScripts.CalibrateProbeDiameter(inst)
     -- Return to original Z height
     mc.mcCntlGcodeExecuteWait(inst, string.format("G90 G53 G0 Z%.4f", startZMachine))
 
-    -- Calculate individual probe diameters for each direction
-    -- Since bore and boss are concentric, the difference between corresponding measurements
-    -- in each direction directly gives us the probe diameter for that direction
-
-    -- For bore (inside probing):
-    --   Measured position = True edge position - probe radius
-    -- For boss (outside probing):
-    --   Measured position = True edge position + probe radius
-
-    -- Therefore, for each direction:
-    --   boss_measured - bore_measured = (true_edge + probe_radius) - (true_edge - probe_radius)
-    --                                  = 2 * probe_radius + (boss_radius - bore_radius)
-
-    -- So: probe_diameter = (boss_measured - bore_measured) - (boss_radius - bore_radius)
-
     local bossRadius = params.bossDiameter / 2
     local boreRadius = params.boreDiameter / 2
     local radiusDifference = bossRadius - boreRadius
 
     -- Calculate probe diameter for each direction
-    -- +X direction
     local probeDiamPlusX = (bossXPlus2 - boreXPlus2) - radiusDifference
-
-    -- -X direction
     local probeDiamMinusX = (boreXMinus2 - bossXMinus2) - radiusDifference
-
-    -- +Y direction
     local probeDiamPlusY = (bossYPlus - boreYPlus) - radiusDifference
-
-    -- -Y direction
     local probeDiamMinusY = (boreYMinus - bossYMinus) - radiusDifference
 
     -- Store the calculated probe diameters in PVs 511-514
@@ -2351,23 +2530,17 @@ function ProbeScripts.CalibrateProbeDiameter(inst)
 
     -- Display results
     mc.mcCntlSetLastError(inst, string.format("Probe Calibration Complete:"))
-    mc.mcCntlSetLastError(inst, string.format("  +X Diameter: %.4f\"", probeDiamPlusX))
-    mc.mcCntlSetLastError(inst, string.format("  -X Diameter: %.4f\"", probeDiamMinusX))
-    mc.mcCntlSetLastError(inst, string.format("  +Y Diameter: %.4f\"", probeDiamPlusY))
-    mc.mcCntlSetLastError(inst, string.format("  -Y Diameter: %.4f\"", probeDiamMinusY))
-
-    -- Also display the measured vs actual widths for verification
-    mc.mcCntlSetLastError(inst, string.format("Bore X Width: Measured=%.4f\" Actual=%.4f\"", boreXWidth, params.boreDiameter))
-    mc.mcCntlSetLastError(inst, string.format("Bore Y Width: Measured=%.4f\" Actual=%.4f\"", boreYWidth, params.boreDiameter))
-    mc.mcCntlSetLastError(inst, string.format("Boss X Width: Measured=%.4f\" Actual=%.4f\"", bossXWidth, params.bossDiameter))
-    mc.mcCntlSetLastError(inst, string.format("Boss Y Width: Measured=%.4f\" Actual=%.4f\"", bossYWidth, params.bossDiameter))
+    mc.mcCntlSetLastError(inst, string.format("  +X Diameter: %.4f\" (was %.4f\")", probeDiamPlusX, oldProbeDiamPlusX))
+    mc.mcCntlSetLastError(inst, string.format("  -X Diameter: %.4f\" (was %.4f\")", probeDiamMinusX, oldProbeDiamMinusX))
+    mc.mcCntlSetLastError(inst, string.format("  +Y Diameter: %.4f\" (was %.4f\")", probeDiamPlusY, oldProbeDiamPlusY))
+    mc.mcCntlSetLastError(inst, string.format("  -Y Diameter: %.4f\" (was %.4f\")", probeDiamMinusY, oldProbeDiamMinusY))
 
     return probeDiamPlusX, probeDiamMinusX, probeDiamPlusY, probeDiamMinusY
 end
 
 -- Probe Tool Position - Measures pull stud position and saves to tool table
 function ProbeScripts.ProbeToolPosition(inst)
-    -- Check probe is deployed
+    if not RequestMaintenance() then return end
     if not ProbeScripts.CheckProbeDeployed(inst) then return end
     if not ProbeScripts.CheckG68Rotation(inst) then return end
 
@@ -2472,6 +2645,8 @@ function ProbeScripts.ProbeToolPosition(inst)
     return true
 end
 
+
+
 function ProbeScripts.CalibrateProbeOffset(inst)
     if not ProbeScripts.CheckProbeDeployed(inst) then return end
     
@@ -2488,48 +2663,77 @@ function ProbeScripts.CalibrateProbeOffset(inst)
     
     -- Check and handle G68 rotation
     if not ProbeScripts.CheckG68Rotation(inst) then return end
-    
+
+    -- Store old T90 offsets before zeroing
+    local oldProbeOffsetX = mc.mcToolGetData(inst, mc.MTOOL_MILL_X, 90)
+    local oldProbeOffsetY = mc.mcToolGetData(inst, mc.MTOOL_MILL_Y, 90)
+
+    -- Helper function to restore original values on failure
+    local function restoreOriginalOffsets()
+        mc.mcToolSetData(inst, mc.MTOOL_MILL_X, 90, oldProbeOffsetX)
+        mc.mcToolSetData(inst, mc.MTOOL_MILL_Y, 90, oldProbeOffsetY)
+        mc.mcCntlGcodeExecuteWait(inst, "G49 G43 H90")
+    end
+
     -- Zero the T90 tool table XY offsets
     mc.mcToolSetData(inst, mc.MTOOL_MILL_X, 90, 0)
     mc.mcToolSetData(inst, mc.MTOOL_MILL_Y, 90, 0)
-    
+
     -- Reload tool to apply zero offsets
     mc.mcCntlGcodeExecuteWait(inst, "G49 G43 H90")
-    
+
     -- First X probe sequence
     local xEdge1Work, success = ProbeScripts.Probe(inst, 1, false, true, nil, nil, false, nil)
-    if not success then return end
-    
+    if not success then
+        restoreOriginalOffsets()
+        return
+    end
+
     local xEdge2Work, success = ProbeScripts.Probe(inst, 2, false, true, nil, nil, false, nil)
-    if not success then return end
-    
+    if not success then
+        restoreOriginalOffsets()
+        return
+    end
+
     -- Calculate X center and move there using incremental
     local xCenter = (xEdge1Work + xEdge2Work) / 2
     local xWidth = math.abs(xEdge1Work - xEdge2Work)
     local currentXPos = mc.mcAxisGetPos(inst, mc.X_AXIS)
     local xOffset = xCenter - currentXPos
     mc.mcCntlGcodeExecuteWait(inst, string.format("G91 G1 X%.4f F200", xOffset))
-    
+
     -- Y probe sequence
     local yEdge1Work, success = ProbeScripts.Probe(inst, 3, false, true, nil, nil, false, nil)
-    if not success then return end
-    
+    if not success then
+        restoreOriginalOffsets()
+        return
+    end
+
     local yEdge2Work, success = ProbeScripts.Probe(inst, 4, false, true, nil, nil, false, nil)
-    if not success then return end
-    
+    if not success then
+        restoreOriginalOffsets()
+        return
+    end
+
     -- Calculate Y center and move there using incremental
     local yCenter = (yEdge1Work + yEdge2Work) / 2
     local yWidth = math.abs(yEdge1Work - yEdge2Work)
     local currentYPos = mc.mcAxisGetPos(inst, mc.Y_AXIS)
     local yOffset = yCenter - currentYPos
     mc.mcCntlGcodeExecuteWait(inst, string.format("G91 G1 Y%.4f F200", yOffset))
-    
+
     -- Second X probe sequence for refinement
     local xEdge1Work_2, success = ProbeScripts.Probe(inst, 1, false, true, nil, nil, false, nil)
-    if not success then return end
-    
+    if not success then
+        restoreOriginalOffsets()
+        return
+    end
+
     local xEdge2Work_2, success = ProbeScripts.Probe(inst, 2, false, true, nil, nil, false, nil)
-    if not success then return end
+    if not success then
+        restoreOriginalOffsets()
+        return
+    end
     
     -- Calculate refined X center and move to final center
     local xCenterFinal = (xEdge1Work_2 + xEdge2Work_2) / 2
@@ -2554,11 +2758,11 @@ function ProbeScripts.CalibrateProbeOffset(inst)
     
     -- Display results
     local message = string.format(
-        "T90 Offsets Calibrated:\nX: %.4f\"\nY: %.4f\"\n\nBore Width:\nX: %.4f\"\nY: %.4f\"",
-        probeOffsetX, probeOffsetY, xWidthFinal, yWidth)
+        "T90 Offsets Calibrated:\nX: %.4f\" (was %.4f\")\nY: %.4f\" (was %.4f\")\n\nBore Width:\nX: %.4f\"\nY: %.4f\"",
+        probeOffsetX, oldProbeOffsetX, probeOffsetY, oldProbeOffsetY, xWidthFinal, yWidth)
 
-    mc.mcCntlSetLastError(inst, string.format("T90 offsets set: X%.4f Y%.4f", probeOffsetX, probeOffsetY))
-    
+    mc.mcCntlSetLastError(inst, string.format("T90 offsets set: X%.4f (was %.4f) Y%.4f (was %.4f)", probeOffsetX, oldProbeOffsetX, probeOffsetY, oldProbeOffsetY))
+
     return probeOffsetX, probeOffsetY
 end
 
@@ -2702,7 +2906,7 @@ function ProbeScripts.ProbeKeys(inst)
     local centeringHeightMachine  -- bore centering height in machine coords
     local calibrationOffsets = {}  -- single-tap calibration offsets
     local doubleResults = {}
-    local singleResults = {["+X"] = {}, ["-X"] = {}, ["-Y"] = {}, ["-Z"] = {}}
+    local singleResults = {["+X"] = {}, ["-X"] = {}, ["+Y"] = {}, ["-Y"] = {}, ["-Z"] = {}}
     local TEST_KEYS = nil
     local keyHalfName = nil
     local traverseHeight  -- calculated after Z probing
@@ -2966,10 +3170,11 @@ function ProbeScripts.ProbeKeys(inst)
     local leftBoreCenterY = (doubleResults["+Y"] + doubleResults["-Y"]) / 2
     mc.mcCntlGcodeExecuteWait(inst, string.format("G90 G1 X%.4f Y%.4f F200", leftBoreCenterX, leftBoreCenterY))
 
-    -- Single tap calibration for +X, -X, -Y, -Z (skip +Y - no front probing)
+    -- Single tap calibration for +X, -X, +Y, -Y, -Z
     for cycle = 1, 3 do
         singleResults["+X"][cycle] = ProbeScripts.Probe(inst, 1, false, true, nil, SINGLE_TAP_FEEDRATE, true, nil)
         singleResults["-X"][cycle] = ProbeScripts.Probe(inst, 2, false, true, nil, SINGLE_TAP_FEEDRATE, true, nil)
+        singleResults["+Y"][cycle] = ProbeScripts.Probe(inst, 3, false, true, nil, SINGLE_TAP_FEEDRATE, true, nil)
         singleResults["-Y"][cycle] = ProbeScripts.Probe(inst, 4, false, true, nil, SINGLE_TAP_FEEDRATE, true, nil)
         singleResults["-Z"][cycle] = ProbeScripts.Probe(inst, 5, false, true, nil, SINGLE_TAP_FEEDRATE, true, nil)
     end
@@ -3096,7 +3301,9 @@ function ProbeScripts.ProbeKeys(inst)
 
     pianoName = string.format("%s_%s_%s", params.make, params.serial, keyHalfName)
     pianoFolder = string.format("C:\\Mach4Hobby\\Profiles\\BLP\\Logs\\%s", pianoName)
-    os.execute('mkdir "' .. pianoFolder .. '" 2>nul')
+    -- Delete existing folder if it exists, then create fresh
+    os.execute('rmdir /s /q "' .. pianoFolder .. '" 2>nul')
+    os.execute('mkdir "' .. pianoFolder .. '"')
 
     csvPath = string.format("%s\\%s.csv", pianoFolder, pianoName)
     local reportPath = string.format("%s\\%s_Report.txt", pianoFolder, pianoName)
@@ -3186,6 +3393,71 @@ function ProbeScripts.ProbeKeys(inst)
     writeReport(string.format("Average Z height: %.4f", avgZ))
     writeReport(string.format("Traverse height: %.4f", traverseHeight))
     writeReport(string.format("Probe Z depth: %.4f", probeZ))
+
+    -- ========== Y FRONT EDGE PROBING (sample keys only) ==========
+
+    mc.mcCntlSetLastError(inst, "Probing Y front edges...")
+
+    local yFrontData = {}
+    local FRONT_PROBE_Y = -1.75  -- Y position in front of keys for +Y probing
+
+    -- Move up to traverse height first
+    mc.mcCntlGcodeExecuteWait(inst, string.format("G90 G0 Z%.4f", traverseHeight))
+
+    -- Move to first sample key XY position
+    if not ProbeScripts.ProtectedMove(inst, "work", FIRST_KEY_X, FRONT_PROBE_Y, nil, 300) then
+        reportFile:close()
+        return false
+    end
+
+    -- Drop to probe depth (stay here for all sample keys)
+    if not ProbeScripts.ProtectedMove(inst, "work", nil, nil, probeZ) then
+        reportFile:close()
+        return false
+    end
+
+    -- Probe same sample keys as Z height probing (1, 7, 13, 19, 25)
+    for keyIndex = 1, NUM_KEYS, SAMPLE_KEY_INTERVAL do
+        local keyX = FIRST_KEY_X + (keyIndex - 1) * KEY_SPACING
+
+        -- Move directly in X to next key (no Z retract needed)
+        if keyIndex > 1 then
+            if not ProbeScripts.ProtectedMove(inst, "work", keyX, nil, nil, 300) then
+                reportFile:close()
+                return false
+            end
+        end
+
+        -- Probe +Y direction with single tap calibration
+        local yFront = ProbeScripts.Probe(inst, 3, false, true, nil, SINGLE_TAP_FEEDRATE, true, nil)
+        yFront = yFront - calibrationOffsets["+Y"]
+
+        -- Find which TEST_KEY entry corresponds to this keyIndex
+        local keyInfo = TEST_KEYS[keyIndex]
+        local pianoKey = keyInfo[1]
+        local enumKey = keyInfo[2]
+
+        table.insert(yFrontData, {
+            enumKey = enumKey,
+            pianoKey = pianoKey,
+            direction = 3,
+            x = keyX,
+            y = yFront,
+            z = probeZ,
+            timestamp = os.date("%Y-%m-%d %H:%M:%S")
+        })
+
+        writeReport(string.format("Sample key %d Y front: %.4f", keyIndex, yFront))
+    end
+
+    -- Retract after all +Y probing complete
+    mc.mcCntlGcodeExecuteWait(inst, string.format("G90 G0 Z%.4f", traverseHeight))
+
+    -- Append Y front data to CSV
+    local csvFile = io.open(csvPath, "a")
+    writeBatchToCSV(csvFile, yFrontData)
+    csvFile:close()
+    writeReport(string.format("Probed %d Y front edges", #yFrontData))
 
     -- ========== X EDGE PROBING ==========
 
@@ -3709,19 +3981,22 @@ function ProbeScripts.FinalKeytopShaping(inst)
 
     for folderName in folders:gmatch("[^\r\n]+") do
         local folderPath = logsDir .. "\\" .. folderName
-        -- Look for shaping .tap files in this folder
-        local fileHandle = io.popen('dir "' .. folderPath .. '\\*Shaping*.tap" /b /o-d 2>nul')
+        -- Look for shaping .tap files (named {piano_id}.tap where piano_id ends in _Upper or _Lower)
+        local fileHandle = io.popen('dir "' .. folderPath .. '\\*.tap" /b /o-d 2>nul')
         local files = fileHandle:read("*a")
         fileHandle:close()
 
         for fileName in files:gmatch("[^\r\n]+") do
-            local displayName = folderName .. " - " .. fileName:gsub("%.tap$", "")
-            table.insert(fileOptions, displayName)
-            table.insert(availableFiles, {
-                folder = folderName,
-                file = fileName,
-                path = folderPath .. "\\" .. fileName
-            })
+            -- Only include files that end in _Upper.tap or _Lower.tap (shaping files)
+            if fileName:match("_Upper%.tap$") or fileName:match("_Lower%.tap$") then
+                local displayName = fileName:gsub("%.tap$", "")
+                table.insert(fileOptions, displayName)
+                table.insert(availableFiles, {
+                    folder = folderName,
+                    file = fileName,
+                    path = folderPath .. "\\" .. fileName
+                })
+            end
         end
     end
 
@@ -3802,7 +4077,7 @@ function ProbeScripts.FinalKeytopShaping(inst)
 
     -- Move to safe Z height first
     mc.mcCntlSetLastError(inst, "Moving to bore location...")
-    mc.mcCntlGcodeExecuteWait(inst, "G90 G53 G0 Z-0.05")
+    mc.mcCntlGcodeExecuteWait(inst, "G90 G53 G0 Z0")
 
     -- Move spindle to calculated position
     if not ProbeScripts.ProtectedMove(inst, "mach", spindleTargetX, spindleTargetY, nil, 300) then
@@ -3986,11 +4261,10 @@ function ProbeScripts.FinalKeytopShaping(inst)
             return false
         end
 
-        -- Look for shaping file matching the section
+        -- Look for shaping file matching the section (named {piano_id}.tap ending in _Upper.tap or _Lower.tap)
         local pianoFolderPath = logsDir .. "\\" .. pianoFolder
-        local shapingPattern = keySection .. " Shaping"
 
-        local fileHandle = io.popen('dir "' .. pianoFolderPath .. '\\*' .. keySection .. '*Shaping*.tap" /b /o-d 2>nul')
+        local fileHandle = io.popen('dir "' .. pianoFolderPath .. '\\*_' .. keySection .. '.tap" /b /o-d 2>nul')
         local files = fileHandle:read("*a")
         fileHandle:close()
 
@@ -3999,7 +4273,7 @@ function ProbeScripts.FinalKeytopShaping(inst)
             shapingFilePath = pianoFolderPath .. "\\" .. firstFile
             writeReport(string.format("Found shaping file: %s", shapingFilePath))
         else
-            wx.wxMessageBox(string.format("No %s Shaping file found for %s.\n\nPlease ensure Fusion360 has exported the shaping G-code.", keySection, pianoFolder),
+            wx.wxMessageBox(string.format("No %s shaping file found for %s.\n\nPlease ensure Fusion360 has exported the shaping G-code.", keySection, pianoFolder),
                 "Shaping File Not Found", wx.wxOK + wx.wxICON_ERROR)
             mc.mcCntlGcodeExecuteWait(inst, "G69")
             return false
@@ -4059,17 +4333,6 @@ function ProbeScripts.FinalKeytopShaping(inst)
     -- Close any currently loaded G-code file
     mc.mcCntlCloseGCodeFile(inst)
 
-    -- Update the piano's log file
-    local timestamp = os.date("%Y-%m-%d %H:%M:%S")
-    writeReport(string.format("===== Final Shaping Started ====="))
-    writeReport(string.format("Fixture ID: %d", fixtureID))
-    writeReport(string.format("Section: %s", keySection or "Unknown"))
-    writeReport(string.format("G-code file: %s", shapingFilePath))
-
-    if reportFile then
-        reportFile:close()
-    end
-
     -- ========== DEFERRED FILE LOAD ==========
 
     local markerPath = "C:\\Mach4Hobby\\Profiles\\BLP\\Temp\\DeferredGCode.txt"
@@ -4077,10 +4340,21 @@ function ProbeScripts.FinalKeytopShaping(inst)
     if markerFile then
         markerFile:write(shapingFilePath)
         markerFile:close()
-        writeReport("Deferred load marker created: " .. markerPath)
     else
         wx.wxMessageBox("Failed to queue G-code file for execution.", "Error", wx.wxOK + wx.wxICON_ERROR)
+        if reportFile then reportFile:close() end
         return false
+    end
+
+    -- Update the piano's log file (after marker created so we can log success)
+    writeReport(string.format("===== Final Shaping Started ====="))
+    writeReport(string.format("Fixture ID: %d", fixtureID))
+    writeReport(string.format("Section: %s", keySection or "Unknown"))
+    writeReport(string.format("G-code file: %s", shapingFilePath))
+    writeReport("Deferred load marker created: " .. markerPath)
+
+    if reportFile then
+        reportFile:close()
     end
 
     mc.mcCntlSetLastError(inst, string.format("Shaping file ready - %s %s", pianoFolder, keySection or ""))
@@ -4093,102 +4367,593 @@ end
 
 
 
-function ProbeScripts.Debug(inst)
-    -- ========== DEBUG: Simulate ProbeKeys trigger for Fusion 360 ==========
-    -- This function uses existing CSV data to trigger the Fusion add-in
-    -- without running actual probing operations.
+-- Main surface grid probing function
+-- Probes a list of XY points (work coords) and records Z in machine coords
+-- Uses single-tap calibration at first point, then fast single-tap probes at 40 IPM
+-- ABORTS on any failure (movement collision or no probe contact)
+-- params:
+--   points          - array of {x=, y=} positions in work coordinates
+--   outputFile      - optional path to save .dat file for mcSurfaceMap (wizard format)
+--   gridParams      - {startX, endX, xCount, startY, endY, yCount} for wizard format
+--   progressCallback - optional function(current, total, x, y, z) for UI updates
+--
+-- Returns: {
+--   points = {{x=, y=, z=, success=}, ...},  -- machine coords (only successful points)
+--   stats = {total=, success=, zMin=, zMax=},
+--   aborted = bool,      -- true if probing was aborted due to failure
+--   abortReason = string -- reason for abort (nil if not aborted)
+-- }
+function ProbeScripts.ProbeSurfaceGrid(inst, params)
+    local points = params.points
+    local outputFile = params.outputFile
+    local progressCallback = params.progressCallback
+    -- Grid parameters for wizard-format output
+    local gridParams = params.gridParams  -- {startX, startY, endX, endY, xCount, yCount}
 
-    -- Configuration - edit this path to test different CSV files
-    local testCsvPath = "C:\\Mach4Hobby\\Profiles\\BLP\\Logs\\Test Set_123456_Upper\\Test Set_123456_Upper.csv"
+    local SINGLE_TAP_FEEDRATE = 40  -- IPM for single tap probes
+    local zSoftLimitMax = mc.mcAxisGetSoftlimitMax(inst, mc.Z_AXIS)
 
-    -- Extract piano info from path
-    -- Expected format: ...Logs\{Make}_{Serial}_{Section}\{Make}_{Serial}_{Section}.csv
-    local pianoName = testCsvPath:match("Logs\\([^\\]+)\\[^\\]+%.csv$")
-
-    if not pianoName then
-        wx.wxMessageBox("Could not parse piano name from CSV path:\n" .. testCsvPath,
-            "Parse Error", wx.wxOK + wx.wxICON_ERROR)
-        return
+    if not points or #points == 0 then
+        error("ProbeSurfaceGrid: No points provided")
     end
 
-    -- Read CSV and calculate avg_z from Direction 5 (Z height probing) rows
-    local csvFile = io.open(testCsvPath, "r")
-    if not csvFile then
-        wx.wxMessageBox("Could not open CSV file:\n" .. testCsvPath,
-            "File Error", wx.wxOK + wx.wxICON_ERROR)
-        return
+    -- Results storage
+    local results = {
+        points = {},
+        stats = {
+            total = #points,
+            success = 0,
+            zMin = nil,
+            zMax = nil
+        },
+        aborted = false,
+        abortReason = nil
+    }
+
+    -- ========== FIRST POINT: CALIBRATION + RECORD ==========
+    -- Move to first point (with retry logic - move up by traverse distance if collision)
+    mc.mcCntlSetLastError(inst, string.format("Probing point 1 of %d (calibration)", #points))
+    if not ProbeScripts.ProtectedMove(inst, "work", points[1].x, points[1].y, nil) then
+        -- Calculate actual XY distance to target for retry height
+        local currX = mc.mcAxisGetPos(inst, mc.X_AXIS)
+        local currY = mc.mcAxisGetPos(inst, mc.Y_AXIS)
+        local moveDistance = math.sqrt((points[1].x - currX)^2 + (points[1].y - currY)^2)
+        local retryZ = math.min(mc.mcAxisGetMachinePos(inst, mc.Z_AXIS) + moveDistance, zSoftLimitMax)
+        mc.mcCntlGcodeExecuteWait(inst, string.format("G90 G53 G0 Z%.4f", retryZ))
+        if not ProbeScripts.ProtectedMove(inst, "work", points[1].x, points[1].y, nil) then
+            results.aborted = true
+            results.abortReason = "Movement collision at first point (after retry)"
+            return results
+        end
     end
 
-    local zSum = 0
-    local zCount = 0
-    local lineNum = 0
+    -- Two-tap probe for accurate Z (this is the recorded value for point 1)
+    local doubleZ, doubleSuccess = ProbeScripts.Probe(inst, 5, false, false, nil, nil, false, 0.25)
+    if not doubleSuccess then
+        results.aborted = true
+        results.abortReason = "Two-tap probe failed at first point"
+        return results
+    end
+    local doubleMachZ = mc.mcCntlGetPoundVar(inst, 391)
 
-    for line in csvFile:lines() do
-        lineNum = lineNum + 1
-        if lineNum > 1 then  -- Skip header
-            -- Parse CSV: EnumKey#,PianoKey#,Direction,X,Y,Z,Timestamp
-            local parts = {}
-            for part in line:gmatch("[^,]+") do
-                table.insert(parts, part)
+    -- Single tap probe - this is the recorded value, double-tap was just for offset calculation
+    local singleZ, singleSuccess = ProbeScripts.Probe(inst, 5, false, false, nil, SINGLE_TAP_FEEDRATE, true, 0.25)
+    if not singleSuccess then
+        results.aborted = true
+        results.abortReason = "Single-tap probe failed at first point"
+        return results
+    end
+    local singleMachZ = mc.mcCntlGetPoundVar(inst, 391)
+    local calibrationOffset = singleMachZ - doubleMachZ
+
+    -- Record first point using single-tap with offset applied
+    local machineX = mc.mcAxisGetMachinePos(inst, mc.X_AXIS)
+    local machineY = mc.mcAxisGetMachinePos(inst, mc.Y_AXIS)
+    local firstPointZ = singleMachZ - calibrationOffset  -- Same as doubleMachZ
+    table.insert(results.points, {
+        x = machineX,
+        y = machineY,
+        z = firstPointZ,
+        success = true
+    })
+    results.stats.success = 1
+    results.stats.zMin = firstPointZ
+    results.stats.zMax = firstPointZ
+
+    if progressCallback then
+        progressCallback(1, #points, machineX, machineY, firstPointZ)
+    end
+
+    -- ========== REMAINING POINTS: SINGLE TAP WITH OFFSET ==========
+    for i = 2, #points do
+        local point = points[i]
+        mc.mcCntlSetLastError(inst, string.format("Probing point %d of %d (X%.3f Y%.3f)",
+            i, #points, point.x, point.y))
+
+        -- Move to XY position using ProtectedMove (with retry logic - move up by traverse distance if collision)
+        if not ProbeScripts.ProtectedMove(inst, "work", point.x, point.y, nil) then
+            -- Calculate actual XY distance to target for retry height
+            local currX = mc.mcAxisGetPos(inst, mc.X_AXIS)
+            local currY = mc.mcAxisGetPos(inst, mc.Y_AXIS)
+            local moveDistance = math.sqrt((point.x - currX)^2 + (point.y - currY)^2)
+            local retryZ = math.min(mc.mcAxisGetMachinePos(inst, mc.Z_AXIS) + moveDistance, zSoftLimitMax)
+            mc.mcCntlGcodeExecuteWait(inst, string.format("G90 G53 G0 Z%.4f", retryZ))
+            if not ProbeScripts.ProtectedMove(inst, "work", point.x, point.y, nil) then
+                results.aborted = true
+                results.abortReason = "Movement collision detected (after retry)"
+                mc.mcCntlSetLastError(inst, "Surface probe ABORTED: Movement collision")
+                break
+            end
+        end
+
+        -- Single tap probe at 40 IPM
+        local workZ, probeSuccess = ProbeScripts.Probe(inst, 5, false, false, nil, SINGLE_TAP_FEEDRATE, true, 0.25)
+        local rawMachineZ = probeSuccess and mc.mcCntlGetPoundVar(inst, 391) or nil
+
+        if probeSuccess and rawMachineZ then
+            -- Apply calibration offset
+            local machineZ = rawMachineZ - calibrationOffset
+            machineX = mc.mcAxisGetMachinePos(inst, mc.X_AXIS)
+            machineY = mc.mcAxisGetMachinePos(inst, mc.Y_AXIS)
+
+            table.insert(results.points, {
+                x = machineX,
+                y = machineY,
+                z = machineZ,
+                success = true
+            })
+            results.stats.success = results.stats.success + 1
+
+            -- Update min/max
+            if machineZ < results.stats.zMin then
+                results.stats.zMin = machineZ
+            end
+            if machineZ > results.stats.zMax then
+                results.stats.zMax = machineZ
             end
 
-            if #parts >= 6 then
-                local direction = tonumber(parts[3])
-                local z = tonumber(parts[6])
+            if progressCallback then
+                progressCallback(i, #points, machineX, machineY, machineZ)
+            end
+        else
+            results.aborted = true
+            results.abortReason = "No probe contact at point " .. i
+            mc.mcCntlSetLastError(inst, "Surface probe ABORTED: No probe contact")
+            break
+        end
+    end
 
-                -- Direction 5 = Z height probing
-                if direction == 5 and z then
-                    zSum = zSum + z
-                    zCount = zCount + 1
+    -- Only save file if probing completed successfully (no aborts) and all points collected
+    local expectedPoints = gridParams and (gridParams.xCount * gridParams.yCount) or 0
+    if not results.aborted and outputFile and results.stats.success == expectedPoints and gridParams then
+        local file = io.open(outputFile, "w")
+        if file then
+            -- Convert serpentine probe order to row-major 2D grid
+            local grid = {}
+            local idx = 1
+            for row = 0, gridParams.yCount - 1 do
+                grid[row] = {}
+                if row % 2 == 0 then
+                    -- Even rows: left to right
+                    for col = 0, gridParams.xCount - 1 do
+                        if results.points[idx] then
+                            grid[row][col] = results.points[idx].z
+                        else
+                            grid[row][col] = 0  -- Fallback, shouldn't happen
+                        end
+                        idx = idx + 1
+                    end
+                else
+                    -- Odd rows: right to left (reverse to get row-major order)
+                    for col = gridParams.xCount - 1, 0, -1 do
+                        if results.points[idx] then
+                            grid[row][col] = results.points[idx].z
+                        else
+                            grid[row][col] = 0  -- Fallback, shouldn't happen
+                        end
+                        idx = idx + 1
+                    end
                 end
+            end
+
+            -- Save original grid for heatmap (before margin expansion)
+            local originalGrid = grid
+
+            -- Apply margin if specified (extend edge Z values)
+            local addMargin = gridParams.addMargin or false
+            local finalStartX = gridParams.startX
+            local finalEndX = gridParams.endX
+            local finalStartY = gridParams.startY
+            local finalEndY = gridParams.endY
+            local finalXCount = gridParams.xCount
+            local finalYCount = gridParams.yCount
+
+            if addMargin then
+                -- Add extra steps on all sides (extends edge Z values to prevent boundary issues)
+                local xStepSize = gridParams.xStepSize or ((gridParams.endX - gridParams.startX) / (gridParams.xCount - 1))
+                local yStepSize = gridParams.yStepSize or ((gridParams.endY - gridParams.startY) / (gridParams.yCount - 1))
+                local marginSteps = 10
+
+                finalStartX = gridParams.startX - marginSteps * xStepSize
+                finalEndX = gridParams.endX + marginSteps * xStepSize
+                finalStartY = gridParams.startY - marginSteps * yStepSize
+                finalEndY = gridParams.endY + marginSteps * yStepSize
+                finalXCount = gridParams.xCount + 2 * marginSteps  -- +4 columns total
+                finalYCount = gridParams.yCount + 2 * marginSteps  -- +4 rows total
+
+                -- Create expanded grid with margin (edge values extended)
+                local expandedGrid = {}
+                for row = 0, finalYCount - 1 do
+                    expandedGrid[row] = {}
+                    for col = 0, finalXCount - 1 do
+                        -- Map to original grid, clamping to edges
+                        local srcRow = math.max(0, math.min(gridParams.yCount - 1, row - marginSteps))
+                        local srcCol = math.max(0, math.min(gridParams.xCount - 1, col - marginSteps))
+                        expandedGrid[row][col] = grid[srcRow][srcCol]
+                    end
+                end
+                grid = expandedGrid
+            end
+
+            -- Build new format: readable header + Z values on single line
+            local zParts = {}
+            for row = 0, finalYCount - 1 do
+                for col = 0, finalXCount - 1 do
+                    zParts[#zParts + 1] = string.format("%.4f", grid[row][col])
+                end
+            end
+
+            file:write(string.format("# Surface Map - %s\n", os.date("%Y-%m-%d %H:%M:%S")))
+            file:write(string.format("# Grid: %dx%d, Bounds: X[%.2f,%.2f] Y[%.2f,%.2f]\n",
+                finalXCount, finalYCount, finalStartX, finalEndX, finalStartY, finalEndY))
+            file:write(string.format("XMIN=%.5f\n", finalStartX))
+            file:write(string.format("XMAX=%.5f\n", finalEndX))
+            file:write(string.format("XCOUNT=%d\n", finalXCount))
+            file:write(string.format("YMIN=%.5f\n", finalStartY))
+            file:write(string.format("YMAX=%.5f\n", finalEndY))
+            file:write(string.format("YCOUNT=%d\n", finalYCount))
+            file:write("Z=" .. table.concat(zParts, ",") .. "\n")
+            file:close()
+            mc.mcCntlSetLastError(inst, string.format("Surface map saved: %s (%d points%s)",
+                outputFile, finalXCount * finalYCount,
+                addMargin and ", +2 step margin" or ""))
+
+            -- Store original grid data for visualization (before margin expansion)
+            results.grid = originalGrid
+            results.gridXCount = gridParams.xCount
+            results.gridYCount = gridParams.yCount
+            results.gridWidth = gridParams.endX - gridParams.startX
+            results.gridHeight = gridParams.endY - gridParams.startY
+        else
+            mc.mcCntlSetLastError(inst, "Failed to save surface map file: " .. outputFile)
+        end
+    end
+
+    return results
+end
+
+
+-- UI dialog for surface grid probing
+-- Requires T90 (probe) to be active
+function ProbeScripts.ProbeSurfaceGridDialog(inst)
+    if not RequestMaintenance() then return end
+    -- Check probe deployment first (same as other probe scripts)
+    if not ProbeScripts.CheckProbeDeployed(inst) then return end
+
+    -- Show configuration dialog
+    local fields = {
+        {type = "instructions",
+         text = "Probe a grid of points to create a surface height map.\nThe grid will be probed in a serpentine pattern for efficiency."},
+        {type = "radio", key = "startMode", label = "Grid Origin",
+         options = {"Center of grid", "Bottom-left corner"},
+         default = 0,
+         tooltip = "Where to position the grid relative to current position"},
+        {type = "number", key = "width", label = "Grid Width (X)",
+         default = 10.0, min = 0.1,
+         tooltip = "Total width of the probe grid"},
+        {type = "number", key = "height", label = "Grid Height (Y)",
+         default = 10.0, min = 0.1,
+         tooltip = "Total height of the probe grid"},
+        {type = "number", key = "xPoints", label = "X Points",
+         default = 5, min = 2,
+         tooltip = "Number of probe points in X direction"},
+        {type = "number", key = "yPoints", label = "Y Points",
+         default = 5, min = 2,
+         tooltip = "Number of probe points in Y direction"},
+        {type = "checkbox", key = "addMargin", label = "Add Margin",
+         default = true,
+         tooltip = "Add 2 extra grid steps on all sides (extends edge Z values to avoid jumps)"},
+        {type = "text", key = "filename", label = "Map Name",
+         default = "SurfaceMap", persist = false,
+         tooltip = "Name for the surface map (saved in SurfaceMaps folder)"}
+    }
+
+    local params = ProbeScripts.ShowDialog(inst, "Probe Surface Grid", fields, "ProbeSurfaceGrid", {width = 400})
+    if not params then return end
+
+    -- Convert startMode radio index to string
+    local startMode = (params.startMode == 0) and "center" or "bottomleft"
+
+    -- Ensure integer point counts (min 2 points per axis)
+    local xPoints = math.max(2, math.floor(params.xPoints + 0.5))
+    local yPoints = math.max(2, math.floor(params.yPoints + 0.5))
+
+    -- Calculate step sizes (divisions = points - 1)
+    local totalPoints = xPoints * yPoints
+    local xStepSize = params.width / (xPoints - 1)
+    local yStepSize = params.height / (yPoints - 1)
+
+    local addMargin = params.addMargin or false
+
+    -- Store original position for return after probing
+    local origWorkX = mc.mcAxisGetPos(inst, mc.X_AXIS)
+    local origWorkY = mc.mcAxisGetPos(inst, mc.Y_AXIS)
+    local origMachZ = mc.mcAxisGetMachinePos(inst, mc.Z_AXIS)
+
+    -- Get probe XY offset from tool 90 (needed for spindle-center grid boundaries)
+    local probeXOffset = mc.mcToolGetData(inst, mc.MTOOL_MILL_X, 90)
+    local probeYOffset = mc.mcToolGetData(inst, mc.MTOOL_MILL_Y, 90)
+
+    -- Generate grid points in serpentine pattern
+    local points = {}
+
+    -- Calculate starting corner based on mode, relative to current position
+    local startX = origWorkX + ((startMode == "center") and (-params.width / 2) or 0)
+    local startY = origWorkY + ((startMode == "center") and (-params.height / 2) or 0)
+
+    -- Generate points (bottom to top, alternating X direction)
+    for row = 0, yPoints - 1 do
+        local y = startY + row * yStepSize
+        if row % 2 == 0 then
+            for col = 0, xPoints - 1 do
+                table.insert(points, {x = startX + col * xStepSize, y = y})
+            end
+        else
+            for col = xPoints - 1, 0, -1 do
+                table.insert(points, {x = startX + col * xStepSize, y = y})
             end
         end
     end
-    csvFile:close()
 
-    if zCount == 0 then
-        wx.wxMessageBox("No Z height data (Direction 5) found in CSV file.",
-            "Data Error", wx.wxOK + wx.wxICON_ERROR)
+    -- Build output file paths
+    local profilePath = mc.mcProfileGetName(inst)
+    local profileDir = mc.mcCntlGetMachDir(inst) .. "\\Profiles\\" .. profilePath
+    local surfaceMapsDir = profileDir .. "\\SurfaceMaps"
+    local filename = params.filename:gsub("%.[^.]*$", "")  -- Strip any extension
+    local mapFile = surfaceMapsDir .. "\\" .. filename .. ".txt"
+
+    -- Ensure SurfaceMaps folder exists
+    os.execute('mkdir "' .. surfaceMapsDir .. '" 2>nul')
+
+    -- Calculate grid bounds
+    local endX = startX + params.width
+    local endY = startY + params.height
+
+    -- Run the probing sequence
+    -- Grid boundaries use spindle-center positions (probe position - probe offset)
+    local results = ProbeScripts.ProbeSurfaceGrid(inst, {
+        points = points,
+        outputFile = mapFile,
+        gridParams = {
+            startX = startX - probeXOffset,
+            endX = endX - probeXOffset,
+            xCount = xPoints,
+            startY = startY - probeYOffset,
+            endY = endY - probeYOffset,
+            yCount = yPoints,
+            addMargin = addMargin,
+            xStepSize = xStepSize,
+            yStepSize = yStepSize
+        },
+        progressCallback = function(current, total, x, y, z)
+            mc.mcCntlSetLastError(inst, string.format("Probed %d/%d - Z=%.4f", current, total, z or 0))
+        end
+    })
+
+    -- Return sequence: lift to max Z + 0.5", return to original XY, then original Z
+    local safeZ = (results.stats.zMax or origMachZ) + 0.5
+    mc.mcCntlGcodeExecuteWait(inst, string.format("G90 G53 G0 Z%.4f", safeZ))
+
+    -- Return to original XY using ProtectedMove (work coords)
+    ProbeScripts.ProtectedMove(inst, "work", origWorkX, origWorkY, nil, 300)
+
+    -- Return to original Z using ProtectedMove (machine coords)
+    ProbeScripts.ProtectedMove(inst, "mach", nil, nil, origMachZ, 300)
+
+    -- If probing was aborted due to failure, show error and exit (no map saved or enabled)
+    if results.aborted then
+        wx.wxMessageBox(
+            string.format("Surface probing ABORTED!\n\n" ..
+                "Failure at point %d of %d\n" ..
+                "Error: %s\n\n" ..
+                "Surface map NOT saved.\nNo surface map enabled.",
+                results.stats.success + 1, results.stats.total,
+                results.abortReason or "Unknown error"),
+            "Surface Probe Failed",
+            wx.wxOK + wx.wxICON_ERROR)
+        return results
+    end
+
+    -- Show heatmap visualization dialog (returns true if user clicks Apply)
+    local applyMap = ProbeScripts.ShowHeatmap(inst, {
+        xCount = results.gridXCount,
+        yCount = results.gridYCount,
+        zMin = results.stats.zMin,
+        zMax = results.stats.zMax,
+        gridWidth = params.width,
+        gridHeight = params.height,
+        grid = results.grid
+    })
+
+    -- Copy to default SurfaceMap.txt if user clicked Apply in heatmap dialog
+    if applyMap then
+        local activeMapPath = surfaceMapsDir .. "\\SurfaceMap.txt"
+        local srcFile = io.open(mapFile, "r")
+        if srcFile then
+            local content = srcFile:read("*a")
+            srcFile:close()
+            local dstFile = io.open(activeMapPath, "w")
+            if dstFile then
+                dstFile:write(content)
+                dstFile:close()
+                mc.mcCntlSetLastError(inst, "Surface map saved and activated")
+            end
+        end
+    else
+        mc.mcCntlSetLastError(inst, string.format("Surface map saved: %s", mapFile))
+    end
+
+    return results
+end
+
+
+
+
+function ProbeScripts.Debug(inst)
+    mc.mcCntlSetLastError(inst, "DEBUG: Started")
+
+    local outPath = "C:\\Users\\BLPCN\\Downloads\\debug_test.txt"
+    local f = io.open(outPath, "w")
+    if not f then
+        mc.mcCntlSetLastError(inst, "DEBUG: Cannot create file")
+        return
+    end
+    f:write("=== SurfaceMap Disable/Enable Test ===\n\n")
+    f:close()
+
+    -- Get the command register
+    local reg = mc.mcRegGetHandle(inst, "mcSurfaceMap0/smCommand")
+    f = io.open(outPath, "a")
+    f:write("Register handle: " .. tostring(reg) .. "\n\n")
+    f:close()
+
+    if reg == 0 then
+        f = io.open(outPath, "a")
+        f:write("ERROR: Plugin register not found\n")
+        f:close()
+        mc.mcCntlSetLastError(inst, "DEBUG: No plugin")
         return
     end
 
-    local avgZ = zSum / zCount
+    -- Step 1: Get current map list
+    mc.mcCntlSetLastError(inst, "DEBUG: GET MAP LIST")
+    local resp, rc = mc.mcRegSendCommand(reg, "GET MAP LIST")
+    f = io.open(outPath, "a")
+    f:write("GET MAP LIST response:\n")
+    f:write("  rc = " .. tostring(rc) .. "\n")
+    f:write("  resp = [" .. tostring(resp) .. "]\n\n")
+    f:close()
 
-    -- Build trigger data (convert path to network path for Fusion on other machine)
-    local csvPathNetwork = testCsvPath:gsub("C:\\Mach4Hobby", "\\\\BLPCNC\\Mach4Hobby")
-    local triggerData = string.format('{"csv_path": "%s", "piano_id": "%s", "avg_z": %.6f}',
-        csvPathNetwork:gsub("\\", "\\\\"),
-        pianoName,
-        avgZ)
-
-    -- Create trigger file
-    local triggerPath = "C:\\Mach4Hobby\\Profiles\\BLP\\Logs\\PROBE_COMPLETE_" .. pianoName .. ".txt"
-    local triggerFile = io.open(triggerPath, "w")
-
-    if triggerFile then
-        triggerFile:write(triggerData)
-        triggerFile:close()
-
-        mc.mcCntlSetLastError(inst, string.format("Debug trigger sent for %s (avgZ=%.4f)", pianoName, avgZ))
-
-        wx.wxMessageBox(string.format(
-            "Trigger file created successfully!\n\n" ..
-            "Piano ID: %s\n" ..
-            "CSV Path (network): %s\n" ..
-            "Average Z: %.6f\n" ..
-            "Z samples: %d\n\n" ..
-            "Trigger file: %s\n\n" ..
-            "The Fusion add-in should now process this data.",
-            pianoName,
-            csvPathNetwork,
-            avgZ,
-            zCount,
-            triggerPath),
-            "Debug Trigger Sent", wx.wxOK + wx.wxICON_INFORMATION)
-    else
-        wx.wxMessageBox("Could not create trigger file:\n" .. triggerPath,
-            "File Error", wx.wxOK + wx.wxICON_ERROR)
+    -- Step 1.5: DISABLE all maps first
+    mc.mcCntlSetLastError(inst, "DEBUG: Disabling all maps")
+    local disableIdx = 0
+    for line in tostring(resp):gmatch("([^\n]+)") do
+        disableIdx = disableIdx + 1
+        local disableCmd = "SET MAP " .. tostring(disableIdx) .. " DISABLED"
+        local dresp, drc = mc.mcRegSendCommand(reg, disableCmd)
+        f = io.open(outPath, "a")
+        f:write("Disabled map " .. tostring(disableIdx) .. ": rc=" .. tostring(drc) .. "\n")
+        f:close()
     end
+
+    f = io.open(outPath, "a")
+    f:write("\n")
+    f:close()
+
+    -- Refresh map list after disable
+    mc.mcCntlSetLastError(inst, "DEBUG: Refresh list")
+    resp, rc = mc.mcRegSendCommand(reg, "GET MAP LIST")
+    f = io.open(outPath, "a")
+    f:write("After disable - GET MAP LIST:\n")
+    f:write("  resp = [" .. tostring(resp) .. "]\n\n")
+    f:close()
+
+    if not resp or resp == "" then
+        f = io.open(outPath, "a")
+        f:write("No maps registered. Check Machine.ini [SurfaceMap/MapN] sections.\n")
+        f:close()
+        mc.mcCntlSetLastError(inst, "DEBUG: No maps found")
+        wx.wxMessageBox("No maps registered.\nSee: " .. outPath, "Debug", wx.wxOK)
+        return
+    end
+
+    -- Step 2: Parse the map list
+    local machDir = mc.mcCntlGetMachDir(inst)
+    local profile = mc.mcProfileGetName(inst)
+    local targetPath = tostring(machDir) .. "\\Profiles\\" .. tostring(profile) .. "\\test.dat"
+    local targetLower = string.lower(targetPath)
+
+    f = io.open(outPath, "a")
+    f:write("Target file: " .. targetPath .. "\n\n")
+    f:write("Parsing map list:\n")
+    f:close()
+
+    local idx = 0
+    local enableIdx = nil
+    for line in tostring(resp):gmatch("([^\n]+)") do
+        idx = idx + 1
+        local linePath = line:gsub(",[01]$", "")
+        local linePathLower = string.lower(linePath):gsub("/", "\\")
+        local status = line:match(",([01])$") or "?"
+
+        f = io.open(outPath, "a")
+        f:write("  Index " .. tostring(idx) .. ": " .. linePath .. " (status=" .. status .. ")\n")
+        f:close()
+
+        if linePathLower == targetLower then
+            enableIdx = idx
+            f = io.open(outPath, "a")
+            f:write("    ^ MATCH FOUND (status=" .. status .. ")\n")
+            f:close()
+
+            -- Check if already enabled
+            if status == "1" then
+                f = io.open(outPath, "a")
+                f:write("\nMap is ALREADY ENABLED. No action needed.\n")
+                f:write("\n=== Debug complete ===\n")
+                f:close()
+                mc.mcCntlSetLastError(inst, "DEBUG: Map already enabled")
+                wx.wxMessageBox("Map already enabled!\nSee: " .. outPath, "Debug", wx.wxOK)
+                return
+            end
+        end
+    end
+
+    f = io.open(outPath, "a")
+    f:write("\n")
+    f:close()
+
+    if not enableIdx then
+        f = io.open(outPath, "a")
+        f:write("Target file not found in map list.\n")
+        f:close()
+        mc.mcCntlSetLastError(inst, "DEBUG: Map not in list")
+        wx.wxMessageBox("Map not found in list.\nSee: " .. outPath, "Debug", wx.wxOK)
+        return
+    end
+
+    -- Step 3: Enable the map (only if status was 0)
+    local enableCmd = "SET MAP " .. tostring(enableIdx) .. " ENABLED"
+    mc.mcCntlSetLastError(inst, "DEBUG: " .. enableCmd)
+    resp, rc = mc.mcRegSendCommand(reg, enableCmd)
+    f = io.open(outPath, "a")
+    f:write("Enabling map:\n")
+    f:write("  Command: " .. enableCmd .. "\n")
+    f:write("  rc = " .. tostring(rc) .. "\n")
+    f:write("  resp = [" .. tostring(resp) .. "]\n\n")
+    f:close()
+
+    -- Step 4: Verify
+    mc.mcCntlSetLastError(inst, "DEBUG: Verify")
+    resp, rc = mc.mcRegSendCommand(reg, "GET MAP LIST")
+    f = io.open(outPath, "a")
+    f:write("Verification GET MAP LIST:\n")
+    f:write("  resp = [" .. tostring(resp) .. "]\n\n")
+    f:write("=== Debug complete ===\n")
+    f:close()
+
+    mc.mcCntlSetLastError(inst, "DEBUG: Complete - map enabled")
+    wx.wxMessageBox("Debug complete!\nSee: " .. outPath, "Debug", wx.wxOK)
 end
 
 

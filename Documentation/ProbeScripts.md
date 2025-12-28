@@ -522,11 +522,19 @@ Calibrates per-direction probe diameters using a concentric bore/boss fixture.
 
 **Process:**
 1. User positions probe in bore
-2. Probes bore (inside) in all 4 directions
-3. Moves to center, lifts Z
-4. Probes boss (outside) in all 4 directions
-5. Calculates individual probe diameters for each direction
-6. Saves to PVs 511-514 and profile
+2. Stores current PV 511-514 values for potential restoration
+3. Zeros PVs 511-514 for calibration
+4. Probes bore (inside) in all 4 directions
+5. Moves to center, lifts Z
+6. Probes boss (outside) in all 4 directions
+7. Calculates individual probe diameters for each direction
+8. Saves to PVs 511-514 and profile
+
+**Output:**
+- Displays new and old values: `+X Diameter: 0.1234" (was 0.1200")`
+
+**Error Recovery:**
+- If any probe operation fails, original PV values are automatically restored before exit
 
 **Requirements:**
 - Concentric bore and boss
@@ -539,10 +547,17 @@ Calibrates per-direction probe diameters using a concentric bore/boss fixture.
 Calibrates T90 XY offsets using a bore centered at work 0,0.
 
 **Process:**
-1. Zeros T90 offsets in tool table
-2. Probes bore center iteratively (X, Y, X again)
-3. Final position = probe offset from spindle
-4. Saves offsets to T90 tool table
+1. Stores current T90 X/Y offsets for potential restoration
+2. Zeros T90 offsets in tool table
+3. Probes bore center iteratively (X, Y, X again)
+4. Final position = probe offset from spindle
+5. Saves offsets to T90 tool table
+
+**Output:**
+- Displays new and old values: `T90 offsets set: X0.1234 (was 0.1200) Y0.5678 (was 0.5600)`
+
+**Error Recovery:**
+- If any probe operation fails, original T90 offsets are automatically restored and reloaded before exit
 
 **Prerequisites:**
 - Spindle must be manually centered over bore

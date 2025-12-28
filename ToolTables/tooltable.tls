@@ -53,11 +53,11 @@ UsrField5=ProbeXOffset
 UsrFieldType5=Float(-1, 4)
 UsrFieldDesc5=Probe X Shift
 [Tool1]
-Length=2.96004
+Length=5.47035
 LengthWear=0
 Diameter=0
 DiameterWear=0
-Desc=Tool 1
+Desc=Manual Touch Probe
 Pocket=0.1234
 XOffset=0
 XOffsetWear=0
@@ -74,9 +74,9 @@ MaxRPM=10000
 ToolType=EndMill
 Material=Carbide
 LastMeasured=2025-01-15 14:30:00
-AutoProbe=1
+AutoProbe=0
 [Tool2]
-Length=3.28917
+Length=2.81244
 LengthWear=0
 Diameter=0
 DiameterWear=0
@@ -91,7 +91,7 @@ YToolChange=4.10441
 ZToolChange=-9.89641
 AutoProbe=1
 [Tool3]
-Length=3.44071
+Length=2.47386
 LengthWear=0
 Diameter=0
 DiameterWear=0
@@ -107,7 +107,7 @@ ZToolChange=-9.88602
 AutoProbe=1
 ProbeXOffset=0.0000
 [Tool4]
-Length=3.47519
+Length=3.24649
 LengthWear=0
 Diameter=0
 DiameterWear=0
@@ -122,7 +122,7 @@ YToolChange=4.12041
 ZToolChange=-9.88283
 AutoProbe=1
 [Tool5]
-Length=3.17169
+Length=3.24512
 LengthWear=0
 Diameter=0
 DiameterWear=0
@@ -137,7 +137,7 @@ YToolChange=4.10871
 ZToolChange=-9.89271
 AutoProbe=1
 [Tool6]
-Length=3.86421
+Length=2.90807
 LengthWear=0
 Diameter=0
 DiameterWear=0
@@ -152,7 +152,7 @@ YToolChange=4.11381
 ZToolChange=-9.88878
 AutoProbe=1
 [Tool7]
-Length=3.28401
+Length=3.4635
 LengthWear=0
 Diameter=0
 DiameterWear=0
@@ -167,7 +167,7 @@ YToolChange=4.12731
 ZToolChange=-9.88767
 AutoProbe=1
 [Tool8]
-Length=4.47866
+Length=3.7013
 LengthWear=0
 Diameter=0
 DiameterWear=0
@@ -182,11 +182,11 @@ YToolChange=4.14651
 ZToolChange=-9.87878
 AutoProbe=1
 [Tool9]
-Length=5.42023
+Length=4.43189
 LengthWear=0
 Diameter=0
 DiameterWear=0
-Desc=Manual Touch Probe
+Desc=Tool 9
 Pocket=0
 XOffset=0
 XOffsetWear=0
@@ -197,7 +197,7 @@ YToolChange=4.13304
 ZToolChange=-9.88618
 AutoProbe=1
 [Tool10]
-Length=2.96417
+Length=2.9639
 LengthWear=0
 Diameter=0
 DiameterWear=0
@@ -213,7 +213,7 @@ YToolChange=107.468
 ZToolChange=-5.40141
 ProbeXOffset=-0.8000
 [Tool11]
-Length=3.27488
+Length=3.47559
 LengthWear=0
 Diameter=0
 DiameterWear=0
@@ -228,7 +228,7 @@ ZToolChange=-5.41456
 AutoProbe=1
 Desc=1/2" Left Hand Two flute
 [Tool12]
-Length=3.28901
+Length=3.44657
 LengthWear=0
 Diameter=0
 DiameterWear=0
@@ -243,7 +243,7 @@ XToolChange=8.94762
 YToolChange=107.413
 ZToolChange=-5.44704
 [Tool13]
-Length=0
+Length=3.29208
 LengthWear=0
 Diameter=0
 DiameterWear=0
@@ -258,7 +258,7 @@ XToolChange=12.4895
 YToolChange=107.393
 ZToolChange=-5.51315
 [Tool14]
-Length=0
+Length=2.74039
 LengthWear=0
 Diameter=0
 DiameterWear=0
@@ -273,7 +273,7 @@ XToolChange=16.048
 YToolChange=107.386
 ZToolChange=-5.53212
 [Tool15]
-Length=3
+Length=3.20059
 LengthWear=0
 Diameter=0
 DiameterWear=0
@@ -288,7 +288,7 @@ XToolChange=19.5848
 YToolChange=107.365
 ZToolChange=-5.5746
 [Tool16]
-Length=3
+Length=3.17488
 LengthWear=0
 Diameter=0
 DiameterWear=0
@@ -378,7 +378,7 @@ XToolChange=40.7946
 YToolChange=107.354
 ZToolChange=-5.6289
 [Tool22]
-Length=0
+Length=3.49169
 LengthWear=0
 Diameter=0
 DiameterWear=0
@@ -393,7 +393,7 @@ XToolChange=44.3514
 YToolChange=107.334
 ZToolChange=-5.64409
 [Tool23]
-Length=0
+Length=3.23905
 LengthWear=0
 Diameter=0
 DiameterWear=0
@@ -1151,15 +1151,15 @@ YOffset=0
 YOffsetWear=0
 AutoProbe=0
 [Tool90]
-Length=2.38102
+Length=2.71096
 LengthWear=0
 Diameter=0
 DiameterWear=0
 Desc=Touch Probe
 Pocket=0
-XOffset=7.62408
+XOffset=7.6236
 XOffsetWear=0
-YOffset=-1.03811
+YOffset=-1.05411
 YOffsetWear=0
 ToolType=Probe
 AutoProbe=0

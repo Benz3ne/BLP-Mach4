@@ -30,6 +30,19 @@ dofile(_G.ROOT .. "\\ButtonScripts.lua")
 
 state = {}  -- Used by SyncMPG() for axis_rates and mpg0_inc tracking
 
+-- Maintenance tracking configuration
+-- hours = interval between reminders, tip = detailed instructions shown on hover
+MaintenanceConfig = {
+    {id = "ProbeCalibration", name = "Calibrate Probe XY Offset", hours = 24,
+     tip = "Run Probe > Calibrate Probe XY Offset to update T90 tool offsets"},
+    {id = "AirSeparator", name = "Drain Air-Water Separator", hours = 24,
+     tip = "Open drain valve on air-water separator, drain any accumulated water"},
+    {id = "DesiccantBeads", name = "Check Desiccant Beads", hours = 24,
+     tip = "Check color - blue=good, pink=saturated (needs replacement or regeneration)"},
+    {id = "SpindleTaper", name = "Clean Spindle Taper", hours = 168,
+     tip = "Remove tool, wipe taper with lint-free cloth, check for debris or damage"}
+}
+
 -- Signal Library
 SigLib = {
 [mc.OSIG_MACHINE_ENABLED] = function(state)
@@ -40,10 +53,11 @@ SigLib = {
     else
         MachineEnabledTime = os.clock()  -- Record enable time
         ToggleSoftLimits("enable")
-        KeyboardInputsToggle("enable")
+        KeyboardInputsToggle("disable")
         CheckAirPressure()
         SpindleToolDialog()
         InitializeJog()
+        MaintenanceItems()
     end
 end,
 
@@ -63,6 +77,18 @@ end,
 
 [mc.ISIG_INPUT17] = function(state)
     SpindleToolPresenceChanged(state)
+end,
+
+[mc.ISIG_INPUT15] = function(state)
+    -- Spindle error signal - stop if it goes high during a run
+    if state == 1 then
+        local machState = mc.mcCntlGetState(inst)
+        -- States 100-199 = File Run, 200-299 = MDI Run
+        if machState >= 100 and machState < 300 then
+            mc.mcCntlSetLastError(inst, "SPINDLE ERROR - Cycle Stopped")
+            CycleStop()
+        end
+    end
 end,
 
 [mc.OSIG_JOG_CONT] = function (state)
@@ -142,7 +168,7 @@ function ReturnToPosition()
         return false
     end
     -- Move to safe Z first, then XY, then Z
-    mc.mcCntlGcodeExecuteWait(inst, string.format("G90 G53 G0 Z-0.050"))
+    mc.mcCntlGcodeExecuteWait(inst, string.format("G90 G53 G0 Z0"))
     mc.mcCntlGcodeExecuteWait(inst, string.format("G90 G53 G0 X%.4f Y%.4f", x, y))
     mc.mcCntlGcodeExecuteWait(inst, string.format("G90 G53 G0 Z%.4f", z))
 end
@@ -245,17 +271,391 @@ end
 function CheckAirPressure()
     local hAir = mc.mcSignalGetHandle(inst, mc.ISIG_INPUT6)
     local airState = mc.mcSignalGetState(hAir)
-   
+
     if airState == 0 then
         mc.mcCntlEStop(inst)
         mc.mcCntlSetLastError(inst, "No air pressure - E-Stop")
     end
 end
 
--- Cycle Stop function.
+-- Check maintenance items and show reminder dialog if any are due
+-- Sets MaintenanceResult register: 0=no items due, 1=remind later (continue), 2=perform maintenance (stop)
+function _G.MaintenanceItems()
+    -- Default result: no items due (continue)
+    local hResult = mc.mcRegGetHandle(inst, "iRegs0/MaintenanceResult")
+    if hResult ~= 0 then
+        mc.mcRegSetValue(hResult, 0)
+    end
+
+    local status, err = pcall(function()
+        local dueItems = {}
+        local now = os.time()
+
+        -- Check each maintenance item
+        for _, item in ipairs(MaintenanceConfig) do
+            local lastDoneStr = mc.mcProfileGetString(inst, "Maintenance", item.id, "0")
+            local lastDone = tonumber(lastDoneStr) or 0
+            local hoursSince = (now - lastDone) / 3600
+            if hoursSince >= item.hours then
+                table.insert(dueItems, item)
+            end
+        end
+
+        -- No items due, return early (result stays 0)
+        if #dueItems == 0 then return end
+
+        -- Build the dialog
+        local dialog = wx.wxDialog(wx.NULL, wx.wxID_ANY, "Maintenance Due",
+                                   wx.wxDefaultPosition, wx.wxSize(400, 300),
+                                   wx.wxDEFAULT_DIALOG_STYLE)
+        local panel = wx.wxPanel(dialog, wx.wxID_ANY)
+        local sizer = wx.wxBoxSizer(wx.wxVERTICAL)
+
+        -- Instructions
+        local instrLabel = wx.wxStaticText(panel, wx.wxID_ANY, "Check items when complete:")
+        sizer:Add(instrLabel, 0, wx.wxALL, 10)
+
+        -- Create checkboxes for each due item
+        local checkboxes = {}
+        for i, item in ipairs(dueItems) do
+            local checkbox = wx.wxCheckBox(panel, wx.wxID_ANY, item.name)
+            checkbox:SetToolTip(item.tip)
+            sizer:Add(checkbox, 0, wx.wxLEFT + wx.wxRIGHT + wx.wxBOTTOM, 10)
+            checkboxes[i] = {checkbox = checkbox, item = item}
+        end
+
+        -- Buttons
+        local btnSizer = wx.wxBoxSizer(wx.wxHORIZONTAL)
+        local remindBtn = wx.wxButton(panel, wx.wxID_OK, "Remind Later")
+        local maintBtn = wx.wxButton(panel, wx.wxID_CANCEL, "Perform Maintenance")
+        btnSizer:Add(remindBtn, 0, wx.wxALL, 5)
+        btnSizer:Add(maintBtn, 0, wx.wxALL, 5)
+        sizer:Add(btnSizer, 0, wx.wxALIGN_CENTER + wx.wxALL, 10)
+
+        panel:SetSizer(sizer)
+        sizer:Fit(dialog)
+        dialog:Centre()
+
+        -- Show dialog and process result
+        local result = dialog:ShowModal()
+
+        if result == wx.wxID_OK then
+            -- Remind Later - mark checked items, continue probing
+            for _, entry in ipairs(checkboxes) do
+                if entry.checkbox:GetValue() then
+                    mc.mcProfileWriteString(inst, "Maintenance", entry.item.id, tostring(now))
+                end
+            end
+            mc.mcProfileFlush(inst)
+            if hResult ~= 0 then
+                mc.mcRegSetValue(hResult, 1)  -- Continue
+            end
+        else
+            -- Perform Maintenance - stop probing
+            if hResult ~= 0 then
+                mc.mcRegSetValue(hResult, 2)  -- Stop
+            end
+        end
+
+        dialog:Destroy()
+    end)
+
+    if not status then
+        mc.mcCntlSetLastError(inst, "MaintenanceItems error: " .. tostring(err))
+    end
+end
+
+-- Surface Map Processing: Applies Z height compensation from probe data to G-code
+-- automated: true = skip dialog, false/nil = show dialog
+-- Returns: true to continue, false to cancel
+function ApplySurfaceMap(automated)
+    local profileDir = mc.mcCntlGetMachDir(inst) .. "\\Profiles\\" .. mc.mcProfileGetName(inst)
+    local mapPath = profileDir .. "\\SurfaceMaps\\SurfaceMap.txt"
+
+    -- Check for map file
+    local mapFile = io.open(mapPath, "r")
+    if not mapFile then return true end
+    local mapContent = mapFile:read("*a")
+    mapFile:close()
+
+    -- Check for G-code file
+    local gcodeFile = mc.mcCntlGetGcodeFileName(inst)
+    if not gcodeFile or gcodeFile == "" then return true end
+
+    -- Check if this is already a surface-mapped file
+    local tempMappedPath = profileDir .. "\\TempSurfaceMapped.tap"
+    if gcodeFile == tempMappedPath then
+        if not automated then
+            local dialog = wx.wxDialog(wx.NULL, wx.wxID_ANY, "Surface Map",
+                                       wx.wxDefaultPosition, wx.wxSize(380, -1))
+            local panel = wx.wxPanel(dialog, wx.wxID_ANY)
+            local sizer = wx.wxBoxSizer(wx.wxVERTICAL)
+            sizer:Add(wx.wxStaticText(panel, wx.wxID_ANY,
+                "This file already has surface map applied."),
+                0, wx.wxALL, 15)
+            local btnSizer = wx.wxBoxSizer(wx.wxHORIZONTAL)
+            local btnContinue = wx.wxButton(panel, 1001, "Continue")
+            local btnRemap = wx.wxButton(panel, 1002, "Re-map and Continue")
+            local btnCancel = wx.wxButton(panel, 1003, "Cancel")
+            btnSizer:Add(btnContinue, 0, wx.wxRIGHT, 5)
+            btnSizer:Add(btnRemap, 0, wx.wxRIGHT, 5)
+            btnSizer:Add(btnCancel, 0)
+            sizer:Add(btnSizer, 0, wx.wxALL + wx.wxALIGN_CENTER, 10)
+            panel:SetSizer(sizer)
+            sizer:Fit(dialog)
+            dialog:Centre()
+
+            local choice = "cancel"
+            dialog:Connect(1001, wx.wxEVT_COMMAND_BUTTON_CLICKED, function() choice = "continue"; dialog:EndModal(0) end)
+            dialog:Connect(1002, wx.wxEVT_COMMAND_BUTTON_CLICKED, function() choice = "remap"; dialog:EndModal(0) end)
+            dialog:Connect(1003, wx.wxEVT_COMMAND_BUTTON_CLICKED, function() choice = "cancel"; dialog:EndModal(0) end)
+            dialog:ShowModal()
+            dialog:Destroy()
+
+            if choice == "continue" then
+                return true  -- Continue with already-mapped file
+            elseif choice == "remap" then
+                if not SurfaceMapOriginalFile then
+                    wx.wxMessageBox("Original file path not available.\nPlease reload the original file manually.",
+                                    "Surface Map Error", wx.wxOK + wx.wxICON_ERROR)
+                    return false
+                end
+                -- Reload original and continue directly to processing (skip apply dialog)
+                gcodeFile = SurfaceMapOriginalFile
+            else
+                return false  -- Cancel
+            end
+        else
+            return true  -- Automated mode, just continue
+        end
+    else
+        -- Store original file path for potential re-mapping
+        SurfaceMapOriginalFile = gcodeFile
+
+        -- Show dialog if interactive
+        if not automated then
+            local dialog = wx.wxDialog(wx.NULL, wx.wxID_ANY, "Surface Map Available",
+                                       wx.wxDefaultPosition, wx.wxSize(380, -1))
+            local panel = wx.wxPanel(dialog, wx.wxID_ANY)
+            local sizer = wx.wxBoxSizer(wx.wxVERTICAL)
+            sizer:Add(wx.wxStaticText(panel, wx.wxID_ANY,
+                "A surface map is available.\n\nApply Z compensation to this G-code?"),
+                0, wx.wxALL, 15)
+
+            local btnSizer = wx.wxBoxSizer(wx.wxHORIZONTAL)
+            local btnApply = wx.wxButton(panel, 1001, "Apply Map")
+            local btnSkip = wx.wxButton(panel, 1002, "Skip")
+            local btnCancel = wx.wxButton(panel, 1003, "Cancel")
+            btnSizer:Add(btnApply, 0, wx.wxRIGHT, 5)
+            btnSizer:Add(btnSkip, 0, wx.wxRIGHT, 5)
+            btnSizer:Add(btnCancel, 0)
+            sizer:Add(btnSizer, 0, wx.wxALL + wx.wxALIGN_CENTER, 10)
+            panel:SetSizer(sizer)
+            sizer:Fit(dialog)
+            dialog:Centre()
+
+            local choice = "cancel"
+            dialog:Connect(1001, wx.wxEVT_COMMAND_BUTTON_CLICKED, function() choice = "apply"; dialog:EndModal(0) end)
+            dialog:Connect(1002, wx.wxEVT_COMMAND_BUTTON_CLICKED, function() choice = "skip"; dialog:EndModal(0) end)
+            dialog:Connect(1003, wx.wxEVT_COMMAND_BUTTON_CLICKED, function() choice = "cancel"; dialog:EndModal(0) end)
+            dialog:ShowModal()
+            dialog:Destroy()
+
+            if choice == "skip" then return true end
+            if choice == "cancel" then return false end
+        end
+    end
+
+    -- Parse map file (format: XMIN=, XMAX=, XCOUNT=, YMIN=, YMAX=, YCOUNT=, Z=...)
+    local xMin = tonumber(mapContent:match("XMIN=([%-%.%d]+)"))
+    local xMax = tonumber(mapContent:match("XMAX=([%-%.%d]+)"))
+    local xCount = tonumber(mapContent:match("XCOUNT=(%d+)"))
+    local yMin = tonumber(mapContent:match("YMIN=([%-%.%d]+)"))
+    local yMax = tonumber(mapContent:match("YMAX=([%-%.%d]+)"))
+    local yCount = tonumber(mapContent:match("YCOUNT=(%d+)"))
+    local zLine = mapContent:match("Z=([^\n]+)")
+
+    local zValues = {}
+    for z in zLine:gmatch("([%-%.%d]+)") do
+        zValues[#zValues + 1] = tonumber(z)
+    end
+
+    -- Pre-calculate grid constants
+    local xStep = (xMax - xMin) / (xCount - 1)
+    local yStep = (yMax - yMin) / (yCount - 1)
+    local xScale = 1 / xStep
+    local yScale = 1 / yStep
+    local poundVarX, poundVarY = GetFixOffsetVars()
+    local workOffsetX = mc.mcCntlGetPoundVar(inst, poundVarX)
+    local workOffsetY = mc.mcCntlGetPoundVar(inst, poundVarY)
+
+    -- Calculate refZ at work origin (X0Y0) so that point has zero compensation
+    local originMachX = math.max(xMin, math.min(xMax, workOffsetX))
+    local originMachY = math.max(yMin, math.min(yMax, workOffsetY))
+    local oxi = (originMachX - xMin) * xScale
+    local oyi = (originMachY - yMin) * yScale
+    local ox0, oy0 = math.floor(oxi), math.floor(oyi)
+    local ox1 = math.min(ox0 + 1, xCount - 1)
+    local oy1 = math.min(oy0 + 1, yCount - 1)
+    ox0 = math.max(0, math.min(xCount - 1, ox0))
+    oy0 = math.max(0, math.min(yCount - 1, oy0))
+    local oxf, oyf = oxi - ox0, oyi - oy0
+    local oz00 = zValues[oy0 * xCount + ox0 + 1]
+    local oz10 = zValues[oy0 * xCount + ox1 + 1]
+    local oz01 = zValues[oy1 * xCount + ox0 + 1]
+    local oz11 = zValues[oy1 * xCount + ox1 + 1]
+    local refZ = oz00 + (oz10 - oz00) * oxf + (oz01 - oz00) * oyf + (oz00 - oz10 - oz01 + oz11) * oxf * oyf
+
+    -- Read entire G-code file
+    local inFile, err = io.open(gcodeFile, "r")
+    if not inFile then
+        wx.wxMessageBox("Failed to read G-code file:\n" .. (err or gcodeFile),
+                        "Surface Map Error", wx.wxOK + wx.wxICON_ERROR)
+        return true
+    end
+    local content = inFile:read("*a")
+    inFile:close()
+    local lines = {}
+    for line in content:gmatch("([^\n]*)\n?") do
+        lines[#lines + 1] = line
+    end
+
+    -- Pre-scan for incompatible G-code features
+    local issues = {}
+    local arcCount, cycleCount, datumCount = 0, 0, 0
+    for _, line in ipairs(lines) do
+        local upper = line:upper()
+        if upper:match("G[23][^0-9]") or upper:match("G[23]$") then arcCount = arcCount + 1 end
+        if upper:match("G8[0-9]") then cycleCount = cycleCount + 1 end
+        if upper:match("G5[4-9][^%d]") or upper:match("G5[4-9]$") or upper:match("G54%.1") then
+            datumCount = datumCount + 1
+        end
+    end
+    if arcCount > 0 then issues[#issues + 1] = arcCount .. " arc moves (G2/G3)" end
+    if cycleCount > 0 then issues[#issues + 1] = cycleCount .. " canned cycles (G8x)" end
+    if datumCount > 1 then issues[#issues + 1] = "work offset changes (G54-G59)" end
+
+    if #issues > 0 then
+        wx.wxMessageBox(
+            "Cannot apply surface map - incompatible G-code:\n\n" ..
+            "  - " .. table.concat(issues, "\n  - ") .. "\n\n" ..
+            "Edit post processor to:\n" ..
+            "  - Linearize arcs (set tolerance)\n" ..
+            "  - Expand canned cycles\n" ..
+            "  - Use single work offset",
+            "Surface Map Error", wx.wxOK + wx.wxICON_ERROR)
+        return true  -- Continue without surface map
+    end
+
+    -- Progress dialog
+    local progress = wx.wxProgressDialog("Applying Surface Map", "Processing G-code...",
+                                          #lines, wx.NULL,
+                                          wx.wxPD_AUTO_HIDE + wx.wxPD_SMOOTH)
+
+    -- Process G-code
+    local output = {}
+    local curX, curY, curZ = 0, 0, 0  -- Track programmed position
+    local curAdjustedZ = 0  -- Track adjusted Z for G91 delta calculation
+    local absolute = true
+    local updateInterval = math.max(1, math.floor(#lines / 100))
+
+    for i, line in ipairs(lines) do
+        if i % updateInterval == 0 then
+            progress:Update(i, string.format("Processing line %d / %d", i, #lines))
+            wx.wxSafeYield()
+        end
+
+        local upper = line:upper()
+
+        -- Track G90/G91
+        if upper:match("G90") then absolute = true end
+        if upper:match("G91") then absolute = false end
+
+        -- Skip reference/machine coord moves (pass through unchanged)
+        local skipLine = upper:match("G28") or upper:match("G30") or upper:match("G53")
+
+        -- Quick check: skip if no X/Y/Z
+        local hasCoord = upper:match("[XYZ]%-?%d")
+        if skipLine or not hasCoord or upper:match("^%s*[%(;]") then
+            output[#output + 1] = line
+        else
+            -- Parse coordinates
+            local nx = line:match("[Xx]([%-]?%d*%.?%d+)")
+            local ny = line:match("[Yy]([%-]?%d*%.?%d+)")
+            local nz = line:match("[Zz]([%-]?%d*%.?%d+)")
+
+            -- Calculate target position (absolute programmed position)
+            local tx = absolute and (nx and tonumber(nx) or curX) or (curX + (tonumber(nx) or 0))
+            local ty = absolute and (ny and tonumber(ny) or curY) or (curY + (tonumber(ny) or 0))
+            local tz = absolute and (nz and tonumber(nz) or curZ) or (curZ + (tonumber(nz) or 0))
+
+            -- Convert to machine coords and interpolate Z
+            local mx = math.max(xMin, math.min(xMax, tx + workOffsetX))
+            local my = math.max(yMin, math.min(yMax, ty + workOffsetY))
+
+            local xi = (mx - xMin) * xScale
+            local yi = (my - yMin) * yScale
+            local x0, y0 = math.floor(xi), math.floor(yi)
+            local x1 = math.min(x0 + 1, xCount - 1)
+            local y1 = math.min(y0 + 1, yCount - 1)
+            x0 = math.max(0, math.min(xCount - 1, x0))
+            y0 = math.max(0, math.min(yCount - 1, y0))
+
+            local xf, yf = xi - x0, yi - y0
+            local z00 = zValues[y0 * xCount + x0 + 1]
+            local z10 = zValues[y0 * xCount + x1 + 1]
+            local z01 = zValues[y1 * xCount + x0 + 1]
+            local z11 = zValues[y1 * xCount + x1 + 1]
+            local surfaceZ = z00 + (z10 - z00) * xf + (z01 - z00) * yf + (z00 - z10 - z01 + z11) * xf * yf
+
+            -- Calculate adjusted Z (absolute position with surface compensation)
+            local adjustedZ = tz + (surfaceZ - refZ)
+
+            -- Output Z: absolute in G90, delta in G91
+            local outputZ = absolute and adjustedZ or (adjustedZ - curAdjustedZ)
+
+            -- Update tracking
+            curX, curY, curZ = tx, ty, tz
+            curAdjustedZ = adjustedZ
+
+            -- Modify line
+            if nz then
+                output[#output + 1] = line:gsub("([Zz])[%-]?%d*%.?%d+", "%1" .. string.format("%.4f", outputZ))
+            elseif nx or ny then
+                local cmt = line:find("[;(]")
+                if cmt then
+                    output[#output + 1] = line:sub(1, cmt - 1) .. string.format(" Z%.4f ", outputZ) .. line:sub(cmt)
+                else
+                    output[#output + 1] = line .. string.format(" Z%.4f", outputZ)
+                end
+            else
+                output[#output + 1] = line
+            end
+        end
+    end
+
+    progress:Destroy()
+
+    -- Write output file
+    local outPath = profileDir .. "\\TempSurfaceMapped.tap"
+    local outFile, err = io.open(outPath, "w")
+    if not outFile then
+        wx.wxMessageBox("Failed to write processed G-code:\n" .. (err or outPath),
+                        "Surface Map Error", wx.wxOK + wx.wxICON_ERROR)
+        return true  -- Continue with original file
+    end
+    outFile:write(table.concat(output, "\n"))
+    outFile:close()
+
+    -- Load processed file
+    mc.mcCntlLoadGcodeFile(inst, outPath)
+    mc.mcCntlSetLastError(inst, string.format("Surface map applied: %d lines processed", #lines))
+
+    return true
+end
+
 function CycleStop()
-    -- Check if machine was moving BEFORE stopping
-    -- These states indicate the machine is NOT moving (paused/held/idle)
+    -- Check if machine was moving before stopping
     local notMovingStates = {
         [0] = true,    -- IDLE
         [1] = true,    -- HOLD
@@ -280,13 +680,18 @@ function CycleStop()
     mc.mcCntlCycleStop(inst);
     mc.mcSpindleSetDirection(inst, 0);
 
+    -- Save current line number before reset (reset rewinds to start)
+    local currentLine = mc.mcCntlGetGcodeLineNbr(inst)
+
     -- Wait for cycle stop to take effect before reset
     wx.wxMilliSleep(50)
-
-    -- Clear state stack then reset (matches RecoverThenReset pattern)
-    -- This fixes the MERROR_NOT_NOW bug where G-code execution gets blocked
     mc.mcCntlMachineStateClear(inst)
     mc.mcCntlReset(inst)
+
+    -- Restore line number so user can resume from where they stopped
+    if currentLine > 0 then
+        mc.mcCntlSetGcodeLineNbr(inst, currentLine)
+    end
 
     -- If machine was moving when cycle stop was pressed, require re-homing
     if wasMoving then
@@ -326,12 +731,14 @@ function RefAllHome()
     mc.mcAxisHomeAll(inst)
     coroutine.yield()
     mc.mcCntlGcodeExecuteWait(inst, "G53 G1 X0 Y0 Z0 F50")
+    mc.mcCntlMachineStateClear(inst)
+    mc.mcCntlReset(inst)
 end
 
 -- Go To Work Zero() function.
 function GoToWorkZero()
     mc.mcCntlMdiExecute(inst, "G00 X0 Y0")--Without Z moves
-    --mc.mcCntlMdiExecute(inst, "G00 G53 Z-0.050\nG00 X0 Y0 A0\nG00 Z-0.050")--With Z moves
+    --mc.mcCntlMdiExecute(inst, "G00 G53 Z0\nG00 X0 Y0 A0\nG00 Z0")--With Z moves
 end
 
 -- Set Feed Rate Override
@@ -361,19 +768,36 @@ function RunFromHere()
         return false  -- Continue with normal cycle start
     end
 
+    -- Read file directly for fast line access
+    local filePath = mc.mcCntlGetGcodeFileName(inst)
+    local lines = {}
+    local file = io.open(filePath, "r")
+    if file then
+        for line in file:lines() do
+            lines[#lines + 1] = line
+        end
+        file:close()
+    else
+        -- Fallback to API if file can't be opened
+        local totalLines = mc.mcCntlGetGcodeLineCount(inst)
+        for i = 0, totalLines - 1 do
+            lines[i + 1] = mc.mcCntlGetGcodeLine(inst, i) or ""
+        end
+    end
+
     -- Check if we're in a canned cycle and find safe line
-    local safeLine = selectedLine - 1  -- Convert to 0-indexed
+    local safeLine = selectedLine  -- 1-indexed for our table
     local adjustmentWarning = nil
 
     -- Simple scan backwards for canned cycle
-    for i = selectedLine - 2, 0, -1 do
-        local line = mc.mcCntlGetGcodeLine(inst, i)
+    for i = selectedLine - 1, 1, -1 do
+        local line = lines[i]
         if line then
             local cleanLine = line:gsub("%(.*%)", ""):gsub(";.*", ""):upper()
             if cleanLine:match("G8[1-9]") then
                 -- Found start of canned cycle, use this line
                 safeLine = i
-                adjustmentWarning = string.format("Starting from line %d (canned cycle start)", i + 1)
+                adjustmentWarning = string.format("Starting from line %d (canned cycle start)", i)
                 break
             elseif cleanLine:match("G80") then
                 -- Found cycle cancel before finding start, we're safe
@@ -394,8 +818,8 @@ function RunFromHere()
     }
 
     -- Scan backwards to collect state
-    for i = safeLine, 0, -1 do
-        local line = mc.mcCntlGetGcodeLine(inst, i)
+    for i = safeLine, 1, -1 do
+        local line = lines[i]
         if line then
             local cleanLine = line:gsub("%(.*%)", ""):gsub(";.*", ""):upper()
 
@@ -455,8 +879,8 @@ function RunFromHere()
         end
     end
 
-    -- Build preview message
-    local selectedContent = mc.mcCntlGetGcodeLine(inst, selectedLine) or ""
+    -- Build preview message (use cached lines table, +1 for 0-indexed to 1-indexed)
+    local selectedContent = lines[selectedLine + 1] or ""
     local message = string.format("Run from line %d?\n────────────────\nSelected: %s\n",
                                  selectedLine + 1, selectedContent)
 
@@ -544,9 +968,27 @@ function RunFromHere()
         return true  -- Cancel
     end
 
-    -- Execute Run From Here sequence
+    -- Start non-blocking execution via coroutine
+    -- Coroutine will handle all moves and final cycle start
+    RunWithPLC(function()
+        RunFromHereExecute(state, safeLine)
+    end)
+
+    return true  -- Tell CycleStart to NOT proceed (coroutine handles cycle start)
+end
+
+-- Non-blocking Run From Here execution (runs via PLC coroutine)
+-- Uses yield at start to return control to UI, then blocking calls after
+function RunFromHereExecute(state, safeLine)
+    local inst = mc.mcGetInstance()
+
     mc.mcCntlSetLastError(inst, "Preparing Run From Here...")
 
+    -- Yield once to return control to UI before starting sequence
+    mc.mcCntlGcodeExecute(inst, "G4 P0.01")  -- Tiny dwell to trigger state change
+    coroutine.yield()
+
+    -- Now execute the setup sequence (blocking calls OK after yield)
     -- 1. Move to safe Z
     mc.mcCntlGcodeExecuteWait(inst, "G53 G0 Z0")
 
@@ -557,7 +999,7 @@ function RunFromHere()
     end
 
     -- 3. Set work offset and modes
-    local setupCmd = "G90 G94 G17"  -- Always use absolute, feed/min, XY plane
+    local setupCmd = "G90 G94 G17"
     if state.workOffset then
         setupCmd = setupCmd .. " " .. state.workOffset
     end
@@ -577,7 +1019,7 @@ function RunFromHere()
     -- 6. Move to XY position
     mc.mcCntlGcodeExecuteWait(inst, string.format("G0 X%.4f Y%.4f", state.x, state.y))
 
-    -- 7. Show plunge confirmation with options
+    -- 7. Show plunge confirmation dialog
     local currentZ = mc.mcAxisGetPos(inst, mc.Z_AXIS)
     local plungeMsg = string.format(
         "Ready to Start Program\n────────────────────\n\n" ..
@@ -589,7 +1031,6 @@ function RunFromHere()
         state.x, state.y, currentZ, state.z
     )
 
-    -- Create custom dialog with three buttons
     local plungeDlg = wx.wxDialog(wx.NULL, wx.wxID_ANY, "Ready to Start",
                                   wx.wxDefaultPosition, wx.wxDefaultSize)
 
@@ -598,22 +1039,18 @@ function RunFromHere()
 
     local plungeText = wx.wxStaticText(plungePanel, wx.wxID_ANY, plungeMsg)
     plungeSizer:Add(plungeText, 0, wx.wxALL, 15)
-
     plungeSizer:AddSpacer(10)
 
-    -- Button sizer
     local plungeBtnSizer = wx.wxBoxSizer(wx.wxHORIZONTAL)
     local plungeBtn = wx.wxButton(plungePanel, wx.wxID_ANY, "Plunge and Start")
     local currentBtn = wx.wxButton(plungePanel, wx.wxID_ANY, "Start at Current Z")
     local abortBtn = wx.wxButton(plungePanel, wx.wxID_CANCEL, "Abort")
 
-    -- Set up button handlers
     plungeBtn:Connect(wx.wxEVT_COMMAND_BUTTON_CLICKED, function(event)
-        plungeDlg:EndModal(1)  -- Plunge to Z
+        plungeDlg:EndModal(1)
     end)
-
     currentBtn:Connect(wx.wxEVT_COMMAND_BUTTON_CLICKED, function(event)
-        plungeDlg:EndModal(2)  -- Stay at current Z
+        plungeDlg:EndModal(2)
     end)
 
     plungeBtn:SetDefault()
@@ -631,34 +1068,30 @@ function RunFromHere()
     plungeDlg:Destroy()
 
     if plungeResult == wx.wxID_CANCEL then
-        -- User aborted - stop spindle and coolant
-        mc.mcCntlGcodeExecuteWait(inst, "M5")
-        mc.mcCntlGcodeExecuteWait(inst, "M9")
+        mc.mcCntlGcodeExecuteWait(inst, "M5 M9")
         mc.mcCntlSetLastError(inst, "Run From Here aborted")
-        return true  -- Cancel
+        return
     end
 
     -- 8. Move to Z position (only if user chose to plunge)
     if plungeResult == 1 then
         mc.mcCntlSetLastError(inst, string.format("Plunging to Z%.4f", state.z))
-        mc.mcCntlGcodeExecuteWait(inst, string.format("G0 Z%.4f", state.z))
+        mc.mcCntlGcodeExecuteWait(inst, string.format("G1 Z%.4f F30", state.z))
     else
         mc.mcCntlSetLastError(inst, "Starting at current Z height")
     end
 
     -- 9. Set feed mode and feed rate
-    -- CRITICAL: Switch back to G1 feed mode after all the G0 rapid positioning
     local feedCmd = "G1"
     if state.feedRate then
         feedCmd = string.format("G1 F%.1f", state.feedRate)
     end
     mc.mcCntlGcodeExecuteWait(inst, feedCmd)
 
-    -- 10. Jump to line and start
+    -- 10. Jump to line and start cycle
     mc.mcCntlSetGcodeLineNbr(inst, safeLine)
     mc.mcCntlSetLastError(inst, string.format("Starting from line %d", safeLine + 1))
-
-    return false  -- Continue with cycle start
+    mc.mcCntlCycleStart(inst)
 end
 
 function CycleStart()
@@ -700,41 +1133,39 @@ function CycleStart()
                     currentOffsetString = string.format("G54.1 P%.0f", pval)
                 end
 
-                local totalLines = mc.mcCntlGetGcodeLineCount(inst)
                 local gcodeOffset = nil
                 local usesG18orG19 = false
 
-                -- Scan for work offset in first 30 lines, but scan entire file for G18/G19
-                for i = 0, totalLines - 1 do
+                -- Scan first 30 lines for work offset (use API for small scan)
+                local totalLines = mc.mcCntlGetGcodeLineCount(inst)
+                local linesToScan = math.min(30, totalLines)
+                for i = 0, linesToScan - 1 do
                     local line = mc.mcCntlGetGcodeLine(inst, i)
-                    if line then
-                        -- Remove comments and convert to uppercase for matching
+                    if line and not gcodeOffset then
                         line = line:gsub("%(.*%)", ""):gsub(";.*", ""):upper()
+                        -- Check for G54-G59
+                        local g5x = line:match("G5[4-9]")
+                        if g5x and not line:match("G5[4-9]%.") then
+                            gcodeOffset = g5x
+                        end
+                        -- Check for G54.1 Pxx
+                        local g54p = line:match("G54%.1%s*P(%d+)")
+                        if g54p then
+                            gcodeOffset = "G54.1 P" .. g54p
+                        end
+                    end
+                end
 
-                        -- Check for G18 or G19 plane selection (scan entire file)
-                        if g68Active and not usesG18orG19 and (line:match("G18") or line:match("G19")) then
+                -- Only scan for G18/G19 if G68 is active (read file directly for speed)
+                if g68Active then
+                    local file = io.open(filePath, "r")
+                    if file then
+                        local content = file:read("*all")
+                        file:close()
+                        -- Remove comments and search for G18/G19
+                        content = content:gsub("%(.-%)",""):gsub(";[^\n]*",""):upper()
+                        if content:match("G18") or content:match("G19") then
                             usesG18orG19 = true
-                            -- Don't break, need to scan entire file
-                        end
-
-                        -- Check for work offset (only first 30 lines)
-                        if i < 30 and not gcodeOffset then
-                            -- Check for G54-G59
-                            local g5x = line:match("G5[4-9]")
-                            if g5x and not line:match("G5[4-9]%.") then  -- Exclude G54.1 etc
-                                gcodeOffset = g5x
-                            end
-
-                            -- Check for G54.1 Pxx
-                            local g54p = line:match("G54%.1%s*P(%d+)")
-                            if g54p then
-                                gcodeOffset = "G54.1 P" .. g54p
-                            end
-                        end
-
-                        -- Early exit if we found both
-                        if usesG18orG19 and gcodeOffset then
-                            break
                         end
                     end
                 end
@@ -816,6 +1247,12 @@ function CycleStart()
             end
         end
 
+        -- Check for surface map and offer to apply Z compensation
+        local shouldContinue, mapResult = ApplySurfaceMap(false)  -- false = show dialog
+        if not shouldContinue then
+            return  -- User cancelled
+        end
+
         -- Check for Run From Here AFTER all safety checks
         -- Only for gcode files, not MDI
         if not (tabNum == 0 and tabG_MdioneNum == 1) and
@@ -828,6 +1265,9 @@ function CycleStart()
         end
 
         -- Tab numbers already parsed earlier for work offset check
+
+        -- Check maintenance items before starting
+        MaintenanceItems()
 
         if state == mc.MC_STATE_MRUN_MACROH then
             mc.mcCntlCycleStart(inst)
@@ -843,6 +1283,21 @@ function CycleStart()
     if not status then
         mc.mcCntlSetLastError(inst, "CycleStart error: " .. tostring(err))
     end
+end
+
+-- Simplified cycle start for GCode only (no MDI check) - used by ProcessDeferredGCode
+function CycleStartGCode()
+    local inst = mc.mcGetInstance()
+    local state = mc.mcCntlGetState(inst)
+
+    -- If already running, just continue
+    if state >= 100 and state < 200 then
+        mc.mcCntlCycleStart(inst)
+        return
+    end
+
+    -- Always run GCode, never MDI
+    mc.mcCntlCycleStart(inst)
 end
 
 -- Cancel G68 with a confirmation modal
@@ -998,19 +1453,30 @@ function SyncAllAxes(rate, increment)
 end
 
 -- Machine Park function. Rapids to park position (X min+1, Y max-1, Z at safe height)
+-- If tool loaded: Z then X then Y (sequential for safety)
+-- If no tool (T0): Z then X and Y together
 function MachinePark()
     local xMin = mc.mcAxisGetSoftlimitMin(inst, mc.X_AXIS)
     local yMax = mc.mcAxisGetSoftlimitMax(inst, mc.Y_AXIS)
     local parkX = xMin + 1
     local parkY = yMax - 1
-    local gcode = string.format("G00 G53 Z-0.050\nG00 G53 X%.4f Y%.4f", parkX, parkY)
+    local currentTool = mc.mcToolGetCurrent(inst)
+
+    local gcode
+    if currentTool ~= 0 then
+        -- Tool loaded: Z first, then X, then Y (sequential)
+        gcode = string.format("G00 G53 Z0\nG00 G53 X%.4f\nG00 G53 Y%.4f", parkX, parkY)
+    else
+        -- No tool: Z first, then X and Y together
+        gcode = string.format("G00 G53 Z0\nG00 G53 X%.4f Y%.4f", parkX, parkY)
+    end
     mc.mcCntlMdiExecute(inst, gcode)
 end
 
 
 -- Return to Machine Zero function - Rapids Z to safe height, then XY to machine zero
 function ReturnToMachineZero()
-    mc.mcCntlMdiExecute(inst, "G00 G53 Z-0.050\nG00 G53 X0 Y0")
+    mc.mcCntlMdiExecute(inst, "G00 G53 Z0\nG00 G53 X0 Y0")
 end
 
 
@@ -1138,7 +1604,8 @@ function ToggleAuxOutput(target, action)
         dustCollect = mc.OSIG_OUTPUT4,
         dustBoot = mc.OSIG_OUTPUT3,
         vacRear = mc.OSIG_OUTPUT5,
-        vacFront = mc.OSIG_OUTPUT6
+        vacFront = mc.OSIG_OUTPUT6,
+        coolantMist = mc.OSIG_MISTON
     }
     
     local output = outputMap[target]
@@ -1192,7 +1659,8 @@ function ToggleAutomation(target, action)
         -- Automation mapping - using output signals for immediate UI updates
         dustAuto = mc.OSIG_OUTPUT50,
         vacAuto = mc.OSIG_OUTPUT51,
-        bootAuto = mc.OSIG_OUTPUT52
+        bootAuto = mc.OSIG_OUTPUT52,
+        mistAuto = mc.OSIG_OUTPUT53
     }
 
     local output = automationMap[target]
@@ -1411,23 +1879,28 @@ function DustAutomation()
     local dustAuto = mc.mcSignalGetState(mc.mcSignalGetHandle(inst, mc.OSIG_OUTPUT50)) == 1
     local vacAuto = mc.mcSignalGetState(mc.mcSignalGetHandle(inst, mc.OSIG_OUTPUT51)) == 1
     local bootAuto = mc.mcSignalGetState(mc.mcSignalGetHandle(inst, mc.OSIG_OUTPUT52)) == 1
-    
+    local mistAuto = mc.mcSignalGetState(mc.mcSignalGetHandle(inst, mc.OSIG_OUTPUT53)) == 1
+
     -- Program file started
     if running == 1 and isFileRun and wasInFile == 0 then
         mc.mcCntlSetPoundVar(inst, 405, 1)
-        if dustAuto then 
+        if dustAuto then
             ToggleAuxOutput("dustCollect", "enable")
         end
-        
+        if mistAuto then
+            ToggleAuxOutput("coolantMist", "enable")
+        end
+
     -- Program file stopped
     elseif running == 0 and wasInFile == 1 then
         mc.mcCntlSetPoundVar(inst, 405, 0)
         if dustAuto then ToggleAuxOutput("dustCollect", "disable") end
         if bootAuto then ToggleAuxOutput("dustBoot", "disable") end
-        if vacAuto then 
+        if vacAuto then
             ToggleAuxOutput("vacRear", "disable")
             ToggleAuxOutput("vacFront", "disable")
         end
+        if mistAuto then ToggleAuxOutput("coolantMist", "disable") end
     end
 end
 
@@ -1436,6 +1909,12 @@ end
 
 UILastStates = {}
 UIFlashCounter = 0
+
+-- Buffer level tracking (5-second rolling minimum)
+BufferLevelHistory = {}
+BufferLevelHistoryIndex = 0
+BufferLevelHistoryMax = 50  -- 5 seconds at 100ms intervals
+BufferLevelRegHandle = nil  -- Cached register handle
 UIStates = {
     btnSetCenterX = {
         check = function(inst)
@@ -1602,7 +2081,27 @@ UIStates = {
         states = {on = {bg = "#00FF00", fg = "#000000", label = "Vac Auto\nENABLED"},
                 off = {bg = "#FF0000", fg = "#FFFFFF", label = "Vac Auto\nDISABLED"}}
     },
-    
+
+    -- Mist Toggle
+    btnMistToggle = {
+        check = function(inst)
+            local h = mc.mcSignalGetHandle(inst, mc.OSIG_MISTON)
+            return mc.mcSignalGetState(h) == 1 and "on" or "off"
+        end,
+        states = {on = {bg = "#00FF00", fg = "#000000", label = "Mist\nON"},
+                  off = {bg = "#FF0000", fg = "#FFFFFF", label = "Mist\nOFF"}}
+    },
+
+    -- Mist Auto Mode
+    btnMistAuto = {
+        check = function(inst)
+            local h = mc.mcSignalGetHandle(inst, mc.OSIG_OUTPUT53)
+            return mc.mcSignalGetState(h) == 1 and "on" or "off"
+        end,
+        states = {on = {bg = "#00FF00", fg = "#000000", label = "Mist Auto\nENABLED"},
+                off = {bg = "#FF0000", fg = "#FFFFFF", label = "Mist Auto\nDISABLED"}}
+    },
+
     -- === SYSTEM CONTROL BUTTONS ===
     
     -- Soft Limits
@@ -1956,7 +2455,21 @@ function UpdateDynamicLabels()
     -- Format the angle display (show 0 if G69 is active or no rotation)
     local angleText = string.format("%.3f°", rotationAngle)
     scr.SetProperty('lblG68Rot', 'Label', angleText)
-    
+
+    -- Buffer level tracking (5-second rolling minimum)
+    BufferLevelRegHandle = BufferLevelRegHandle or mc.mcRegGetHandle(inst, "ESS/Current_Buffer_Level")
+    local bufferLevel = mc.mcRegGetValue(BufferLevelRegHandle)
+    if bufferLevel then
+        -- Circular buffer - overwrite oldest entry (no table shifting)
+        BufferLevelHistoryIndex = (BufferLevelHistoryIndex % BufferLevelHistoryMax) + 1
+        BufferLevelHistory[BufferLevelHistoryIndex] = bufferLevel
+        -- Find minimum
+        local minLevel = bufferLevel
+        for i = 1, #BufferLevelHistory do
+            if BufferLevelHistory[i] < minLevel then minLevel = BufferLevelHistory[i] end
+        end
+        scr.SetProperty('lblBufferRecentLow', 'Label', string.format("%.1f", minLevel))
+    end
 
     -- Disable override sliders and DROs during M6
     local inM6 = mc.mcCntlGetPoundVar(inst, 499) == 1
@@ -2212,7 +2725,10 @@ function InitDialogSystem()
         {"DialogCallbackResult", "Callback result", ""},
         -- Deferred G-code loading (for loading files after macro returns)
         {"DeferredGCodeFile", "File path for deferred loading", ""},
-        {"DeferredGCodeRequest", "Request flag for deferred loading", "0"}
+        {"DeferredGCodeRequest", "Request flag for deferred loading", "0"},
+        -- Maintenance tracking
+        {"MaintenanceRequest", "Request maintenance dialog from macro", "0"},
+        {"MaintenanceResult", "Result: 0=none due, 1=remind later, 2=perform maintenance", "0"}
     }
     local created = 0
     local existing = 0
@@ -2272,7 +2788,7 @@ function ProcessDeferredGCode()
     if filePath and filePath ~= "" then
         local inst = mc.mcGetInstance()
         mc.mcCntlLoadGcodeFile(inst, filePath)
-        CycleStart()
+        CycleStartGCode()
     end
 end
 
@@ -2313,11 +2829,230 @@ function ProcessDialogRequest()
         
         local hResult = mc.mcRegGetHandle(inst, "iRegs0/DialogResult")
         mc.mcRegSetValue(hResult, result == wx.wxYES and 1 or 0)
-        
+
+        local hResponse = mc.mcRegGetHandle(inst, "iRegs0/DialogResponse")
+        mc.mcRegSetValue(hResponse, 1)
+
+    elseif dialogType == "SHOW_HEATMAP" then
+        -- Show heatmap dialog for surface map visualization
+        ShowHeatmapScreen(inst)
+
         local hResponse = mc.mcRegGetHandle(inst, "iRegs0/DialogResponse")
         mc.mcRegSetValue(hResponse, 1)
     end
 end
+
+
+-- Heatmap Dialog Screen Generator for Surface Map visualization
+function ShowHeatmapScreen(inst)
+    local tempPath = "C:\\Mach4Hobby\\Profiles\\BLP\\Temp\\"
+    local sequence = mc.mcRegGetValue(mc.mcRegGetHandle(inst, "iRegs0/DialogSequence"))
+    local dataFile = tempPath .. string.format("heatmap_data_%d.lua", sequence)
+    local requestFile = tempPath .. string.format("heatmap_request_%d.txt", sequence)
+    local responseFile = tempPath .. string.format("heatmap_response_%d.txt", sequence)
+
+    -- Read data from file
+    local dataFunc = loadfile(dataFile)
+    if not dataFunc then
+        mc.mcCntlSetLastError(inst, "ShowHeatmapScreen: No data file found")
+        -- Write failure response
+        local respFile = io.open(responseFile, "w")
+        if respFile then
+            respFile:write("apply=false\n")
+            respFile:close()
+        end
+        return
+    end
+
+    local data = dataFunc()
+    if not data or not data.grid then
+        mc.mcCntlSetLastError(inst, "ShowHeatmapScreen: Invalid data file")
+        local respFile = io.open(responseFile, "w")
+        if respFile then
+            respFile:write("apply=false\n")
+            respFile:close()
+        end
+        return
+    end
+
+    local xCount = data.xCount
+    local yCount = data.yCount
+    local zMin = data.zMin
+    local zMax = data.zMax
+    local gridWidth = data.gridWidth or 1
+    local gridHeight = data.gridHeight or 1
+    local grid = data.grid
+
+    -- Validate grid data
+    local gridValid = true
+    if not grid or #grid ~= yCount then
+        gridValid = false
+    else
+        for row = 1, yCount do
+            if not grid[row] or #grid[row] ~= xCount then
+                gridValid = false
+                break
+            end
+        end
+    end
+
+    local applyMap = false
+
+    if not gridValid then
+        -- Show simple dialog if grid is invalid
+        local result = wx.wxMessageBox(
+            string.format("Grid probing complete.\n\nPoints: %d x %d\nZ Range: %.4f to %.4f\n\nApply surface map?",
+                xCount, yCount, zMin, zMax),
+            "Surface Map Complete",
+            wx.wxYES_NO + wx.wxICON_QUESTION)
+        applyMap = (result == wx.wxYES)
+    else
+        -- Bilinear interpolation helper (grid is 1-indexed from Lua file, convert to 0-indexed internally)
+        local function getInterpolatedZ(gridRow, gridCol)
+            gridRow = math.max(0, math.min(gridRow, yCount - 1))
+            gridCol = math.max(0, math.min(gridCol, xCount - 1))
+            local r0 = math.floor(gridRow)
+            local r1 = math.min(r0 + 1, yCount - 1)
+            local c0 = math.floor(gridCol)
+            local c1 = math.min(c0 + 1, xCount - 1)
+            -- Grid is 1-indexed from Lua file
+            local z00 = grid[r0 + 1][c0 + 1]
+            local z01 = grid[r0 + 1][c1 + 1]
+            local z10 = grid[r1 + 1][c0 + 1]
+            local z11 = grid[r1 + 1][c1 + 1]
+            local fracRow = gridRow - r0
+            local fracCol = gridCol - c0
+            local z0 = z00 + (z01 - z00) * fracCol
+            local z1 = z10 + (z11 - z10) * fracCol
+            return z0 + (z1 - z0) * fracRow
+        end
+
+        -- Color mapping: blue (low) -> cyan -> green -> yellow -> red (high)
+        local function zToRGB(z)
+            if zMax == zMin then return 0, 255, 0 end
+            local t = math.max(0, math.min(1, (z - zMin) / (zMax - zMin)))
+            local r, g, b
+            if t < 0.25 then
+                local s = t / 0.25
+                r, g, b = 0, math.floor(255 * s), 255
+            elseif t < 0.5 then
+                local s = (t - 0.25) / 0.25
+                r, g, b = 0, 255, math.floor(255 * (1 - s))
+            elseif t < 0.75 then
+                local s = (t - 0.5) / 0.25
+                r, g, b = math.floor(255 * s), 255, 0
+            else
+                local s = (t - 0.75) / 0.25
+                r, g, b = 255, math.floor(255 * (1 - s)), 0
+            end
+            return r, g, b
+        end
+
+        -- Calculate image dimensions based on physical aspect ratio
+        local physWidth = math.max(0.001, gridWidth)
+        local physHeight = math.max(0.001, gridHeight)
+        local maxPixels = 400
+        local scale
+        if physWidth >= physHeight then
+            scale = maxPixels / physWidth
+        else
+            scale = maxPixels / physHeight
+        end
+        local imgWidth = math.max(50, math.min(800, math.floor(physWidth * scale)))
+        local imgHeight = math.max(50, math.min(800, math.floor(physHeight * scale)))
+
+        -- Create heatmap image
+        local img = wx.wxImage(imgWidth, imgHeight)
+        local imgWidthM1 = math.max(1, imgWidth - 1)
+        local imgHeightM1 = math.max(1, imgHeight - 1)
+        local xCountM1 = math.max(1, xCount - 1)
+        local yCountM1 = math.max(1, yCount - 1)
+
+        for py = 0, imgHeight - 1 do
+            for px = 0, imgWidth - 1 do
+                local col = (px / imgWidthM1) * xCountM1
+                local row = ((imgHeightM1 - py) / imgHeightM1) * yCountM1
+                local z = getInterpolatedZ(row, col)
+                local r, g, b = zToRGB(z)
+                img:SetRGB(px, py, r, g, b)
+            end
+        end
+
+        -- Create color scale bar
+        local scaleWidth = 30
+        local scaleImg = wx.wxImage(scaleWidth, imgHeight)
+        for y = 0, imgHeight - 1 do
+            local t = 1 - (y / imgHeightM1)
+            local z = zMin + t * (zMax - zMin)
+            local r, g, b = zToRGB(z)
+            for x = 0, scaleWidth - 1 do
+                scaleImg:SetRGB(x, y, r, g, b)
+            end
+        end
+
+        -- Create dialog
+        local dlg = wx.wxDialog(wx.NULL, wx.wxID_ANY, "Surface Map Heatmap",
+            wx.wxDefaultPosition, wx.wxDefaultSize,
+            wx.wxDEFAULT_DIALOG_STYLE + wx.wxRESIZE_BORDER)
+        local panel = wx.wxPanel(dlg, wx.wxID_ANY)
+        local mainSizer = wx.wxBoxSizer(wx.wxVERTICAL)
+
+        -- Info text
+        local infoText = string.format("Grid: %d x %d    Z Range: %.4f to %.4f (%.4f total)",
+            xCount, yCount, zMin, zMax, zMax - zMin)
+        mainSizer:Add(wx.wxStaticText(panel, wx.wxID_ANY, infoText), 0, wx.wxALL + wx.wxALIGN_CENTER, 10)
+
+        -- Horizontal sizer for scale bar + heatmap
+        local hSizer = wx.wxBoxSizer(wx.wxHORIZONTAL)
+
+        -- Scale bar with labels
+        local scaleSizer = wx.wxBoxSizer(wx.wxVERTICAL)
+        scaleSizer:Add(wx.wxStaticText(panel, wx.wxID_ANY, string.format("%.4f", zMax)), 0, wx.wxALIGN_CENTER, 0)
+        scaleSizer:Add(wx.wxStaticBitmap(panel, wx.wxID_ANY, wx.wxBitmap(scaleImg)), 1, wx.wxEXPAND, 0)
+        scaleSizer:Add(wx.wxStaticText(panel, wx.wxID_ANY, string.format("%.4f", zMin)), 0, wx.wxALIGN_CENTER, 0)
+        hSizer:Add(scaleSizer, 0, wx.wxALL + wx.wxEXPAND, 5)
+
+        -- Heatmap
+        hSizer:Add(wx.wxStaticBitmap(panel, wx.wxID_ANY, wx.wxBitmap(img)), 1, wx.wxALL + wx.wxALIGN_CENTER, 5)
+        mainSizer:Add(hSizer, 1, wx.wxALL + wx.wxEXPAND, 5)
+
+        -- Apply/Abort buttons
+        local btnSizer = wx.wxBoxSizer(wx.wxHORIZONTAL)
+        local applyBtn = wx.wxButton(panel, wx.wxID_OK, "Apply")
+        local abortBtn = wx.wxButton(panel, wx.wxID_CANCEL, "Abort")
+        btnSizer:Add(applyBtn, 0, wx.wxALL, 5)
+        btnSizer:Add(abortBtn, 0, wx.wxALL, 5)
+        mainSizer:Add(btnSizer, 0, wx.wxALL + wx.wxALIGN_CENTER, 5)
+
+        panel:SetSizer(mainSizer)
+        mainSizer:Fit(dlg)
+        dlg:Centre()
+
+        local result = dlg:ShowModal()
+
+        -- Clean up
+        img:Destroy()
+        scaleImg:Destroy()
+        wx.wxSafeYield()
+        collectgarbage("collect")
+        collectgarbage("collect")
+        dlg:Destroy()
+
+        applyMap = (result == wx.wxID_OK)
+    end
+
+    -- Write response
+    local respFile = io.open(responseFile, "w")
+    if respFile then
+        respFile:write(string.format("apply=%s\n", applyMap and "true" or "false"))
+        respFile:close()
+    end
+
+    -- Clean up request files
+    os.remove(requestFile)
+    os.remove(dataFile)
+end
+
 
 -- Dynamic Dialog Screen Generator 
 function ShowDialogScreen(inst)
