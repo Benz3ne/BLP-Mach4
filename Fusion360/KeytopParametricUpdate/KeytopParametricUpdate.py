@@ -608,6 +608,73 @@ class ProbeDataHandler(adsk.core.CustomEventHandler):
             log(f"=== PROCESSING COMPLETE: FAILED ===")
 
 
+class HeartbeatChecker:
+    """Validates Fusion 360 session state before sending heartbeat"""
+
+    @staticmethod
+    def check_ready():
+        """
+        Check if Fusion is ready to process requests.
+        Returns (is_ready: bool, status: str, details: str)
+        """
+        try:
+            # 1. Check startup complete
+            if not app.isStartupComplete:
+                return False, "STARTING", "Fusion still starting up"
+
+            # 2. Check offline state
+            if app.isOffLine:
+                return False, "OFFLINE", "Fusion is offline"
+
+            # 3. Check active document
+            doc = app.activeDocument
+            if not doc:
+                return False, "NO_DOC", "No active document"
+
+            # 4. Check correct document
+            if not doc.dataFile or doc.dataFile.name != "Parametrized Keytop Toolpath":
+                return False, "WRONG_DOC", f"Wrong document: {doc.dataFile.name if doc.dataFile else 'untitled'}"
+
+            # 5. Check document not read-only (indicates session conflict, license issue, etc.)
+            if doc.dataFile.isReadOnly:
+                return False, "READ_ONLY", "Document is read-only (possible session conflict)"
+
+            # 6. Write capability probe - attempt a tiny reversible write
+            # This catches "Session Suspended" modal blocking state
+            design = None
+            for product in doc.products:
+                if product.objectType == 'adsk::fusion::Design':
+                    design = adsk.fusion.Design.cast(product)
+                    break
+
+            if not design:
+                return False, "NO_DESIGN", "No design found in document"
+
+            # Try to write and immediately delete a test attribute
+            # This will fail if Fusion is blocked by modal dialog
+            try:
+                root_comp = design.rootComponent
+                test_attr_group = "HeartbeatProbe"
+                test_attr_name = "ping"
+
+                # Write test attribute
+                root_comp.attributes.add(test_attr_group, test_attr_name, str(time.time()))
+
+                # Delete it immediately
+                attr = root_comp.attributes.itemByName(test_attr_group, test_attr_name)
+                if attr:
+                    attr.deleteMe()
+
+            except Exception as e:
+                return False, "BLOCKED", f"Write probe failed: {str(e)[:50]}"
+
+            # All checks passed
+            return True, "READY", "All checks passed"
+
+        except Exception as e:
+            return False, "ERROR", f"Check failed: {str(e)[:50]}"
+
+
 class WatchThread(threading.Thread):
     def __init__(self):
         super().__init__()
@@ -615,19 +682,28 @@ class WatchThread(threading.Thread):
         self.last_heartbeat = 0
 
     def write_heartbeat(self):
-        """Write current timestamp to heartbeat file, only if correct document is open"""
+        """Write heartbeat status to file with session state validation"""
         try:
-            # Only send heartbeat if the Keytop Toolpath document is open
-            doc = app.activeDocument
-            if doc and doc.dataFile and doc.dataFile.name == "Parametrized Keytop Toolpath":
+            is_ready, status, details = HeartbeatChecker.check_ready()
+
+            if is_ready:
+                # Write timestamp for READY state
                 with open(HEARTBEAT_FILE, 'w') as f:
                     f.write(str(time.time()))
             else:
-                # Wrong document or no document - remove heartbeat if it exists
-                if os.path.exists(HEARTBEAT_FILE):
-                    os.remove(HEARTBEAT_FILE)
-        except:
-            pass  # Ignore errors (network issues, etc.)
+                # Write status info for NOT READY states
+                # Format: STATUS|timestamp|details
+                # This lets Mach4 know WHY Fusion isn't ready
+                with open(HEARTBEAT_FILE, 'w') as f:
+                    f.write(f"{status}|{time.time()}|{details}")
+
+        except Exception as e:
+            # Network/file error - try to write error status
+            try:
+                with open(HEARTBEAT_FILE, 'w') as f:
+                    f.write(f"FILE_ERROR|{time.time()}|{str(e)[:50]}")
+            except:
+                pass  # Complete failure to write
 
     def run(self):
         trigger_pattern = "PROBE_COMPLETE_"

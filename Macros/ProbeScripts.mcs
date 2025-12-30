@@ -2767,28 +2767,52 @@ function ProbeScripts.CalibrateProbeOffset(inst)
 end
 
 
-function ProbeScripts.ProbeKeys(inst)
-    -- ========== PRE-CHECKS ==========
 
+function ProbeScripts.ProbeKeys(inst)
     -- Heartbeat check helper (returns true if valid, false otherwise)
     local HEARTBEAT_FILE = "C:\\Mach4Hobby\\Profiles\\BLP\\Logs\\FUSION_HEARTBEAT.txt"
     local HEARTBEAT_MAX_AGE = 30  -- seconds - allow some slack for network latency
 
     local function checkHeartbeat()
         local heartbeatFile = io.open(HEARTBEAT_FILE, "r")
-        if not heartbeatFile then return false end
+        if not heartbeatFile then
+            return false, "NO_FILE", "Heartbeat file not found"
+        end
 
-        local heartbeatTimestamp = tonumber(heartbeatFile:read("*a"))
+        local content = heartbeatFile:read("*a")
         heartbeatFile:close()
 
-        if not heartbeatTimestamp then return false end
+        if not content or content == "" then
+            return false, "EMPTY", "Heartbeat file is empty"
+        end
+
+        -- Check if it's the new STATUS|timestamp|details format
+        local status, timestampStr, details = content:match("^([A-Z_]+)|([%d%.]+)|(.*)$")
+        if status then
+            -- New format - Fusion reported a non-ready state
+            local timestamp = tonumber(timestampStr)
+            local age = timestamp and (os.time() - timestamp) or 999
+            if age > HEARTBEAT_MAX_AGE then
+                return false, "STALE", string.format("Last update %ds ago: %s", age, status)
+            end
+            return false, status, details
+        end
+
+        local heartbeatTimestamp = tonumber(content)
+        if not heartbeatTimestamp then
+            return false, "INVALID", "Could not parse heartbeat timestamp"
+        end
 
         local heartbeatAge = os.time() - heartbeatTimestamp
-        return heartbeatAge <= HEARTBEAT_MAX_AGE
+        if heartbeatAge > HEARTBEAT_MAX_AGE then
+            return false, "STALE", string.format("Heartbeat is %d seconds old", heartbeatAge)
+        end
+
+        return true, "READY", "Fusion is ready"
     end
 
     -- First heartbeat check (silent - don't show error yet)
-    local firstHeartbeatOk = checkHeartbeat()
+    local firstHeartbeatOk, firstStatus, firstDetails = checkHeartbeat()
 
     -- Check probe deployment
     if not ProbeScripts.CheckProbeDeployed(inst) then return end
@@ -2858,10 +2882,42 @@ function ProbeScripts.ProbeKeys(inst)
     if not params then return end
 
     -- Second heartbeat check - only show error if both checks failed
-    local secondHeartbeatOk = checkHeartbeat()
+    local secondHeartbeatOk, secondStatus, secondDetails = checkHeartbeat()
     if not firstHeartbeatOk and not secondHeartbeatOk then
-        wx.wxMessageBox("Fusion 360 add-in is not running.\n\nPlease start Fusion 360, open 'Parametrized Keytop Toolpath', and enable the Keytop Parametric Update add-in before probing.",
-            "Fusion Not Running", wx.wxOK + wx.wxICON_ERROR)
+        -- Build error message based on status
+        local errorMsg = "Fusion 360 is not ready.\n\n"
+        local status = secondStatus or firstStatus or "UNKNOWN"
+        local details = secondDetails or firstDetails or ""
+
+        if status == "NO_FILE" or status == "EMPTY" then
+            errorMsg = errorMsg .. "The Fusion add-in is not running.\n\nPlease start Fusion 360, open 'Parametrized Keytop Toolpath', and enable the Keytop Parametric Update add-in."
+        elseif status == "BLOCKED" or status == "READ_ONLY" then
+            errorMsg = errorMsg .. "Fusion 360 session is blocked or suspended.\n\nThis usually means another computer is using your Fusion account.\n\nPlease check Fusion 360 and dismiss any 'Session Suspended' dialogs."
+            if details ~= "" then
+                errorMsg = errorMsg .. "\n\nDetails: " .. details
+            end
+        elseif status == "WRONG_DOC" then
+            errorMsg = errorMsg .. "Wrong document is open in Fusion 360.\n\nPlease open 'Parametrized Keytop Toolpath'."
+            if details ~= "" then
+                errorMsg = errorMsg .. "\n\nCurrently open: " .. details
+            end
+        elseif status == "OFFLINE" then
+            errorMsg = errorMsg .. "Fusion 360 is in offline mode.\n\nPlease connect to the internet and restart Fusion."
+        elseif status == "STARTING" then
+            errorMsg = errorMsg .. "Fusion 360 is still starting up.\n\nPlease wait for Fusion to fully load."
+        elseif status == "STALE" then
+            errorMsg = errorMsg .. "Fusion 360 heartbeat is stale.\n\nThe add-in may have stopped responding."
+            if details ~= "" then
+                errorMsg = errorMsg .. "\n\nDetails: " .. details
+            end
+        else
+            errorMsg = errorMsg .. "Status: " .. status
+            if details ~= "" then
+                errorMsg = errorMsg .. "\nDetails: " .. details
+            end
+        end
+
+        wx.wxMessageBox(errorMsg, "Fusion Not Ready", wx.wxOK + wx.wxICON_ERROR)
         return
     end
 
@@ -2874,7 +2930,7 @@ function ProbeScripts.ProbeKeys(inst)
     local KEY_SPACING = 1.7  -- inches between white keys
     local FIRST_KEY_X = 1.75  -- X position of first key center
     local BORE_SEPARATION = 46.0  -- inches between calibration bores
-    local PROBE_DROP_DEPTH = 0.05  -- uniform drop depth for X and -Y probing
+    local PROBE_DROP_DEPTH = 0.15  -- uniform drop depth for X and -Y probing
     local LINEARITY_THRESHOLD = 0.01  -- maximum deviation before adding extra probe points
     local safeTraverseZ = 2.0  -- safe Z height in work coords
     local ID_HOLE_DEPTH_THRESHOLD = -0.05  -- halfway between 0 and -0.1
