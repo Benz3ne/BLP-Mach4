@@ -1,0 +1,114 @@
+--[[ M213 - Get Machine Out of the Way
+
+    Sequence:
+      1. Raises Z to machine Z=0 (top of travel, full safe clearance)
+      2. Moves X to the left limit AND Y+ 24" simultaneously
+      4. Shows a popup with three choices:
+           • Acknowledge        – leave the machine in the parked position
+           • Return (+2" Z)     – return to original X/Y, Z raised 2" above start
+           • Return to Original – return to the exact original X/Y/Z
+
+    All motion uses G53 (machine coordinates) for the outgoing moves so
+    work offsets cannot cause unexpected positions.
+    Return moves use machine coords for X/Y, then work coords for the Z drop.
+]]--
+
+function m213()
+    local inst = mc.mcGetInstance()
+
+    -- ── 1. Save current positions ────────────────────────────────────────────
+    local startXMach = mc.mcAxisGetMachinePos(inst, mc.X_AXIS)
+    local startYMach = mc.mcAxisGetMachinePos(inst, mc.Y_AXIS)
+    local startZWork = mc.mcAxisGetPos(inst, mc.Z_AXIS)  -- work coords for return Z
+
+    mc.mcCntlSetLastError(inst, string.format(
+        "M213: Start (mach) X=%.4f  Y=%.4f | WorkZ=%.4f",
+        startXMach, startYMach, startZWork))
+
+    -- ── 2. Move Z to top of travel (machine Z = 0) ───────────────────────────
+    mc.mcCntlGcodeExecuteWait(inst, "G90 G53 G0 Z0")
+
+    -- ── 3. Move X to the left limit AND Y+ 24" simultaneously ────────────────
+    --   X: 0.1" buffer from the X home/min to stay inside the soft limit.
+    --   Y: +24" (2 feet) from starting position. Soft limits clamp if needed.
+    local targetYMach = startYMach + 24.0
+    mc.mcCntlGcodeExecuteWait(inst, string.format(
+        "G90 G53 G0 X0.1 Y%.4f", targetYMach))
+
+    mc.mcCntlSetLastError(inst, "M213: Machine out of the way - waiting for user response")
+
+    -- ── 4. Show 3-button popup ────────────────────────────────────────────────
+    local ID_ACK      = wx.wxNewId()
+    local ID_RETURN_Z = wx.wxNewId()
+    local ID_RETURN   = wx.wxNewId()
+    local choice      = "acknowledge"  -- default if dialog is closed with X
+
+    local dlg = wx.wxDialog(wx.NULL, wx.wxID_ANY, "Machine Out of the Way",
+        wx.wxDefaultPosition, wx.wxDefaultSize,
+        wx.wxDEFAULT_DIALOG_STYLE)
+
+    local panel = wx.wxPanel(dlg, wx.wxID_ANY)
+    local outer = wx.wxBoxSizer(wx.wxVERTICAL)
+
+    local msg = wx.wxStaticText(panel, wx.wxID_ANY,
+        "Machine is out of the way.\n\nSelect an option to continue:")
+    outer:Add(msg, 0, wx.wxALL, 15)
+
+    local btnSizer = wx.wxBoxSizer(wx.wxHORIZONTAL)
+    local btnAck   = wx.wxButton(panel, ID_ACK,      "Acknowledge")
+    local btnZ2    = wx.wxButton(panel, ID_RETURN_Z,  "Return (+2\" Z)")
+    local btnOrig  = wx.wxButton(panel, ID_RETURN,    "Return to Original")
+    btnSizer:Add(btnAck,  0, wx.wxALL, 5)
+    btnSizer:Add(btnZ2,   0, wx.wxALL, 5)
+    btnSizer:Add(btnOrig, 0, wx.wxALL, 5)
+    outer:Add(btnSizer, 0, wx.wxALIGN_CENTER + wx.wxBOTTOM, 10)
+
+    panel:SetSizer(outer)
+    outer:Fit(dlg)
+
+    btnAck:Connect(wx.wxEVT_COMMAND_BUTTON_CLICKED, function()
+        choice = "acknowledge"
+        dlg:EndModal(wx.wxID_OK)
+    end)
+    btnZ2:Connect(wx.wxEVT_COMMAND_BUTTON_CLICKED, function()
+        choice = "return_z2"
+        dlg:EndModal(wx.wxID_OK)
+    end)
+    btnOrig:Connect(wx.wxEVT_COMMAND_BUTTON_CLICKED, function()
+        choice = "return_orig"
+        dlg:EndModal(wx.wxID_OK)
+    end)
+
+    dlg:ShowModal()
+    dlg:Destroy()
+
+    -- ── 5. Act on user choice ─────────────────────────────────────────────────
+    if choice == "return_z2" then
+        -- Return X/Y to original (machine coords), Z to startZWork + 2"
+        mc.mcCntlGcodeExecuteWait(inst, string.format(
+            "G90 G53 G0 X%.4f Y%.4f", startXMach, startYMach))
+        local returnZ = startZWork + 2.0
+        mc.mcCntlGcodeExecuteWait(inst, string.format("G90 G0 Z%.4f", returnZ))
+        mc.mcCntlSetLastError(inst, string.format(
+            "M213: Returned X=%.4f Y=%.4f WorkZ=%.4f (original +2\")",
+            startXMach, startYMach, returnZ))
+
+    elseif choice == "return_orig" then
+        -- Return X/Y to original (machine coords), then Z to exact original work Z
+        mc.mcCntlGcodeExecuteWait(inst, string.format(
+            "G90 G53 G0 X%.4f Y%.4f", startXMach, startYMach))
+        mc.mcCntlGcodeExecuteWait(inst, string.format("G90 G0 Z%.4f", startZWork))
+        mc.mcCntlSetLastError(inst, string.format(
+            "M213: Returned X=%.4f Y=%.4f WorkZ=%.4f (original)",
+            startXMach, startYMach, startZWork))
+
+    else
+        mc.mcCntlSetLastError(inst, "M213: Acknowledged - machine left out of the way")
+    end
+
+    return mc.MERROR_NOERROR
+end
+
+if mc.mcInEditor() == 1 then
+    m213()
+end
