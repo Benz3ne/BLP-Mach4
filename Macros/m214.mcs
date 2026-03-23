@@ -1,0 +1,464 @@
+--[[ M214 - Test ProbeKeys (First 5 Keys, Lower Half)
+
+    Simplified test version of M208/ProbeKeys for faster iteration.
+
+    What is KEPT (jig-related):
+      • Left bore calibration: double-tap + 3-cycle single-tap offsets, XY datum set
+      • Fixture ID probing (10 holes)
+      • Right bore probing → G68 rotation
+      • Z height, Y-front, X-edge, and shoulder -Y probing
+
+    What is CHANGED:
+      • Lower half is assumed — auto-detect section is skipped
+      • Only the first 5 white keys are probed (piano keys 1,3,4,6,8)
+      • Fusion heartbeat check is skipped
+      • Vacuum / dust-automation checks are skipped
+      • All 5 keys are probed for Z height (no sampling interval)
+
+    CSV output format is identical to ProbeKeys so KeytopParametricUpdate.py
+    receives a valid trigger and can update Fusion 360 parameters.
+]]--
+
+function m214()
+    local inst = mc.mcGetInstance()
+
+    if not ProbeScripts.CheckProbeDeployed(inst) then return end
+
+    mc.mcCntlGcodeExecuteWait(inst, "G55")
+
+    -- ── Dialog ───────────────────────────────────────────────────────────────
+    local fields = {
+        {type = "instructions",
+         text = "TEST MODE: First 5 keys only, Lower half assumed.\nEnter piano information."},
+        {type = "text", key = "make", label = "Piano Make",
+         default = "Steinway",
+         validate = function(v)
+             if v:match("_")    then return false, "Cannot contain underscores" end
+             if v:match("^%s*$") then return false, "Cannot be empty" end
+             return true
+         end},
+        {type = "text", key = "serial", label = "Serial Number",
+         default = "123456",
+         validate = function(v)
+             if v:match("_")    then return false, "Cannot contain underscores" end
+             if v:match("^%s*$") then return false, "Cannot be empty" end
+             return true
+         end}
+    }
+
+    local params = ProbeScripts.ShowDialog(inst, "Test ProbeKeys (5 Keys)", fields, "TestProbeKeys")
+    if not params then return end
+
+    mc.mcCntlGcodeExecuteWait(inst, "G69")
+
+    -- ── Configuration ────────────────────────────────────────────────────────
+    local SINGLE_TAP_FEEDRATE     = 40
+    local KEY_SPACING             = 1.7
+    local FIRST_KEY_X             = 1.75
+    local BORE_SEPARATION         = 46.0
+    local PROBE_DROP_DEPTH        = 0.15
+    local LINEARITY_THRESHOLD     = 0.01
+    local safeTraverseZ           = 2.0
+    local ID_HOLE_DEPTH_THRESHOLD = -0.05
+    local NUM_TEST_KEYS           = 5
+
+    -- First 5 entries of LOWER_KEYS {pianoKey, enumKey}
+    local TEST_KEYS = { {1,1}, {3,2}, {4,3}, {6,4}, {8,5} }
+
+    local Y_POSITIONS           = {-0.95, -0.35, 0.25, 1.10, 2.75, 4.25}
+    local Y_POSITIONS_EXTRA_FRONT = {-1.05, -0.65, -0.05, 0.35}
+    local Y_POSITIONS_EXTRA_BACK  = {0.95, 1.95, 3.55, 4.35}
+
+    local centeringHeightMachine
+    local calibrationOffsets = {}
+    local doubleResults      = {}
+    local singleResults      = {["+X"]={}, ["-X"]={}, ["+Y"]={}, ["-Y"]={}, ["-Z"]={}}
+    local traverseHeight
+    local probeZ
+    local avgZ
+
+    -- ── Output files ─────────────────────────────────────────────────────────
+    local keyHalfName = "Lower"
+    local pianoName   = string.format("%s_%s_%s", params.make, params.serial, keyHalfName)
+    local pianoFolder = string.format("C:\\Mach4Hobby\\Profiles\\BLP\\Logs\\%s", pianoName)
+    os.execute('rmdir /s /q "' .. pianoFolder .. '" 2>nul')
+    os.execute('mkdir "' .. pianoFolder .. '"')
+
+    local csvPath    = string.format("%s\\%s.csv",         pianoFolder, pianoName)
+    local reportPath = string.format("%s\\%s_Report.txt",  pianoFolder, pianoName)
+    local reportFile = io.open(reportPath, "w")
+
+    local function writeReport(msg)
+        if reportFile then
+            reportFile:write(string.format("[%s] %s\n", os.date("%Y-%m-%d %H:%M:%S"), msg))
+            reportFile:flush()
+        end
+    end
+
+    local function writeBatchToCSV(f, rows)
+        for _, p in ipairs(rows) do
+            f:write(string.format("%d,%d,%d,%.6f,%.6f,%.6f,%s\n",
+                p.enumKey, p.pianoKey, p.direction, p.x, p.y, p.z, p.timestamp))
+        end
+        f:flush()
+    end
+
+    local function calcLinearity(pts)
+        if #pts ~= 3 then return 0 end
+        local p1, p2, p3 = pts[1], pts[2], pts[3]
+        local dx, dy = p3.x - p1.x, p3.y - p1.y
+        if math.abs(dy) < 0.0001  then return math.abs(p2.x - p1.x) end
+        if math.abs(dx) < 0.000001 then return 0 end
+        local a, b, c = dy, -dx, dx * p1.y - dy * p1.x
+        return math.abs(a*p2.x + b*p2.y + c) / math.sqrt(a*a + b*b)
+    end
+
+    writeReport(string.format("===== Test ProbeKeys (5 Keys) - %s S/N %s =====", params.make, params.serial))
+    writeReport("Mode: Lower half assumed, first 5 keys only")
+
+    -- ── Bore location ────────────────────────────────────────────────────────
+    local boreMachineX = mc.mcCntlGetPoundVar(inst, 540)
+    local boreMachineY = mc.mcCntlGetPoundVar(inst, 541)
+
+    if boreMachineX == 0 and boreMachineY == 0 then
+        wx.wxMessageBox("Bore location not configured.\n\nSet bore coordinates in System Settings > Keytop Replacement.",
+            "Configuration Required", wx.wxOK + wx.wxICON_ERROR)
+        reportFile:close(); return false
+    end
+
+    local toolXOffset    = mc.mcToolGetData(inst, mc.MTOOL_MILL_X, 1) or 0
+    local toolYOffset    = mc.mcToolGetData(inst, mc.MTOOL_MILL_Y, 1) or 0
+    local spindleTargetX = boreMachineX + toolXOffset
+    local spindleTargetY = boreMachineY + toolYOffset
+
+    -- ── Left bore calibration ────────────────────────────────────────────────
+    mc.mcCntlSetLastError(inst, "Moving to left bore...")
+    mc.mcCntlGcodeExecuteWait(inst, "G90 G53 G0 Z-0.05")
+    if not ProbeScripts.ProtectedMove(inst, "mach", spindleTargetX, spindleTargetY, nil, 300) then
+        reportFile:close(); return false
+    end
+
+    doubleResults["-Z"] = ProbeScripts.Probe(inst, 5, false, false, nil, nil, false, nil)
+    local boreBottomZ = doubleResults["-Z"]
+    mc.mcCntlGcodeExecuteWait(inst, "G91 G0 Z0.25")
+    centeringHeightMachine = mc.mcAxisGetMachinePos(inst, mc.Z_AXIS)
+
+    doubleResults["+X"] = ProbeScripts.Probe(inst, 1, false, true, nil, nil, false, nil)
+    doubleResults["-X"] = ProbeScripts.Probe(inst, 2, false, true, nil, nil, false, nil)
+    doubleResults["+Y"] = ProbeScripts.Probe(inst, 3, false, true, nil, nil, false, nil)
+    doubleResults["-Y"] = ProbeScripts.Probe(inst, 4, false, true, nil, nil, false, nil)
+
+    local leftBoreCenterX = (doubleResults["+X"] + doubleResults["-X"]) / 2
+    local leftBoreCenterY = (doubleResults["+Y"] + doubleResults["-Y"]) / 2
+    mc.mcCntlGcodeExecuteWait(inst, string.format("G90 G1 X%.4f Y%.4f F200", leftBoreCenterX, leftBoreCenterY))
+
+    -- 3-cycle single-tap calibration for all 5 directions
+    for cycle = 1, 3 do
+        singleResults["+X"][cycle] = ProbeScripts.Probe(inst, 1, false, true, nil, SINGLE_TAP_FEEDRATE, true, nil)
+        singleResults["-X"][cycle] = ProbeScripts.Probe(inst, 2, false, true, nil, SINGLE_TAP_FEEDRATE, true, nil)
+        singleResults["+Y"][cycle] = ProbeScripts.Probe(inst, 3, false, true, nil, SINGLE_TAP_FEEDRATE, true, nil)
+        singleResults["-Y"][cycle] = ProbeScripts.Probe(inst, 4, false, true, nil, SINGLE_TAP_FEEDRATE, true, nil)
+        singleResults["-Z"][cycle] = ProbeScripts.Probe(inst, 5, false, true, nil, SINGLE_TAP_FEEDRATE, true, nil)
+    end
+    for dir, singles in pairs(singleResults) do
+        local sum = 0
+        for _, v in ipairs(singles) do sum = sum + (v - doubleResults[dir]) end
+        calibrationOffsets[dir] = sum / #singles
+    end
+
+    mc.mcAxisSetPos(inst, mc.X_AXIS, 0)
+    mc.mcAxisSetPos(inst, mc.Y_AXIS, 0)
+
+    mc.mcCntlGcodeExecuteWait(inst, string.format("G90 G0 Z%.4f", boreBottomZ + 1))
+    if not ProbeScripts.ProtectedMove(inst, "inc", 0.6, nil, nil, 200) then reportFile:close(); return false end
+    ProbeScripts.Probe(inst, 5, true, true, nil, nil, false, nil)  -- set Z datum from surface
+    if not ProbeScripts.ProtectedMove(inst, "work", 0, 0, nil, 200) then reportFile:close(); return false end
+
+    writeReport("Left bore calibration complete")
+    writeReport(string.format("Offsets: +X=%.6f  -X=%.6f  +Y=%.6f  -Y=%.6f  -Z=%.6f",
+        calibrationOffsets["+X"], calibrationOffsets["-X"],
+        calibrationOffsets["+Y"], calibrationOffsets["-Y"], calibrationOffsets["-Z"]))
+
+    -- ── Fixture ID probing ───────────────────────────────────────────────────
+    mc.mcCntlSetLastError(inst, "Probing fixture ID...")
+    local fixtureIDBits = {}
+    for i = 1, 10 do
+        local yPos = 1.0 + (i - 1) * 0.5
+        if not ProbeScripts.ProtectedMove(inst, "work", 0, yPos, nil, 200) then reportFile:close(); return false end
+        local holeZ = ProbeScripts.Probe(inst, 5, false, true, nil, SINGLE_TAP_FEEDRATE, true, nil)
+        holeZ = holeZ - calibrationOffsets["-Z"]
+        fixtureIDBits[i] = (holeZ < ID_HOLE_DEPTH_THRESHOLD) and 1 or 0
+    end
+
+    if fixtureIDBits[9] ~= 0 or fixtureIDBits[10] ~= 1 then
+        wx.wxMessageBox(string.format(
+            "Fixture ID check bits invalid!\n\nBit 9 = %d (expected 0)\nBit 10 = %d (expected 1)\n\nCheck fixture orientation.",
+            fixtureIDBits[9], fixtureIDBits[10]),
+            "Fixture ID Error", wx.wxOK + wx.wxICON_ERROR)
+        reportFile:close(); return false
+    end
+
+    local fixtureID = 0
+    for i = 1, 8 do fixtureID = fixtureID + fixtureIDBits[i] * (2 ^ (i-1)) end
+    mc.mcCntlSetLastError(inst, string.format("Fixture ID: %d", fixtureID))
+    writeReport(string.format("Fixture ID: %d", fixtureID))
+
+    -- ── Right bore + G68 rotation ────────────────────────────────────────────
+    mc.mcCntlSetLastError(inst, "Probing right bore...")
+    mc.mcCntlGcodeExecuteWait(inst, string.format("G90 G0 Z%.4f", safeTraverseZ))
+    if not ProbeScripts.ProtectedMove(inst, "work", BORE_SEPARATION, 0, nil, 300) then reportFile:close(); return false end
+    if not ProbeScripts.ProtectedMove(inst, "mach", nil, nil, centeringHeightMachine) then reportFile:close(); return false end
+
+    local xE1 = ProbeScripts.Probe(inst, 1, false, true, nil, nil, false, nil)
+    local xE2 = ProbeScripts.Probe(inst, 2, false, true, nil, nil, false, nil)
+    local yE1 = ProbeScripts.Probe(inst, 3, false, true, nil, nil, false, nil)
+    local yE2 = ProbeScripts.Probe(inst, 4, false, true, nil, nil, false, nil)
+    local rightBoreCenterX = (xE1 + xE2) / 2
+    local rightBoreCenterY = (yE1 + yE2) / 2
+
+    local angleDegrees = 0
+    if math.abs(rightBoreCenterX) > 0.001 then
+        angleDegrees = math.atan(rightBoreCenterY / rightBoreCenterX) * 180 / math.pi
+    end
+    mc.mcCntlGcodeExecuteWait(inst, string.format("G68 X0 Y0 R%.4f", angleDegrees))
+    mc.mcCntlSetLastError(inst, string.format("G68 rotation: %.4f deg", angleDegrees))
+    writeReport(string.format("G68 rotation: %.4f degrees", angleDegrees))
+
+    -- ── Z height probing — all 5 test keys ───────────────────────────────────
+    mc.mcCntlSetLastError(inst, "Probing Z heights (5 keys)...")
+    mc.mcCntlGcodeExecuteWait(inst, string.format("G90 G0 Z%.4f", safeTraverseZ))
+
+    local zProbeData    = {}
+    local sampleZHeights = {}
+
+    if not ProbeScripts.ProtectedMove(inst, "work", FIRST_KEY_X, 0, nil, 300) then reportFile:close(); return false end
+
+    for keyIdx = 1, NUM_TEST_KEYS do
+        local pianoKey = TEST_KEYS[keyIdx][1]
+        local enumKey  = TEST_KEYS[keyIdx][2]
+        local keyX     = FIRST_KEY_X + (keyIdx - 1) * KEY_SPACING
+
+        if keyIdx > 1 then
+            if not ProbeScripts.ProtectedMove(inst, "work", keyX, 0, nil, 300) then reportFile:close(); return false end
+        end
+
+        local zHeight = ProbeScripts.Probe(inst, 5, false, false, nil, SINGLE_TAP_FEEDRATE, true, 0.5)
+        zHeight = zHeight - calibrationOffsets["-Z"]
+        table.insert(sampleZHeights, zHeight)
+        table.insert(zProbeData, {
+            enumKey=enumKey, pianoKey=pianoKey, direction=5,
+            x=keyX, y=0, z=zHeight, timestamp=os.date("%Y-%m-%d %H:%M:%S")
+        })
+        writeReport(string.format("Key %d (piano %d): Z=%.4f", keyIdx, pianoKey, zHeight))
+    end
+
+    -- Write Z data and CSV header
+    local csvFile = io.open(csvPath, "w")
+    csvFile:write("EnumKey#,PianoKey#,Direction,X,Y,Z,Timestamp\n")
+    writeBatchToCSV(csvFile, zProbeData)
+    csvFile:close()
+
+    avgZ = 0
+    for _, z in ipairs(sampleZHeights) do avgZ = avgZ + z end
+    avgZ = avgZ / #sampleZHeights
+    traverseHeight = avgZ + 0.5
+    probeZ = avgZ - PROBE_DROP_DEPTH
+    writeReport(string.format("Average Z: %.4f  traverseHeight: %.4f  probeZ: %.4f", avgZ, traverseHeight, probeZ))
+
+    -- ── Y front edge probing — all 5 test keys ───────────────────────────────
+    mc.mcCntlSetLastError(inst, "Probing Y front edges (5 keys)...")
+    mc.mcCntlGcodeExecuteWait(inst, string.format("G90 G0 Z%.4f", traverseHeight))
+
+    local yFrontData    = {}
+    local FRONT_PROBE_Y = -1.75
+
+    if not ProbeScripts.ProtectedMove(inst, "work", FIRST_KEY_X, FRONT_PROBE_Y, nil, 300) then reportFile:close(); return false end
+    if not ProbeScripts.ProtectedMove(inst, "work", nil, nil, probeZ) then reportFile:close(); return false end
+
+    for keyIdx = 1, NUM_TEST_KEYS do
+        local pianoKey = TEST_KEYS[keyIdx][1]
+        local enumKey  = TEST_KEYS[keyIdx][2]
+        local keyX     = FIRST_KEY_X + (keyIdx - 1) * KEY_SPACING
+
+        if keyIdx > 1 then
+            if not ProbeScripts.ProtectedMove(inst, "work", keyX, nil, nil, 300) then reportFile:close(); return false end
+        end
+
+        local yFront = ProbeScripts.Probe(inst, 3, false, true, nil, SINGLE_TAP_FEEDRATE, true, nil)
+        yFront = yFront - calibrationOffsets["+Y"]
+        table.insert(yFrontData, {
+            enumKey=enumKey, pianoKey=pianoKey, direction=3,
+            x=keyX, y=yFront, z=probeZ, timestamp=os.date("%Y-%m-%d %H:%M:%S")
+        })
+        writeReport(string.format("Key %d Y front: %.4f", keyIdx, yFront))
+    end
+
+    mc.mcCntlGcodeExecuteWait(inst, string.format("G90 G0 Z%.4f", traverseHeight))
+    csvFile = io.open(csvPath, "a")
+    writeBatchToCSV(csvFile, yFrontData)
+    csvFile:close()
+
+    -- ── X edge probing — all 5 test keys ─────────────────────────────────────
+    mc.mcCntlSetLastError(inst, "Probing X edges (5 keys)...")
+    local accessibleShoulders = {}
+
+    local function probeKeySide(keyIdx, direction, xPosition)
+        local pianoKey  = TEST_KEYS[keyIdx][1]
+        local enumKey   = TEST_KEYS[keyIdx][2]
+        local results   = {}
+        local XTol      = 0.005
+        local currentX  = mc.mcAxisGetPos(inst, mc.X_AXIS)
+
+        if math.abs(currentX - xPosition) > XTol then
+            mc.mcCntlGcodeExecuteWait(inst, string.format("G90 G0 Z%.4f", traverseHeight))
+            if not ProbeScripts.ProtectedMove(inst, "work", xPosition, Y_POSITIONS[1], traverseHeight, 300) then return false end
+            if not ProbeScripts.ProtectedMove(inst, "work", nil, nil, probeZ) then return false end
+        else
+            if not ProbeScripts.ProtectedMove(inst, "work", nil, Y_POSITIONS[1], nil, 200) then return false end
+        end
+
+        local xMeas = {}
+        for i, yPos in ipairs(Y_POSITIONS) do
+            if i > 1 then
+                if not ProbeScripts.ProtectedMove(inst, "work", xPosition, yPos, nil) then return false end
+            end
+            local offsetKey = direction == 1 and "+X" or "-X"
+            local xEdge = ProbeScripts.Probe(inst, direction, false, true, nil, SINGLE_TAP_FEEDRATE, true, nil)
+            xEdge = xEdge - calibrationOffsets[offsetKey]
+            xMeas[i] = xEdge
+            table.insert(results, {
+                enumKey=enumKey, pianoKey=pianoKey, direction=direction,
+                x=xEdge, y=yPos, z=probeZ, timestamp=os.date("%Y-%m-%d %H:%M:%S")
+            })
+        end
+
+        -- Linearity check - front points (indices 1-3)
+        local frontPts = {}
+        for i = 1, 3 do table.insert(frontPts, {y=Y_POSITIONS[i], x=xMeas[i]}) end
+        if calcLinearity(frontPts) > LINEARITY_THRESHOLD then
+            for _, yPos in ipairs(Y_POSITIONS_EXTRA_FRONT) do
+                if not ProbeScripts.ProtectedMove(inst, "work", xPosition, yPos, nil) then return false end
+                local offsetKey = direction == 1 and "+X" or "-X"
+                local xEdge = ProbeScripts.Probe(inst, direction, false, true, nil, SINGLE_TAP_FEEDRATE, true, nil)
+                xEdge = xEdge - calibrationOffsets[offsetKey]
+                table.insert(results, {enumKey=enumKey, pianoKey=pianoKey, direction=direction,
+                    x=xEdge, y=yPos, z=probeZ, timestamp=os.date("%Y-%m-%d %H:%M:%S")})
+                table.insert(xMeas, xEdge)
+            end
+        end
+
+        -- Linearity check - back points (indices 4-6)
+        local backPts = {}
+        for i = 4, 6 do table.insert(backPts, {y=Y_POSITIONS[i], x=xMeas[i]}) end
+        if calcLinearity(backPts) > LINEARITY_THRESHOLD then
+            for _, yPos in ipairs(Y_POSITIONS_EXTRA_BACK) do
+                if not ProbeScripts.ProtectedMove(inst, "work", xPosition, yPos, nil) then return false end
+                local offsetKey = direction == 1 and "+X" or "-X"
+                local xEdge = ProbeScripts.Probe(inst, direction, false, true, nil, SINGLE_TAP_FEEDRATE, true, nil)
+                xEdge = xEdge - calibrationOffsets[offsetKey]
+                table.insert(results, {enumKey=enumKey, pianoKey=pianoKey, direction=direction,
+                    x=xEdge, y=yPos, z=probeZ, timestamp=os.date("%Y-%m-%d %H:%M:%S")})
+                table.insert(xMeas, xEdge)
+            end
+        end
+
+        -- Shoulder accessibility check
+        local probeDiam = math.max(
+            mc.mcCntlGetPoundVar(inst, 511), mc.mcCntlGetPoundVar(inst, 512),
+            mc.mcCntlGetPoundVar(inst, 513), mc.mcCntlGetPoundVar(inst, 514))
+        local minClearance = 1.75 * probeDiam
+        local minDiff, fi0, bi0 = math.huge, 0, 0
+        for fi = 1, 3 do
+            for bi = 4, 6 do
+                local d = math.abs(xMeas[fi] - xMeas[bi])
+                if d < minDiff then minDiff=d; fi0=fi; bi0=bi end
+            end
+        end
+
+        local shoulderInfo = nil
+        if minDiff > minClearance then
+            shoulderInfo = {
+                accessible = true,
+                xPosition  = (xMeas[fi0] + xMeas[bi0]) / 2,
+                yPosition  = Y_POSITIONS[4],
+                enumKey    = enumKey,
+                pianoKey   = pianoKey,
+                clearance  = minDiff
+            }
+        end
+
+        local f = io.open(csvPath, "a")
+        writeBatchToCSV(f, results)
+        f:close()
+        return results, shoulderInfo
+    end
+
+    for keyIdx = 1, NUM_TEST_KEYS do
+        local leftX  = FIRST_KEY_X - (KEY_SPACING/2) + (keyIdx-1) * KEY_SPACING
+        local rightX = leftX + KEY_SPACING
+
+        local ld, ls = probeKeySide(keyIdx, 1, leftX)
+        if ld == false then reportFile:close(); return false end
+        if ls then table.insert(accessibleShoulders, ls) end
+
+        local rd, rs = probeKeySide(keyIdx, 2, rightX)
+        if rd == false then reportFile:close(); return false end
+        if rs then table.insert(accessibleShoulders, rs) end
+
+        mc.mcCntlSetLastError(inst, string.format("X edges: key %d of %d", keyIdx, NUM_TEST_KEYS))
+    end
+
+    -- ── Shoulder -Y probing ───────────────────────────────────────────────────
+    if #accessibleShoulders > 0 then
+        mc.mcCntlSetLastError(inst, "Probing shoulders...")
+        mc.mcCntlGcodeExecuteWait(inst, string.format("G90 G0 Z%.4f", traverseHeight))
+        local shoulderData = {}
+        for _, s in ipairs(accessibleShoulders) do
+            if not ProbeScripts.ProtectedMove(inst, "work", s.xPosition, s.yPosition, traverseHeight, 300) then reportFile:close(); return false end
+            if not ProbeScripts.ProtectedMove(inst, "work", nil, nil, probeZ) then reportFile:close(); return false end
+            local yBack = ProbeScripts.Probe(inst, 4, false, true, nil, SINGLE_TAP_FEEDRATE, true, nil)
+            yBack = yBack - calibrationOffsets["-Y"]
+            table.insert(shoulderData, {
+                enumKey=s.enumKey, pianoKey=s.pianoKey, direction=4,
+                x=s.xPosition, y=yBack, z=probeZ, timestamp=os.date("%Y-%m-%d %H:%M:%S")
+            })
+            mc.mcCntlGcodeExecuteWait(inst, string.format("G90 G0 Z%.4f", traverseHeight))
+        end
+        if #shoulderData > 0 then
+            local f = io.open(csvPath, "a")
+            writeBatchToCSV(f, shoulderData)
+            f:close()
+        end
+        writeReport(string.format("Probed %d shoulders", #shoulderData))
+    end
+
+    -- ── Return home + clear rotation ─────────────────────────────────────────
+    mc.mcCntlGcodeExecuteWait(inst, string.format("G90 G0 Z%.4f", traverseHeight))
+    mc.mcCntlGcodeExecuteWait(inst, "G90 G0 X0 Y0")
+    mc.mcCntlGcodeExecuteWait(inst, "G69")
+    writeReport("G68 rotation cleared")
+    writeReport("===== Test ProbeKeys (5 Keys) Complete =====")
+    reportFile:close()
+
+    -- ── Trigger Fusion add-in (same format as full ProbeKeys) ─────────────────
+    local triggerPath    = "C:\\Mach4Hobby\\Profiles\\BLP\\Logs\\PROBE_COMPLETE_" .. pianoName .. ".txt"
+    local csvPathNetwork = csvPath:gsub("C:\\Mach4Hobby", "\\\\BLPCNC\\Mach4Hobby")
+    local triggerData    = string.format('{"csv_path": "%s", "piano_id": "%s", "avg_z": %.6f}',
+        csvPathNetwork:gsub("\\", "\\\\"), pianoName, avgZ)
+
+    local triggerFile = io.open(triggerPath, "w")
+    if triggerFile then
+        triggerFile:write(triggerData)
+        triggerFile:close()
+        mc.mcCntlSetLastError(inst, "Test ProbeKeys complete - trigger sent to Fusion")
+    else
+        wx.wxMessageBox("Warning: Could not create Fusion trigger file.\n\nManually trigger the add-in or re-run.",
+            "Trigger Warning", wx.wxOK + wx.wxICON_WARNING)
+    end
+
+    return mc.MERROR_NOERROR
+end
+
+if mc.mcInEditor() == 1 then
+    m214()
+end

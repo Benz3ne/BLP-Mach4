@@ -1,0 +1,230 @@
+--[[ M215 - Test InitialKeytopTrim (First 5 Keys, Lower Half)
+
+    Simplified test version of M210/InitialKeytopTrim for faster iteration.
+
+    What is KEPT (jig-related):
+      • Left bore calibration: double-tap + single-tap -Z offset, XY datum set
+      • Right bore probing → G68 rotation
+      • Z height probing for machining height calculation
+
+    What is CHANGED:
+      • Only the first 5 keys are probed for Z height (no 1-of-6 sampling)
+      • Vacuum / dust-automation checks are skipped
+      • GCode tab check is skipped
+
+    G-code file loading is identical to M210 (deferred via marker file).
+]]--
+
+function m215()
+    local inst = mc.mcGetInstance()
+
+    if not ProbeScripts.CheckProbeDeployed(inst) then return end
+
+    mc.mcCntlGcodeExecuteWait(inst, "G55")
+
+    -- ── Dialog ───────────────────────────────────────────────────────────────
+    local fields = {
+        {type = "instructions",
+         text = "TEST MODE: First 5 keys, Lower half.\nEnter trim parameters."},
+        {type = "number", key = "removalDepth", label = "Removal Depth (inches)",
+         default = 0.08, persist = false, min = 0.001, max = 0.25,
+         validateMsg = "Must be between 0.001-0.5"},
+        {type = "separator"},
+        {type = "radio", key = "trimOperation", label = "Trim Operation",
+         options = {"Top and Front", "Top Only"},
+         columns = 2, default = 0}
+    }
+
+    local params = ProbeScripts.ShowDialog(inst, "Test Initial Trim (5 Keys)", fields, "TestInitialTrim", {width = 300})
+    if not params then return end
+
+    mc.mcCntlGcodeExecuteWait(inst, "G69")
+
+    -- ── Configuration ────────────────────────────────────────────────────────
+    local SINGLE_TAP_FEEDRATE = 40
+    local BORE_SEPARATION     = 46.0
+    local KEY_SPACING         = 1.7
+    local FIRST_KEY_X         = 1.75
+    local NUM_TEST_KEYS       = 5
+    local safeTraverseZ       = 2.0
+
+    local centeringHeightMachine
+    local calibrationOffsets = {}
+
+    -- ── Bore location ────────────────────────────────────────────────────────
+    local boreMachineX = mc.mcCntlGetPoundVar(inst, 540)
+    local boreMachineY = mc.mcCntlGetPoundVar(inst, 541)
+
+    if boreMachineX == 0 and boreMachineY == 0 then
+        wx.wxMessageBox("Bore location not configured.\n\nSet bore coordinates in System Settings > Keytop Replacement.",
+            "Configuration Required", wx.wxOK + wx.wxICON_ERROR)
+        return false
+    end
+
+    local toolXOffset    = mc.mcToolGetData(inst, mc.MTOOL_MILL_X, 1) or 0
+    local toolYOffset    = mc.mcToolGetData(inst, mc.MTOOL_MILL_Y, 1) or 0
+    local spindleTargetX = boreMachineX + toolXOffset
+    local spindleTargetY = boreMachineY + toolYOffset
+
+    -- ── Left bore calibration ────────────────────────────────────────────────
+    mc.mcCntlSetLastError(inst, "Moving to left bore...")
+    mc.mcCntlGcodeExecuteWait(inst, "G90 G53 G0 Z-0.05")
+    if not ProbeScripts.ProtectedMove(inst, "mach", spindleTargetX, spindleTargetY, nil, 300) then return false end
+
+    local doubleResults = {}
+    doubleResults["-Z"] = ProbeScripts.Probe(inst, 5, false, false, nil, nil, false, nil)
+    local boreBottomZ = doubleResults["-Z"]
+
+    mc.mcCntlGcodeExecuteWait(inst, "G91 G0 Z0.25")
+    centeringHeightMachine = mc.mcAxisGetMachinePos(inst, mc.Z_AXIS)
+
+    doubleResults["+X"] = ProbeScripts.Probe(inst, 1, false, true, nil, nil, false, nil)
+    doubleResults["-X"] = ProbeScripts.Probe(inst, 2, false, true, nil, nil, false, nil)
+    doubleResults["+Y"] = ProbeScripts.Probe(inst, 3, false, true, nil, nil, false, nil)
+    doubleResults["-Y"] = ProbeScripts.Probe(inst, 4, false, true, nil, nil, false, nil)
+
+    local leftBoreCenterX = (doubleResults["+X"] + doubleResults["-X"]) / 2
+    local leftBoreCenterY = (doubleResults["+Y"] + doubleResults["-Y"]) / 2
+    mc.mcCntlGcodeExecuteWait(inst, string.format("G90 G1 X%.4f Y%.4f F200", leftBoreCenterX, leftBoreCenterY))
+
+    -- Single-tap -Z calibration (only direction needed for key Z probing)
+    local singleZResult = ProbeScripts.Probe(inst, 5, false, true, nil, SINGLE_TAP_FEEDRATE, true, nil)
+    calibrationOffsets["-Z"] = singleZResult - doubleResults["-Z"]
+
+    mc.mcAxisSetPos(inst, mc.X_AXIS, 0)
+    mc.mcAxisSetPos(inst, mc.Y_AXIS, 0)
+
+    mc.mcCntlGcodeExecuteWait(inst, string.format("G90 G0 Z%.4f", boreBottomZ + 1))
+    if not ProbeScripts.ProtectedMove(inst, "inc", 0.6, nil, nil, 200) then return false end
+    ProbeScripts.Probe(inst, 5, true, true, nil, nil, false, nil)  -- set Z datum from surface
+
+    -- ── Right bore + G68 rotation ────────────────────────────────────────────
+    mc.mcCntlSetLastError(inst, "Probing right bore...")
+    mc.mcCntlGcodeExecuteWait(inst, string.format("G90 G0 Z%.4f", safeTraverseZ))
+    if not ProbeScripts.ProtectedMove(inst, "work", BORE_SEPARATION, 0, nil, 300) then return false end
+    if not ProbeScripts.ProtectedMove(inst, "mach", nil, nil, centeringHeightMachine) then return false end
+
+    local xE1 = ProbeScripts.Probe(inst, 1, false, true, nil, nil, false, nil)
+    local xE2 = ProbeScripts.Probe(inst, 2, false, true, nil, nil, false, nil)
+    local yE1 = ProbeScripts.Probe(inst, 3, false, true, nil, nil, false, nil)
+    local yE2 = ProbeScripts.Probe(inst, 4, false, true, nil, nil, false, nil)
+    local rightBoreCenterX = (xE1 + xE2) / 2
+    local rightBoreCenterY = (yE1 + yE2) / 2
+
+    local angleDegrees = 0
+    if math.abs(rightBoreCenterX) > 0.001 then
+        angleDegrees = math.atan(rightBoreCenterY / rightBoreCenterX) * 180 / math.pi
+    end
+    mc.mcCntlGcodeExecuteWait(inst, string.format("G68 X0 Y0 R%.4f", angleDegrees))
+    mc.mcCntlSetLastError(inst, string.format("G68: %.4f degrees", angleDegrees))
+
+    -- ── Z height probing — all 5 test keys ───────────────────────────────────
+    mc.mcCntlSetLastError(inst, "Probing 5 key Z heights...")
+    mc.mcCntlGcodeExecuteWait(inst, string.format("G90 G0 Z%.4f", safeTraverseZ))
+
+    local sampleZHeights = {}
+
+    for keyIndex = 1, NUM_TEST_KEYS do
+        local keyX = FIRST_KEY_X + (keyIndex - 1) * KEY_SPACING
+        if not ProbeScripts.ProtectedMove(inst, "work", keyX, 0, nil, 300) then
+            mc.mcCntlGcodeExecuteWait(inst, "G69")
+            return false
+        end
+        local zHeight = ProbeScripts.Probe(inst, 5, false, false, nil, SINGLE_TAP_FEEDRATE, true, 0.5)
+        zHeight = zHeight - calibrationOffsets["-Z"]
+        table.insert(sampleZHeights, zHeight)
+        mc.mcCntlSetLastError(inst, string.format("Key %d: Z=%.4f", keyIndex, zHeight))
+    end
+
+    -- ── Calculate machining height ────────────────────────────────────────────
+    local maxZ = sampleZHeights[1]
+    for _, z in ipairs(sampleZHeights) do if z > maxZ then maxZ = z end end
+
+    local machiningHeight = maxZ - params.removalDepth
+    mc.mcCntlSetLastError(inst, string.format("Max Z: %.4f  Machining height: %.4f", maxZ, machiningHeight))
+
+    if machiningHeight < 0.1 or machiningHeight > 2.0 then
+        wx.wxMessageBox(string.format(
+            "Calculated machining height is unsafe: %.4f inches\n\nRemoval depth: %.4f\nMax Z: %.4f\n\nResult must be 0.1–2.0 inches.",
+            machiningHeight, params.removalDepth, maxZ),
+            "Unsafe Machining Height", wx.wxOK + wx.wxICON_ERROR)
+        mc.mcCntlGcodeExecuteWait(inst, "G69")
+        return false
+    end
+
+    -- ── Set Z datum ───────────────────────────────────────────────────────────
+    local currentZ = mc.mcAxisGetPos(inst, mc.Z_AXIS)
+    mc.mcAxisSetPos(inst, mc.Z_AXIS, currentZ - machiningHeight)
+    mc.mcCntlSetLastError(inst, string.format("Z datum set: machining height = %.4f", machiningHeight))
+
+    -- ── Load G-code file (deferred) ───────────────────────────────────────────
+    mc.mcCntlGcodeExecuteWait(inst, "G90 G53 G0 Z0")
+    mc.mcCntlCloseGCodeFile(inst)
+
+    local gcodeDir      = "C:\\Mach4Hobby\\Profiles\\BLP\\Scripts\\GCode"
+    local topTrimFile   = gcodeDir .. "\\Initial Trim Top.tap"
+    local frontTrimFile = gcodeDir .. "\\Initial Trim Front.tap"
+    local gcodeFilePath
+
+    if params.trimOperation == 0 then
+        -- Top and Front: combine files
+        local frontFile = io.open(frontTrimFile, "r")
+        if not frontFile then
+            wx.wxMessageBox("Failed to open front trim file:\n" .. frontTrimFile, "Error", wx.wxOK + wx.wxICON_ERROR)
+            return false
+        end
+        local frontContent = frontFile:read("*a")
+        frontFile:close()
+
+        local topFile = io.open(topTrimFile, "r")
+        if not topFile then
+            wx.wxMessageBox("Failed to open top trim file:\n" .. topTrimFile, "Error", wx.wxOK + wx.wxICON_ERROR)
+            return false
+        end
+        local topContent = topFile:read("*a")
+        topFile:close()
+
+        frontContent = frontContent:gsub("[Mm]30[^\n]*\n?", "\n")
+        frontContent = frontContent:gsub("[Mm]2[^\n]*\n?",  "\n")
+        frontContent = frontContent .. "\n(End of front trim, continuing to top trim)\n\n"
+
+        local tempDir = "C:\\Mach4Hobby\\Profiles\\BLP\\Temp"
+        gcodeFilePath = tempDir .. "\\InitialTrimCombined.tap"
+        local tempFile = io.open(gcodeFilePath, "w")
+        if not tempFile then
+            wx.wxMessageBox("Failed to create combined G-code file.", "Error", wx.wxOK + wx.wxICON_ERROR)
+            return false
+        end
+        tempFile:write(frontContent)
+        tempFile:write(topContent)
+        tempFile:close()
+    else
+        gcodeFilePath = topTrimFile
+    end
+
+    local testFile = io.open(gcodeFilePath, "r")
+    if not testFile then
+        wx.wxMessageBox("G-code file not found:\n" .. gcodeFilePath, "Error", wx.wxOK + wx.wxICON_ERROR)
+        return false
+    end
+    testFile:close()
+
+    local markerPath = "C:\\Mach4Hobby\\Profiles\\BLP\\Temp\\DeferredGCode.txt"
+    local markerFile = io.open(markerPath, "w")
+    if markerFile then
+        markerFile:write(gcodeFilePath)
+        markerFile:close()
+    else
+        wx.wxMessageBox("Failed to queue G-code file for execution.", "Error", wx.wxOK + wx.wxICON_ERROR)
+        return false
+    end
+
+    local trimOps = {"Top and Front", "Top Only"}
+    mc.mcCntlSetLastError(inst, string.format("Test trim ready - %s (removal: %.3f, height: %.3f)",
+        trimOps[params.trimOperation + 1], params.removalDepth, machiningHeight))
+    return mc.MERROR_NOERROR
+end
+
+if mc.mcInEditor() == 1 then
+    m215()
+end
