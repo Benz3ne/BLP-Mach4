@@ -34,7 +34,7 @@ state = {}  -- Used by SyncMPG() for axis_rates and mpg0_inc tracking
 -- hours = interval between reminders, tip = detailed instructions shown on hover
 MaintenanceConfig = {
     {id = "ProbeCalibration", name = "Calibrate Probe XY Offset", hours = 24,
-     tip = "Run Probe > Calibrate Probe XY Offset to update T90 tool offsets"},
+     tip = "Run Probe > Calibrate Probe XY Offset to update T1 tool offsets"},
     {id = "AirSeparator", name = "Drain Air-Water Separator", hours = 24,
      tip = "Open drain valve on air-water separator, drain any accumulated water"},
     {id = "DesiccantBeads", name = "Check Desiccant Beads", hours = 24,
@@ -179,8 +179,8 @@ function ProbeCrashCheck()
     local probeState = mc.mcSignalGetState(hsig)
     local currentTool = mc.mcToolGetCurrent(inst)
 
-    -- Only check for probe crash if current tool is T90 (probe tool) and probe signal is high
-    if probeState == 1 and currentTool == 90 then
+    -- Only check for probe crash if current tool is T1 (probe tool) and probe signal is high
+    if probeState == 1 and currentTool == 1 then
         mc.mcCntlEStop(inst)
         mc.mcCntlSetLastError(inst, "PROBE CRASH - Emergency Stop activated")
     end
@@ -1248,10 +1248,11 @@ function CycleStart()
         end
 
         -- Check for surface map and offer to apply Z compensation
-        local shouldContinue, mapResult = ApplySurfaceMap(false)  -- false = show dialog
-        if not shouldContinue then
-            return  -- User cancelled
-        end
+        -- DISABLED: Surface map feature is currently broken
+        -- local shouldContinue, mapResult = ApplySurfaceMap(false)  -- false = show dialog
+        -- if not shouldContinue then
+        --     return  -- User cancelled
+        -- end
 
         -- Check for Run From Here AFTER all safety checks
         -- Only for gcode files, not MDI
@@ -1262,6 +1263,21 @@ function CycleStart()
                 return  -- User cancelled
             end
             -- If false, continue with cycle start (either from beginning or after setup)
+        end
+
+        -- Check for laser-only G-code (T91) and offer conversion
+        -- Only for gcode files, not MDI
+        if not (tabNum == 0 and tabG_MdioneNum == 1) and
+           not (tabNum == 5 and tabG_MditwoNum == 1) then
+            local laserResult = CheckAndConvertLaserGCode()
+            if laserResult == nil then
+                return  -- User cancelled
+            elseif laserResult == true then
+                -- File was converted and loaded, now start it
+                mc.mcCntlCycleStart(inst)
+                return
+            end
+            -- If false, continue with normal cycle start
         end
 
         -- Tab numbers already parsed earlier for work offset check
@@ -1298,6 +1314,400 @@ function CycleStartGCode()
 
     -- Always run GCode, never MDI
     mc.mcCntlCycleStart(inst)
+end
+
+-- Check if G-code file uses T91 (laser) and convert those sections for laser operation
+-- Returns: true if conversion was done and file was loaded, false otherwise, nil if user cancelled
+function CheckAndConvertLaserGCode()
+    local inst = mc.mcGetInstance()
+    local filePath = mc.mcCntlGetGcodeFileName(inst)
+
+    if not filePath or filePath == "" then
+        return false
+    end
+
+    -- Check if this is already a converted laser file (by filename or path)
+    local fileName = filePath:match("([^\\]+)$") or ""
+    if fileName:match("^laser_converted") or filePath:match("\\VectorGCode\\") then
+        -- Already converted - just run it
+        return false
+    end
+
+    -- Read the entire file
+    local file = io.open(filePath, "r")
+    if not file then
+        return false
+    end
+    local content = file:read("*all")
+    file:close()
+
+    -- Check if file already has laser vector mode markers
+    if content:match("LASER VECTOR MODE ENABLED") or content:match("M2004") then
+        -- Already has laser commands - just run it
+        return false
+    end
+
+    -- Scan for tool commands (T followed by digits)
+    -- Remove comments first for accurate scanning
+    local cleanContent = content:gsub("%(.-%)",""):gsub(";[^\n]*","")
+
+    local toolsFound = {}
+    for tool in cleanContent:gmatch("T(%d+)") do
+        local toolNum = tonumber(tool)
+        if toolNum then
+            toolsFound[toolNum] = true
+        end
+    end
+
+    -- Check if T91 is used anywhere
+    local hasT91 = toolsFound[91] == true
+    if not hasT91 then
+        return false
+    end
+
+    -- Count other tools for dialog message
+    local otherTools = {}
+    for toolNum, _ in pairs(toolsFound) do
+        if toolNum ~= 91 then
+            table.insert(otherTools, "T" .. toolNum)
+        end
+    end
+    table.sort(otherTools)
+
+    -- Build dialog message
+    local infoMessage
+    if #otherTools == 0 then
+        infoMessage = "This G-code file uses T91 (Laser).\n\n" ..
+            "The file will be converted for laser vector mode:\n" ..
+            "• Laser ON after Z plunges complete\n" ..
+            "• Laser OFF before Z retracts\n\n" ..
+            "Enter desired laser power percentage:"
+    else
+        infoMessage = "This G-code file uses T91 (Laser) along with:\n" ..
+            table.concat(otherTools, ", ") .. "\n\n" ..
+            "Only T91 sections will be converted for laser:\n" ..
+            "• Laser ON after Z plunges (T91 only)\n" ..
+            "• Laser OFF before Z retracts or tool change\n\n" ..
+            "Enter desired laser power percentage:"
+    end
+
+    -- Show laser power dialog
+    local dlg = wx.wxDialog(wx.NULL, wx.wxID_ANY, "Laser Vector Mode",
+                            wx.wxDefaultPosition, wx.wxSize(380, -1))
+    local panel = wx.wxPanel(dlg, wx.wxID_ANY)
+    local sizer = wx.wxBoxSizer(wx.wxVERTICAL)
+
+    -- Info text
+    local infoText = wx.wxStaticText(panel, wx.wxID_ANY, infoMessage)
+    infoText:Wrap(350)
+    sizer:Add(infoText, 0, wx.wxALL + wx.wxEXPAND, 10)
+
+    -- Power input row
+    local powerSizer = wx.wxBoxSizer(wx.wxHORIZONTAL)
+    local powerLabel = wx.wxStaticText(panel, wx.wxID_ANY, "Laser Power:")
+    local powerInput = wx.wxTextCtrl(panel, wx.wxID_ANY, "50",
+                                     wx.wxDefaultPosition, wx.wxSize(60, -1))
+    local percentLabel = wx.wxStaticText(panel, wx.wxID_ANY, "%")
+    powerSizer:Add(powerLabel, 0, wx.wxALIGN_CENTER_VERTICAL + wx.wxRIGHT, 8)
+    powerSizer:Add(powerInput, 0, wx.wxALIGN_CENTER_VERTICAL + wx.wxRIGHT, 4)
+    powerSizer:Add(percentLabel, 0, wx.wxALIGN_CENTER_VERTICAL)
+    sizer:Add(powerSizer, 0, wx.wxALL + wx.wxALIGN_CENTER, 10)
+
+    -- Buttons
+    local btnSizer = wx.wxBoxSizer(wx.wxHORIZONTAL)
+    local btnConvert = wx.wxButton(panel, wx.wxID_OK, "Convert && Run")
+    local btnSkip = wx.wxButton(panel, wx.wxID_NO, "Run Without Changes")
+    local btnCancel = wx.wxButton(panel, wx.wxID_CANCEL, "Cancel")
+    btnSizer:Add(btnConvert, 0, wx.wxRIGHT, 8)
+    btnSizer:Add(btnSkip, 0, wx.wxRIGHT, 8)
+    btnSizer:Add(btnCancel, 0)
+    sizer:Add(btnSizer, 0, wx.wxALL + wx.wxALIGN_CENTER, 10)
+
+    panel:SetSizer(sizer)
+    sizer:Fit(dlg)
+    dlg:Centre(wx.wxBOTH)
+
+    -- Focus on power input
+    powerInput:SetFocus()
+    powerInput:SetSelection(-1, -1)
+
+    local result = dlg:ShowModal()
+    local powerPercent = tonumber(powerInput:GetValue())
+    dlg:Destroy()
+
+    if result == wx.wxID_CANCEL then
+        return nil  -- User cancelled entirely
+    end
+
+    if result == wx.wxID_NO then
+        return false  -- User wants to run without laser conversion
+    end
+
+    -- Validate power
+    if not powerPercent or powerPercent < 1 or powerPercent > 100 then
+        wx.wxMessageBox("Invalid power percentage. Must be 1-100.",
+                       "Laser Error", wx.wxOK + wx.wxICON_ERROR)
+        return nil
+    end
+
+    -- Convert the G-code
+    local convertedContent = ConvertGCodeForLaser(content, powerPercent)
+
+    if not convertedContent then
+        wx.wxMessageBox("Failed to convert G-code for laser operation.",
+                       "Laser Error", wx.wxOK + wx.wxICON_ERROR)
+        return nil
+    end
+
+    -- Generate temp filename based on original
+    local baseName = fileName:match("(.+)%.[^.]+$") or fileName
+    local tempPath = string.format("C:\\Mach4Hobby\\Laser_Files\\VectorGCode\\laser_converted_%s.nc", baseName)
+
+    -- Ensure directory exists
+    os.execute("cmd /c mkdir \"C:\\Mach4Hobby\\Laser_Files\\VectorGCode\" 2>NUL")
+
+    local outFile = io.open(tempPath, "w")
+    if not outFile then
+        wx.wxMessageBox("Failed to create converted laser file.",
+                       "Laser Error", wx.wxOK + wx.wxICON_ERROR)
+        return nil
+    end
+    outFile:write(convertedContent)
+    outFile:close()
+
+    -- Load the converted file
+    mc.mcCntlCloseGCodeFile(inst)
+    mc.mcCntlLoadGcodeFile(inst, tempPath)
+    mc.mcCntlSetLastError(inst, string.format("Laser mode: %.0f%% power - T91 sections converted", powerPercent))
+
+    return true
+end
+
+-- Convert G-code content for laser vector mode
+-- Inserts M62 P9 (laser ON) after Z reaches cutting depth, M63 P9 (laser OFF) before retracts
+-- Only modifies sections where T91 is the active tool
+function ConvertGCodeForLaser(content, powerPercent)
+    local LASER_GATE = 9  -- Output number for laser gate
+    local PWM_FREQ = 3000  -- Hz
+
+    local lines = {}
+    for line in content:gmatch("[^\r\n]+") do
+        table.insert(lines, line)
+    end
+
+    local output = {}
+    local currentZ = 999  -- Start high (assume retracted)
+    local laserOn = false
+    local headerInserted = false
+    local pendingZMoves = {}  -- Buffer Z moves to find final Z before XY
+    local currentTool = 0  -- Track current tool number
+    local laserToolActive = false  -- True when T91 is the active tool
+
+    -- Helper to extract Z value from a line
+    local function getZValue(line)
+        local cleanLine = line:gsub("%(.-%)",""):gsub(";.*",""):upper()
+        local z = cleanLine:match("Z([%-]?%d*%.?%d+)")
+        return z and tonumber(z) or nil
+    end
+
+    -- Helper to check if line has XY movement
+    local function hasXYMove(line)
+        local cleanLine = line:gsub("%(.-%)",""):gsub(";.*",""):upper()
+        return cleanLine:match("[XY][%-]?%d*%.?%d+") ~= nil
+    end
+
+    -- Helper to check if line is Z-only move (no X or Y)
+    local function isZOnlyMove(line)
+        local cleanLine = line:gsub("%(.-%)",""):gsub(";.*",""):upper()
+        local hasZ = cleanLine:match("Z[%-]?%d*%.?%d+")
+        local hasX = cleanLine:match("X[%-]?%d*%.?%d+")
+        local hasY = cleanLine:match("Y[%-]?%d*%.?%d+")
+        return hasZ and not hasX and not hasY
+    end
+
+    -- Helper to extract tool number from a line
+    local function getToolNumber(line)
+        local cleanLine = line:gsub("%(.-%)",""):gsub(";.*",""):upper()
+        local tool = cleanLine:match("T(%d+)")
+        return tool and tonumber(tool) or nil
+    end
+
+    -- Helper to check if line has M6 tool change
+    local function hasToolChange(line)
+        local cleanLine = line:gsub("%(.-%)",""):gsub(";.*",""):upper()
+        return cleanLine:match("M0?6[^0-9]") or cleanLine:match("M0?6$")
+    end
+
+    -- Insert laser setup header
+    local function insertLaserHeader()
+        if headerInserted then return end
+        headerInserted = true
+
+        table.insert(output, "(--- LASER VECTOR MODE ENABLED ---)")
+        table.insert(output, string.format("M2003 (LASER_VECTOR_PWM_PERCENTAGE=%.1f)", powerPercent))
+        table.insert(output, string.format("M2003 (LASER_VECTOR_FREQUENCY=%d)", PWM_FREQ))
+        table.insert(output, "M2004 (Enable Laser Vector Mode)")
+        table.insert(output, "(--- END LASER SETUP ---)")
+        table.insert(output, "")
+    end
+
+    -- Turn laser off helper
+    local function turnLaserOff(reason)
+        if laserOn then
+            table.insert(output, string.format("M63 P%d (Laser OFF - %s)", LASER_GATE, reason))
+            laserOn = false
+        end
+    end
+
+    -- Process lines
+    for i, line in ipairs(lines) do
+        local cleanLine = line:gsub("%(.-%)",""):gsub(";.*",""):upper()
+        local zVal = getZValue(line)
+        local hasXY = hasXYMove(line)
+        local isZOnly = isZOnlyMove(line)
+        local toolNum = getToolNumber(line)
+        local isToolChange = hasToolChange(line)
+
+        -- Track tool changes
+        if toolNum then
+            -- Tool number specified - this is a tool select (T## before M6)
+            -- or could be T## M6 on same line
+            if isToolChange then
+                -- T## M6 on same line - tool is changing now
+                turnLaserOff("tool change")
+                -- Flush pending Z moves
+                for _, pendingLine in ipairs(pendingZMoves) do
+                    table.insert(output, pendingLine)
+                end
+                pendingZMoves = {}
+
+                currentTool = toolNum
+                laserToolActive = (toolNum == 91)
+
+                -- Insert laser header before first T91 usage
+                if laserToolActive and not headerInserted then
+                    insertLaserHeader()
+                end
+
+                table.insert(output, line)
+            else
+                -- Just T## without M6 - tool select, change happens on next M6
+                -- Store it but don't activate yet
+                table.insert(output, line)
+                -- Track the pending tool for when M6 comes
+                currentTool = toolNum
+            end
+        elseif isToolChange then
+            -- M6 without T## on this line - use previously selected tool
+            turnLaserOff("tool change")
+            -- Flush pending Z moves
+            for _, pendingLine in ipairs(pendingZMoves) do
+                table.insert(output, pendingLine)
+            end
+            pendingZMoves = {}
+
+            laserToolActive = (currentTool == 91)
+
+            -- Insert laser header before first T91 usage
+            if laserToolActive and not headerInserted then
+                insertLaserHeader()
+            end
+
+            table.insert(output, line)
+        elseif not laserToolActive then
+            -- Not in laser tool section - just pass through
+            -- Flush any pending Z moves first
+            for _, pendingLine in ipairs(pendingZMoves) do
+                table.insert(output, pendingLine)
+            end
+            pendingZMoves = {}
+            table.insert(output, line)
+        else
+            -- Laser tool is active - apply laser logic
+
+            -- Handle Z-only moves (potential plunge or retract sequences)
+            if isZOnly and zVal then
+                if zVal > currentZ then
+                    -- Z is going UP (retract) - turn laser OFF before this move
+                    turnLaserOff("before retract")
+                    -- Flush any pending Z moves first
+                    for _, pendingLine in ipairs(pendingZMoves) do
+                        table.insert(output, pendingLine)
+                    end
+                    pendingZMoves = {}
+                    table.insert(output, line)
+                    currentZ = zVal
+                else
+                    -- Z is going DOWN (plunge) - buffer it, don't turn laser on yet
+                    table.insert(pendingZMoves, line)
+                    currentZ = zVal
+                end
+            elseif hasXY then
+                -- XY movement - if we have pending Z moves (plunges), flush them and turn laser ON
+                if #pendingZMoves > 0 then
+                    for _, pendingLine in ipairs(pendingZMoves) do
+                        table.insert(output, pendingLine)
+                    end
+                    pendingZMoves = {}
+
+                    -- Now turn laser ON before the XY move
+                    if not laserOn and headerInserted then
+                        table.insert(output, string.format("M62 P%d (Laser ON - at cutting depth)", LASER_GATE))
+                        laserOn = true
+                    end
+                end
+
+                -- Check if this line also has Z
+                if zVal then
+                    if zVal > currentZ then
+                        -- Retract during XY move - turn off laser first
+                        turnLaserOff("before retract")
+                    end
+                    currentZ = zVal
+                end
+
+                -- Check for G0 rapid XY moves (should have laser off)
+                local isRapid = cleanLine:match("^%s*G0?0[%sXYZ]") or cleanLine:match("%sG0?0[%sXYZ]")
+                if isRapid and laserOn then
+                    turnLaserOff("rapid move")
+                end
+
+                table.insert(output, line)
+            else
+                -- Non-motion line or other command
+                -- Flush pending Z moves if any
+                if #pendingZMoves > 0 then
+                    for _, pendingLine in ipairs(pendingZMoves) do
+                        table.insert(output, pendingLine)
+                    end
+                    pendingZMoves = {}
+                end
+
+                -- Check for M30/M2 (end of program) to insert laser shutdown
+                if cleanLine:match("M30") or cleanLine:match("M0?2[^0-9]") or cleanLine:match("M0?2$") then
+                    turnLaserOff("end of program")
+                    if headerInserted then
+                        table.insert(output, "M2005 (Disable Laser Vector Mode)")
+                    end
+                end
+
+                table.insert(output, line)
+            end
+        end
+    end
+
+    -- Ensure laser is off at end if still on
+    turnLaserOff("end of file")
+
+    -- Ensure laser mode is disabled at end
+    if headerInserted then
+        local lastLines = table.concat(output, "\n")
+        if not lastLines:match("M2005") then
+            table.insert(output, "M2005 (Disable Laser Vector Mode)")
+        end
+    end
+
+    return table.concat(output, "\n")
 end
 
 -- Cancel G68 with a confirmation modal
@@ -1541,10 +1951,10 @@ function SetWorkOffset(value)
 end
 
 
--- Deploy/Retract Virtual Tool (T90 probe, T91 laser)
+-- Deploy/Retract Virtual Tool (T90 air nozzle, T91 laser)
 function DeployVirtual(toolName, action)
     local toolMap = {
-        probe = 90,
+        airnozzle = 90,
         laser = 91
     }
     local toolNum = toolMap[string.lower(toolName)]
@@ -1566,7 +1976,7 @@ function SafeRetractVirtual()
     local currentTool = mc.mcToolGetCurrent(inst)
     if currentTool >= 90 then
         mc.mcSignalSetState(mc.mcSignalGetHandle(inst, mc.OSIG_OUTPUT1), 0)  -- Laser deploy
-        mc.mcSignalSetState(mc.mcSignalGetHandle(inst, mc.OSIG_OUTPUT7), 0)  -- Probe deploy
+        mc.mcSignalSetState(mc.mcSignalGetHandle(inst, mc.OSIG_OUTPUT7), 0)  -- Air nozzle deploy
         mc.mcSignalSetState(mc.mcSignalGetHandle(inst, mc.OSIG_OUTPUT9), 0)  -- Laser fire
         mc.mcRegSetValue(mc.mcRegGetHandle(inst, "ESS/Laser/Test_Mode_Activate"), 0)
         mc.mcToolSetCurrent(inst, 0)
@@ -2191,10 +2601,10 @@ UIStates = {
     btnProbeDeploy = {
         check = function(inst)
             local tool = mc.mcToolGetCurrent(inst)
-            return (tool == 90) and "on" or "off"
+            return (tool == 1) and "on" or "off"
         end,
-        states = {on = {bg = "#00FF00", fg = "#000000", label = "Retract Probe\nChange to T0"},
-                  off = {bg = "#FF0000", fg = "#FFFFFF", label = "Deploy Probe\nChange to T90"}}
+        states = {on = {bg = "#00FF00", fg = "#000000", label = "Drop Probe\nChange to T0"},
+                  off = {bg = "#FF0000", fg = "#FFFFFF", label = "Pick Up Probe\nChange to T1"}}
     },
     
     -- === STATUS LEDS ===
@@ -2509,7 +2919,7 @@ end
 -- System Settings Configuration
 SYSTEM_SETTINGS = {
     {
-        title = "Touch Probe (T90)",
+        title = "Touch Probe (T1)",
         settings = {
             {var = 511, label = "Probe Diameter +X", unit = "in",
              tooltip = "Effective diameter of the probe tip in the +X direction."},
@@ -2541,7 +2951,9 @@ SYSTEM_SETTINGS = {
             {var = 524, label = "Pullout Distance", unit = "in",
              tooltip = "Y distance to pull tool forward after grabbing a tool."},
             {var = 525, label = "Approach Feed", unit = "ipm",
-             tooltip = "Feedrate when approaching tool holders."}
+             tooltip = "Feedrate when approaching tool holders."},
+            {var = 534, label = "Air Nozzle Clearance", unit = "in",
+             tooltip = "Z clearance above tool holder for air nozzle blow-off before pickup."}
         }
     },
     {
@@ -2572,6 +2984,13 @@ SYSTEM_SETTINGS = {
              tooltip = "X machine coordinate of left calibration bore center."},
             {var = 541, label = "Left Bore Y (Machine)", unit = "in",
              tooltip = "Y machine coordinate of left calibration bore center."}
+        }
+    },
+    {
+        title = "Laser (T91)",
+        settings = {
+            {var = 545, label = "Laser Height Offset", unit = "in",
+             tooltip = "Additional height offset added to T91 measurements (focus distance from housing to focal point). Typically 0.3\" for most lasers."}
         }
     }
 }

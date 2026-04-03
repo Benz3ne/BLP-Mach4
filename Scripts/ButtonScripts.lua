@@ -320,6 +320,19 @@ function LaserRaster()
     local chkLockAspect = wx.wxCheckBox(panel, wx.wxID_ANY, "Lock Aspect")
     chkLockAspect:SetValue(true)
 
+    -- Lock X Pixels checkbox - keeps original pixel count and adjusts DPI for scaling
+    local chkLockXPixels = wx.wxCheckBox(panel, wx.wxID_ANY, "Lock X Pixels")
+    chkLockXPixels:SetValue(true)  -- Default ON for precise scaling
+    chkLockXPixels:SetToolTip(
+        "When CHECKED: Keeps original X pixel count and adjusts DPI for precise scaling.\n" ..
+        "• Allows sub-1% size adjustments (e.g., 99.5%, 99.25%)\n" ..
+        "• Best for fine-tuning engraving size\n" ..
+        "• Recommended when ESS has X pixel count limits\n\n" ..
+        "When UNCHECKED: Resamples image to new pixel count.\n" ..
+        "• Size changes limited to whole pixel increments\n" ..
+        "• May cause slight quality loss from resampling"
+    )
+
     txtTime:Enable(false)
 
     local chkFlipX  = wx.wxCheckBox(panel, wx.wxID_ANY, "Flip X")
@@ -394,7 +407,8 @@ function LaserRaster()
         rowPhysical:Add(txtPhysicalWidth, 0, wx.wxRIGHT, 8)
         rowPhysical:Add(Label("H:"), 0, wx.wxALIGN_CENTER_VERTICAL + wx.wxRIGHT, 4)
         rowPhysical:Add(txtPhysicalHeight, 0, wx.wxRIGHT, 12)
-        rowPhysical:Add(chkLockAspect, 0, wx.wxALIGN_CENTER_VERTICAL)
+        rowPhysical:Add(chkLockAspect, 0, wx.wxALIGN_CENTER_VERTICAL + wx.wxRIGHT, 8)
+        rowPhysical:Add(chkLockXPixels, 0, wx.wxALIGN_CENTER_VERTICAL)
         root:Add(rowPhysical, 0, wx.wxEXPAND + wx.wxLEFT + wx.wxRIGHT + wx.wxBOTTOM, 8)
 
         local rowDPI = wx.wxBoxSizer(wx.wxHORIZONTAL)
@@ -460,6 +474,10 @@ function LaserRaster()
     local originalImage = nil  -- Store the loaded wx.wxImage
     local aspectRatio = 1.0  -- Width/Height ratio
     local updatingAspect = false  -- Flag to prevent recursive updates
+    local originalPixelsX = 0  -- Original image width in pixels
+    local originalPixelsY = 0  -- Original image height in pixels
+    local originalDpiX = 300  -- Original image DPI X
+    local originalDpiY = 300  -- Original image DPI Y
 
     local function updateTimeEstimate()
         local feed = tonumber(txtFeed:GetValue())
@@ -487,20 +505,51 @@ function LaserRaster()
     end
 
     local function updateSizeDisplay()
-        local targetDpiX = tonumber(txtDpiX:GetValue())
-        local targetDpiY = tonumber(txtDpiY:GetValue())
         local physicalWidth = tonumber(txtPhysicalWidth:GetValue())
         local physicalHeight = tonumber(txtPhysicalHeight:GetValue())
 
-        if not (targetDpiX and targetDpiY and physicalWidth and physicalHeight) then
+        if not (physicalWidth and physicalHeight) or physicalWidth <= 0 or physicalHeight <= 0 then
             txtSize:SetValue("--- x --- pixels")
             return
         end
 
-        -- Calculate output resolution in pixels
-        local outputPixelsX = math.floor(physicalWidth * targetDpiX + 0.5)
-        local outputPixelsY = math.floor(physicalHeight * targetDpiY + 0.5)
-        txtSize:SetValue(string.format("%d x %d pixels", outputPixelsX, outputPixelsY))
+        local outputPixelsX, outputPixelsY
+
+        if chkLockXPixels:GetValue() and originalPixelsX > 0 then
+            -- Lock X Pixels mode: keep original pixel count, calculate effective DPI
+            outputPixelsX = originalPixelsX
+            outputPixelsY = originalPixelsY
+
+            -- Calculate effective DPI from physical size and original pixels
+            local effectiveDpiX = originalPixelsX / physicalWidth
+            local effectiveDpiY = originalPixelsY / physicalHeight
+
+            -- Update DPI display to show effective values
+            if not updatingAspect then
+                updatingAspect = true
+                txtDpiX:SetValue(string.format("%.2f", effectiveDpiX))
+                txtDpiY:SetValue(string.format("%.2f", effectiveDpiY))
+                updatingAspect = false
+            end
+
+            -- Calculate scale percentage for user reference
+            local scaleX = (originalPixelsX / originalDpiX) / physicalWidth * 100
+            txtSize:SetValue(string.format("%d x %d px (%.2f%% scale)", outputPixelsX, outputPixelsY, scaleX))
+        else
+            -- Standard mode: calculate pixels from physical size and DPI
+            local targetDpiX = tonumber(txtDpiX:GetValue())
+            local targetDpiY = tonumber(txtDpiY:GetValue())
+
+            if not (targetDpiX and targetDpiY) then
+                txtSize:SetValue("--- x --- pixels")
+                return
+            end
+
+            outputPixelsX = math.floor(physicalWidth * targetDpiX + 0.5)
+            outputPixelsY = math.floor(physicalHeight * targetDpiY + 0.5)
+            txtSize:SetValue(string.format("%d x %d pixels", outputPixelsX, outputPixelsY))
+        end
+
         updateTimeEstimate()
     end
 
@@ -514,6 +563,10 @@ function LaserRaster()
         local imgWidth = img:GetWidth()
         local imgHeight = img:GetHeight()
         aspectRatio = imgWidth / imgHeight
+
+        -- Store original pixel dimensions
+        originalPixelsX = imgWidth
+        originalPixelsY = imgHeight
 
         -- Read DPI from image metadata
         local dpiX = img:GetOptionInt(wx.wxIMAGE_OPTION_RESOLUTIONX)
@@ -541,6 +594,10 @@ function LaserRaster()
             dpiY = 300
         end
 
+        -- Store original DPI
+        originalDpiX = dpiX
+        originalDpiY = dpiY
+
         -- Set DPI values (keep precision for accuracy)
         txtDpiX:SetValue(string.format("%.1f", dpiX))
         txtDpiY:SetValue(string.format("%.1f", dpiY))
@@ -553,7 +610,8 @@ function LaserRaster()
     end
 
     -- Convert image to grayscale BMP with specific DPI values
-    local function createConvertedBMP(sourceImage, targetDpiX, targetDpiY, physicalWidth, physicalHeight)
+    -- lockPixels: if true, keeps original pixel dimensions and adjusts DPI for scaling
+    local function createConvertedBMP(sourceImage, targetDpiX, targetDpiY, physicalWidth, physicalHeight, lockPixels)
         -- Fixed output path (always overwrites)
         local outputPath = "C:\\Mach4Hobby\\Laser_Files\\RasterBMP\\converted_temp.bmp"
 
@@ -567,17 +625,41 @@ function LaserRaster()
         -- Convert to grayscale
         workingImg = workingImg:ConvertToGreyscale()
 
-        -- Calculate target pixel dimensions based on physical size and DPI
-        -- This maintains aspect ratio while allowing different X/Y DPI
-        local targetPixelsX = math.floor(physicalWidth * targetDpiX + 0.5)
-        local targetPixelsY = math.floor(physicalHeight * targetDpiY + 0.5)
+        local finalPixelsX, finalPixelsY, finalDpiX, finalDpiY
 
-        -- Resample the image to the target dimensions
-        workingImg:Rescale(targetPixelsX, targetPixelsY)
+        if lockPixels then
+            -- Lock Pixels mode: keep original dimensions, calculate effective DPI
+            finalPixelsX = workingImg:GetWidth()
+            finalPixelsY = workingImg:GetHeight()
 
-        -- Set DPI metadata (pass exact values - BMP format will round to nearest pixels/meter)
-        workingImg:SetOption(wx.wxIMAGE_OPTION_RESOLUTIONX, targetDpiX)
-        workingImg:SetOption(wx.wxIMAGE_OPTION_RESOLUTIONY, targetDpiY)
+            -- Calculate DPI that will give us the desired physical size
+            -- DPI = pixels / inches
+            finalDpiX = finalPixelsX / physicalWidth
+            finalDpiY = finalPixelsY / physicalHeight
+
+            -- No rescaling needed - image stays at original resolution
+        else
+            -- Standard mode: resample to target dimensions
+            finalPixelsX = math.floor(physicalWidth * targetDpiX + 0.5)
+            finalPixelsY = math.floor(physicalHeight * targetDpiY + 0.5)
+            finalDpiX = targetDpiX
+            finalDpiY = targetDpiY
+
+            -- Resample the image to the target dimensions
+            workingImg:Rescale(finalPixelsX, finalPixelsY)
+        end
+
+        -- BMP stores resolution as pixels per meter (integer)
+        -- Convert DPI to pixels per meter for maximum precision
+        -- 1 inch = 0.0254 meters, so pixels/meter = DPI / 0.0254 = DPI * 39.3701
+        local ppmX = math.floor(finalDpiX * 39.3700787402 + 0.5)
+        local ppmY = math.floor(finalDpiY * 39.3700787402 + 0.5)
+
+        -- Set resolution in pixels per meter for BMP (unit 2 = centimeters won't work, use raw PPM)
+        -- wxImage expects the value in the unit specified, so we need to use inches and let wx convert
+        -- But wx may round, so we'll set it directly and verify
+        workingImg:SetOption(wx.wxIMAGE_OPTION_RESOLUTIONX, math.floor(finalDpiX + 0.5))
+        workingImg:SetOption(wx.wxIMAGE_OPTION_RESOLUTIONY, math.floor(finalDpiY + 0.5))
         workingImg:SetOption(wx.wxIMAGE_OPTION_RESOLUTIONUNIT, 1)  -- 1 = inches
 
         -- Save as BMP
@@ -585,7 +667,29 @@ function LaserRaster()
             return nil
         end
 
-        return outputPath, targetPixelsX, targetPixelsY
+        -- For sub-DPI precision, we may need to patch the BMP header directly
+        -- BMP header stores resolution at bytes 38-41 (X) and 42-45 (Y) as pixels per meter
+        if lockPixels then
+            local f = io.open(outputPath, "r+b")
+            if f then
+                -- Seek to resolution fields in BMP header (offset 38 for biXPelsPerMeter)
+                f:seek("set", 38)
+                -- Write X pixels per meter as little-endian 32-bit integer
+                local function writeLittleEndian32(file, value)
+                    file:write(string.char(
+                        value % 256,
+                        math.floor(value / 256) % 256,
+                        math.floor(value / 65536) % 256,
+                        math.floor(value / 16777216) % 256
+                    ))
+                end
+                writeLittleEndian32(f, ppmX)
+                writeLittleEndian32(f, ppmY)
+                f:close()
+            end
+        end
+
+        return outputPath, finalPixelsX, finalPixelsY
     end
 
     -- Event handlers
@@ -593,11 +697,37 @@ function LaserRaster()
         updateTimeEstimate()
     end)
     txtDpiX:Connect(wx.wxEVT_TEXT, function()
-        updateSizeDisplay()
+        -- Only update if not in Lock X Pixels mode (to avoid feedback loop)
+        if not chkLockXPixels:GetValue() then
+            updateSizeDisplay()
+        end
     end)
     txtDpiY:Connect(wx.wxEVT_TEXT, function()
+        -- Only update if not in Lock X Pixels mode (to avoid feedback loop)
+        if not chkLockXPixels:GetValue() then
+            updateSizeDisplay()
+        end
+    end)
+
+    -- Lock X Pixels checkbox handler
+    chkLockXPixels:Connect(wx.wxEVT_CHECKBOX, function()
+        if chkLockXPixels:GetValue() then
+            -- Switching to Lock mode: disable DPI editing, recalculate from physical size
+            txtDpiX:Enable(false)
+            txtDpiY:Enable(false)
+        else
+            -- Switching to normal mode: enable DPI editing
+            txtDpiX:Enable(true)
+            txtDpiY:Enable(true)
+        end
         updateSizeDisplay()
     end)
+
+    -- Initialize DPI fields based on checkbox state
+    if chkLockXPixels:GetValue() then
+        txtDpiX:Enable(false)
+        txtDpiY:Enable(false)
+    end
 
     -- Physical dimension handlers with aspect ratio locking
     txtPhysicalWidth:Connect(wx.wxEVT_TEXT, function()
@@ -664,6 +794,7 @@ function LaserRaster()
     local targetDpiY = tonumber(txtDpiY:GetValue())
     local physicalWidth = tonumber(txtPhysicalWidth:GetValue())
     local physicalHeight = tonumber(txtPhysicalHeight:GetValue())
+    local lockXPixels = chkLockXPixels:GetValue()  -- Get lock mode before destroying dialog
 
     dlg:Destroy()
 
@@ -721,8 +852,8 @@ function LaserRaster()
     line(string.format("G0 Z%.4f", targetZ))
     line(string.format("G0 X%.4f Y%.4f", startX, startY))
 
-    -- Convert image to BMP with target DPI
-    local convertedPath, finalPixelsX, finalPixelsY = createConvertedBMP(originalImage, targetDpiX, targetDpiY, w_in, h_in)
+    -- Convert image to BMP with target DPI (or fixed pixels if lockXPixels is true)
+    local convertedPath, finalPixelsX, finalPixelsY = createConvertedBMP(originalImage, targetDpiX, targetDpiY, w_in, h_in, lockXPixels)
 
     if not convertedPath then
         mc.mcCntlSetLastError(inst, "Laser Raster: failed to convert image to BMP.")

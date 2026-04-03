@@ -769,24 +769,24 @@ function ProbeScripts.DisplayResults(inst, results, title, options)
 end
 
 
--- Check if probe T90 is deployed
+-- Check if probe T1 is deployed
 function ProbeScripts.CheckProbeDeployed(inst)
     local currentTool = mc.mcToolGetCurrent(inst)
 
-    if currentTool == 90 then
+    if currentTool == 1 then
         return true
     end
 
     local result = wx.wxMessageBox(
-        "Touch probe (T90) is not active.\nCurrent tool: T" .. currentTool .. "\n\nWould you like to change to T90?",
+        "Touch probe (T1) is not active.\nCurrent tool: T" .. currentTool .. "\n\nWould you like to change to T1?",
         "Tool Change Required",
         wx.wxYES_NO + wx.wxICON_QUESTION
     )
-    
+
     if result == wx.wxYES then
-        mc.mcCntlGcodeExecuteWait(inst, "T90")
+        mc.mcCntlGcodeExecuteWait(inst, "T1")
         ProbeScripts.M6_ToolChange(inst)
-        mc.mcCntlSetLastError(inst, "Tool changed to T90 - Ready to probe")
+        mc.mcCntlSetLastError(inst, "Tool changed to T1 - Ready to probe")
     else
         return false
     end
@@ -1223,7 +1223,7 @@ function ProbeScripts.M310_ProbeToolHeight(inst)
         end
     end
 
-    -- Perform measurement - all tools now use G31 method
+    -- Perform measurement - all tools use G31 (height probe triggers first)
     -- Calculate probe travel distance
     local travelDistance = -math.abs(PROBE_MAX_DEPTH)
 
@@ -1247,6 +1247,7 @@ function ProbeScripts.M310_ProbeToolHeight(inst)
     mc.mcSignalSetState(hOutput8, 0)
     
     -- For T0, save spindle rim position as the reference
+    local toolHeight
     if tool == 0 then
         mc.mcCntlSetPoundVar(inst, 528, measuredZ)  -- Save spindle rim position
         SURFACE_Z = measuredZ  -- Update local variable
@@ -1254,6 +1255,15 @@ function ProbeScripts.M310_ProbeToolHeight(inst)
     else
         -- Calculate tool height relative to spindle rim (SURFACE_Z)
         toolHeight = measuredZ - SURFACE_Z
+
+        -- Apply laser height offset for T91 (focus distance compensation)
+        if tool == 91 then
+            local laserHeightOffset = mc.mcCntlGetPoundVar(inst, 545)  -- Default 0.3"
+            if laserHeightOffset and laserHeightOffset ~= 0 then
+                toolHeight = toolHeight + laserHeightOffset
+                mc.mcCntlSetLastError(inst, string.format("T91: Adding %.4f\" laser focus offset", laserHeightOffset))
+            end
+        end
     end
 
     mc.mcToolSetData(inst, mc.MTOOL_MILL_HEIGHT, tool, toolHeight)
@@ -1287,8 +1297,6 @@ end
 
 -- M6 Tool Change Function
 function ProbeScripts.M6_ToolChange(inst)
-    local bootWasDown = false
-
     -- Set M6 in-progress flag (used by UI to disable override controls)
     mc.mcCntlSetPoundVar(inst, 499, 1)
 
@@ -1322,30 +1330,43 @@ function ProbeScripts.M6_ToolChange(inst)
         end
     end
 
-    -- Save boot state and raise
+    -- Save automation states and disable during tool change
     local hDustBoot = mc.mcSignalGetHandle(inst, mc.OSIG_OUTPUT3)
-    if mc.mcSignalGetState(hDustBoot) == 1 then
-        bootWasDown = true
-        mc.mcSignalSetState(hDustBoot, 0)
-    end
+    local hMist = mc.mcSignalGetHandle(inst, mc.OSIG_MISTON)
+    local bootWasDown = mc.mcSignalGetState(hDustBoot) == 1
+    local mistWasOn = mc.mcSignalGetState(hMist) == 1
 
-    -- Deploy or restore dust boot
-    local function SetBootState()
-        local bootAuto = mc.mcSignalGetState(mc.mcSignalGetHandle(inst, mc.OSIG_OUTPUT52)) == 1
+    if bootWasDown then mc.mcSignalSetState(hDustBoot, 0) end
+    if mistWasOn then mc.mcSignalSetState(hMist, 0) end
+
+    -- Restore automation outputs after tool change
+    local function SetAutoState()
         local machState = mc.mcCntlGetState(inst)
-        local isFileRun = (machState >= 100 and machState < 200) -- only file runs
+        local isFileRun = (machState >= 100 and machState < 200)
+        local isPhysicalTool = requested > 0 and requested < 90
 
-        if bootWasDown or (bootAuto and isFileRun and requested > 0 and requested < 90) then
+        -- Boot: restore if was down, or if bootAuto enabled for physical tool
+        local bootAuto = mc.mcSignalGetState(mc.mcSignalGetHandle(inst, mc.OSIG_OUTPUT52)) == 1
+        if bootWasDown or (bootAuto and isFileRun and isPhysicalTool) then
             mc.mcSignalSetState(hDustBoot, 1)
+        end
+
+        -- Mist: restore if was on, or if mistAuto enabled for physical tool
+        local mistAuto = mc.mcSignalGetState(mc.mcSignalGetHandle(inst, mc.OSIG_OUTPUT53)) == 1
+        if mistWasOn or (mistAuto and isFileRun and isPhysicalTool) then
+            mc.mcSignalSetState(hMist, 1)
         end
     end
 
-    -- Same tool - just sync H offset, don't touch boot
+    -- Same tool - just sync H offset
     if current == requested then
-        if requested > 0 and requested < 90 then
+        if requested > 0 then
+            -- Apply height offset for all tools (physical 1-89 and virtual 90+)
             GcodeExecuteWait("G49")
             GcodeExecuteWait(string.format("G43 H%d", requested))
-            SetBootState()
+            if requested < 90 then
+                SetAutoState()
+            end
         end
         -- Restore FRO and RRO to saved values
         mc.mcCntlSetFRO(inst, savedFRO)
@@ -1354,7 +1375,21 @@ function ProbeScripts.M6_ToolChange(inst)
         mc.mcCntlSetPoundVar(inst, 499, 0)
         return 0
     end
-    
+
+    -- T1 (touch probe) cable disconnect dialog - must show BEFORE any movement
+    if current == 1 and requested ~= 1 then
+        local result = wx.wxMessageBox(
+            "Ensure the probe cable is DISCONNECTED and stowed before continuing.",
+            "Probe Cable Check",
+            wx.wxOK + wx.wxCANCEL + wx.wxICON_WARNING)
+        if result ~= wx.wxOK then
+            mc.mcCntlSetFRO(inst, savedFRO)
+            mc.mcCntlSetRRO(inst, savedRRO)
+            mc.mcCntlSetPoundVar(inst, 499, 0)
+            error("Tool change cancelled - probe cable not disconnected")
+        end
+    end
+
     -- Helper function to drop current physical tool
     -- targetTool: the tool we're picking up next (for group-based retract height)
     local function dropTool(targetTool)
@@ -1396,24 +1431,15 @@ function ProbeScripts.M6_ToolChange(inst)
         end
         wx.wxMilliSleep(100)
 
-        -- Retract height depends on whether target is in same group
-        -- Group 1: tools 1-9, Group 2: tools 10-89
-        local sameGroup = (current <= 9 and targetTool <= 9) or (current >= 10 and targetTool >= 10)
-
-        if sameGroup and targetTool > 0 and targetTool < 90 then
-            -- Same group: retract to target tool Z + clearance
-            local targetZ = mc.mcToolGetDataExDbl(inst, targetTool, "ZToolChange")
-            GcodeExecuteWait(string.format("G90 G53 G0 Z%.4f", targetZ + Z_CLEARANCE))
-        else
-            -- Different group or going to virtual/T0: retract to Z0
-            GcodeExecuteWait("G90 G53 G0 Z0")
-        end
+        -- Always retract to Z0 after dropping (required for air nozzle sequence)
+        GcodeExecuteWait("G90 G53 G0 Z0")
     end
     
     -- Helper function to retract virtual tool
+    -- Note: T90 (air nozzle) doesn't need retract - it auto-retracts after each use
     local function retractVirtual()
         if current == 90 then
-            -- Retract probe
+            -- T90 is air nozzle - ensure it's off (safety)
             local hOutput7 = mc.mcSignalGetHandle(inst, mc.OSIG_OUTPUT7)
             mc.mcSignalSetState(hOutput7, 0)
         elseif current == 91 then
@@ -1458,11 +1484,14 @@ function ProbeScripts.M6_ToolChange(inst)
         GcodeExecuteWait(string.format("G43 H%d", requested))
         mc.mcCntlSetPoundVar(inst, 550, requested)
 
+        -- Restore FRO and RRO to saved values
+        mc.mcCntlSetFRO(inst, savedFRO)
+        mc.mcCntlSetRRO(inst, savedRRO)
         -- Clear M6 in-progress flag
         mc.mcCntlSetPoundVar(inst, 499, 0)
         return 0
     end
-    
+
     -- ===== T0 = Clear Tool =====
     if requested == 0 then
         -- Retract virtual tool
@@ -1506,14 +1535,50 @@ function ProbeScripts.M6_ToolChange(inst)
         local hOutput2 = mc.mcSignalGetHandle(inst, mc.OSIG_OUTPUT2)
         mc.mcSignalSetState(hOutput2, 1)
     end
-    
+
     -- Get tool pocket position
     local pocketX = mc.mcToolGetDataExDbl(inst, requested, "XToolChange")
     local pocketY = mc.mcToolGetDataExDbl(inst, requested, "YToolChange")
     local pocketZ = mc.mcToolGetDataExDbl(inst, requested, "ZToolChange")
-    
-    -- Move to pocket position
-    GcodeExecuteWait(string.format("G90 G53 G0 X%.4f Y%.4f", pocketX, pocketY))
+
+    -- ===== Air Nozzle Blow-off Routine (T1-T89) =====
+    -- Blow compressed air on tool holder taper before pickup to remove dust
+    -- Nozzle sprays during descent from Z0 to spray height, then retracts
+    if requested > 0 and requested < 90 then
+        local AIR_NOZZLE_CLEARANCE = mc.mcCntlGetPoundVar(inst, 534)
+        if AIR_NOZZLE_CLEARANCE == 0 then AIR_NOZZLE_CLEARANCE = 4.0 end  -- Safety default
+        local nozzleXOffset = mc.mcToolGetData(inst, mc.MTOOL_MILL_X, 90) or 0
+        local nozzleYOffset = mc.mcToolGetData(inst, mc.MTOOL_MILL_Y, 90) or 0
+        local nozzleHeightOffset = mc.mcToolGetData(inst, mc.MTOOL_MILL_HEIGHT, 90) or 0
+
+        local nozzleX = pocketX + nozzleXOffset
+        local nozzleY = pocketY + nozzleYOffset
+        local nozzleZ = pocketZ + AIR_NOZZLE_CLEARANCE + nozzleHeightOffset
+
+        -- Move XY to nozzle position (already at Z0 from drop/retract)
+        GcodeExecuteWait(string.format("G90 G53 G0 X%.4f Y%.4f", nozzleX, nozzleY))
+
+        -- Deploy air nozzle while at Z0, then descend to spray height
+        local hOutput7 = mc.mcSignalGetHandle(inst, mc.OSIG_OUTPUT7)
+        mc.mcSignalSetState(hOutput7, 1)
+        GcodeExecuteWait(string.format("G90 G53 G0 Z%.4f", nozzleZ))
+
+        -- Extra dwell for T10-T25 (shorter plunge distance = less spray time during descent)
+        if requested >= 10 and requested <= 25 then
+            wx.wxMilliSleep(1000)
+        end
+
+        -- Retract nozzle
+        mc.mcSignalSetState(hOutput7, 0)
+
+        -- Move XY directly to pickup position (no Z0 retract - nozzle is below spindle)
+        GcodeExecuteWait(string.format("G90 G53 G0 X%.4f Y%.4f", pocketX, pocketY))
+    else
+        -- Virtual tool or T0 - just move to pocket position
+        GcodeExecuteWait(string.format("G90 G53 G0 X%.4f Y%.4f", pocketX, pocketY))
+    end
+
+    -- Move to pocket position (Z approach)
     GcodeExecuteWait(string.format("G90 G53 G1 Z%.4f F%.1f", pocketZ, APPROACH_FEED))
     
     -- Lock clamp
@@ -1553,10 +1618,31 @@ function ProbeScripts.M6_ToolChange(inst)
     -- Retract to Z0
     GcodeExecuteWait("G90 G53 G0 Z0")
     
-    -- Set current tool
+    -- Set current tool (update both Mach state and local variable for dropTool)
     mc.mcToolSetCurrent(inst, requested)
     mc.mcCntlSetPoundVar(inst, 550, requested)
-    
+    current = requested  -- Update local variable so dropTool works correctly if user cancels
+
+    -- T1 (touch probe) cable connect dialog - show AFTER pickup, BEFORE height measurement
+    if requested == 1 then
+        local result = wx.wxMessageBox(
+            "Ensure the probe cable is CONNECTED before continuing.",
+            "Probe Cable Check",
+            wx.wxOK + wx.wxCANCEL + wx.wxICON_WARNING)
+        if result ~= wx.wxOK then
+            -- Drop the tool back and abort
+            dropTool(0)
+            mc.mcToolSetCurrent(inst, 0)
+            mc.mcCntlSetPoundVar(inst, 550, 0)
+            GcodeExecuteWait("G49")
+            GcodeExecuteWait("G90 G53 G0 Z0")
+            mc.mcCntlSetFRO(inst, savedFRO)
+            mc.mcCntlSetRRO(inst, savedRRO)
+            mc.mcCntlSetPoundVar(inst, 499, 0)
+            error("Tool change cancelled - probe cable not connected")
+        end
+    end
+
     -- ===== Height Measurement =====
     local autoProbe = mc.mcToolGetDataExInt(inst, requested, "AutoProbe")
     
@@ -1571,7 +1657,7 @@ function ProbeScripts.M6_ToolChange(inst)
         mc.mcCntlSetLastError(inst, string.format("T%d: Applied H = %.4f", requested, existingHeight))
     end
     
-    SetBootState()
+    SetAutoState()
 
     -- Restore FRO and RRO to saved values
     mc.mcCntlSetFRO(inst, savedFRO)
@@ -2622,13 +2708,13 @@ function ProbeScripts.ProbeToolPosition(inst)
     local probeYMachine = mc.mcAxisGetMachinePos(inst, mc.Y_AXIS)
 
     -- Calculate spindle position when probe is at center
-    local probeXOffset = mc.mcToolGetData(inst, mc.MTOOL_MILL_X, 90)
-    local probeYOffset = mc.mcToolGetData(inst, mc.MTOOL_MILL_Y, 90)
+    local probeXOffset = mc.mcToolGetData(inst, mc.MTOOL_MILL_X, 1)
+    local probeYOffset = mc.mcToolGetData(inst, mc.MTOOL_MILL_Y, 1)
     local centerXMachine = probeXMachine - probeXOffset
     local centerYMachine = probeYMachine - probeYOffset
 
     -- Calculate Z pickup height
-    local probeHeight = mc.mcToolGetData(inst, mc.MTOOL_MILL_HEIGHT, 90)
+    local probeHeight = mc.mcToolGetData(inst, mc.MTOOL_MILL_HEIGHT, 1)
     local zPickupHeight = surfaceZMachine - probeHeight - holderTaperHeight
 
     -- Save tool position to tool table
@@ -2652,35 +2738,35 @@ function ProbeScripts.CalibrateProbeOffset(inst)
     
     -- Build dialog with a checkbox to ensure proper dialog behavior
     local fields = {
-        {type = "instructions", text = "Spindle must be manually centered over bore with work 0,0 set.\nPosition probe inside bore before starting.\nThis will calibrate T90 XY offsets in tool table."},
+        {type = "instructions", text = "Spindle must be manually centered over bore with work 0,0 set.\nPosition probe inside bore before starting.\nThis will calibrate T1 XY offsets in tool table."},
         {type = "separator"},
         {type = "checkbox", key = "confirm", label = "Ready to calibrate", default = 0}
     }
-    
+
     -- Show dialog and get user input
     local params = ProbeScripts.ShowDialog(inst, "Calibrate Probe Offset", fields, "ProbeOffsetCalibration")
     if not params or not params.confirm then return end
-    
+
     -- Check and handle G68 rotation
     if not ProbeScripts.CheckG68Rotation(inst) then return end
 
-    -- Store old T90 offsets before zeroing
-    local oldProbeOffsetX = mc.mcToolGetData(inst, mc.MTOOL_MILL_X, 90)
-    local oldProbeOffsetY = mc.mcToolGetData(inst, mc.MTOOL_MILL_Y, 90)
+    -- Store old T1 offsets before zeroing
+    local oldProbeOffsetX = mc.mcToolGetData(inst, mc.MTOOL_MILL_X, 1)
+    local oldProbeOffsetY = mc.mcToolGetData(inst, mc.MTOOL_MILL_Y, 1)
 
     -- Helper function to restore original values on failure
     local function restoreOriginalOffsets()
-        mc.mcToolSetData(inst, mc.MTOOL_MILL_X, 90, oldProbeOffsetX)
-        mc.mcToolSetData(inst, mc.MTOOL_MILL_Y, 90, oldProbeOffsetY)
-        mc.mcCntlGcodeExecuteWait(inst, "G49 G43 H90")
+        mc.mcToolSetData(inst, mc.MTOOL_MILL_X, 1, oldProbeOffsetX)
+        mc.mcToolSetData(inst, mc.MTOOL_MILL_Y, 1, oldProbeOffsetY)
+        mc.mcCntlGcodeExecuteWait(inst, "G49 G43 H1")
     end
 
-    -- Zero the T90 tool table XY offsets
-    mc.mcToolSetData(inst, mc.MTOOL_MILL_X, 90, 0)
-    mc.mcToolSetData(inst, mc.MTOOL_MILL_Y, 90, 0)
+    -- Zero the T1 tool table XY offsets
+    mc.mcToolSetData(inst, mc.MTOOL_MILL_X, 1, 0)
+    mc.mcToolSetData(inst, mc.MTOOL_MILL_Y, 1, 0)
 
     -- Reload tool to apply zero offsets
-    mc.mcCntlGcodeExecuteWait(inst, "G49 G43 H90")
+    mc.mcCntlGcodeExecuteWait(inst, "G49 G43 H1")
 
     -- First X probe sequence
     local xEdge1Work, success = ProbeScripts.Probe(inst, 1, false, true, nil, nil, false, nil)
@@ -2748,20 +2834,20 @@ function ProbeScripts.CalibrateProbeOffset(inst)
     local probeOffsetX = mc.mcAxisGetPos(inst, mc.X_AXIS)
     local probeOffsetY = mc.mcAxisGetPos(inst, mc.Y_AXIS)
     
-    -- Apply offsets to T90 tool table as-is
-    mc.mcToolSetData(inst, mc.MTOOL_MILL_X, 90, probeOffsetX)
-    mc.mcToolSetData(inst, mc.MTOOL_MILL_Y, 90, probeOffsetY)
-    
+    -- Apply offsets to T1 tool table as-is
+    mc.mcToolSetData(inst, mc.MTOOL_MILL_X, 1, probeOffsetX)
+    mc.mcToolSetData(inst, mc.MTOOL_MILL_Y, 1, probeOffsetY)
+
     -- Save tool table and reload offsets
     mc.mcToolSaveFile(inst)
-    mc.mcCntlGcodeExecuteWait(inst, "G49 G43 H90")
-    
+    mc.mcCntlGcodeExecuteWait(inst, "G49 G43 H1")
+
     -- Display results
     local message = string.format(
-        "T90 Offsets Calibrated:\nX: %.4f\" (was %.4f\")\nY: %.4f\" (was %.4f\")\n\nBore Width:\nX: %.4f\"\nY: %.4f\"",
+        "T1 Offsets Calibrated:\nX: %.4f\" (was %.4f\")\nY: %.4f\" (was %.4f\")\n\nBore Width:\nX: %.4f\"\nY: %.4f\"",
         probeOffsetX, oldProbeOffsetX, probeOffsetY, oldProbeOffsetY, xWidthFinal, yWidth)
 
-    mc.mcCntlSetLastError(inst, string.format("T90 offsets set: X%.4f (was %.4f) Y%.4f (was %.4f)", probeOffsetX, oldProbeOffsetX, probeOffsetY, oldProbeOffsetY))
+    mc.mcCntlSetLastError(inst, string.format("T1 offsets set: X%.4f (was %.4f) Y%.4f (was %.4f)", probeOffsetX, oldProbeOffsetX, probeOffsetY, oldProbeOffsetY))
 
     return probeOffsetX, probeOffsetY
 end
@@ -3190,9 +3276,9 @@ function ProbeScripts.ProbeKeys(inst)
         return false
     end
 
-    -- Get T90 tool table offsets
-    local toolXOffset = mc.mcToolGetData(inst, mc.MTOOL_MILL_X, 90) or 0
-    local toolYOffset = mc.mcToolGetData(inst, mc.MTOOL_MILL_Y, 90) or 0
+    -- Get T1 tool table offsets
+    local toolXOffset = mc.mcToolGetData(inst, mc.MTOOL_MILL_X, 1) or 0
+    local toolYOffset = mc.mcToolGetData(inst, mc.MTOOL_MILL_Y, 1) or 0
 
     -- Calculate spindle position to put probe tip at bore center
     local spindleTargetX = boreMachineX + toolXOffset
@@ -3730,9 +3816,9 @@ function ProbeScripts.InitialKeytopTrim(inst)
         return false
     end
 
-    -- Get T90 tool table offsets
-    local toolXOffset = mc.mcToolGetData(inst, mc.MTOOL_MILL_X, 90) or 0
-    local toolYOffset = mc.mcToolGetData(inst, mc.MTOOL_MILL_Y, 90) or 0
+    -- Get T1 tool table offsets
+    local toolXOffset = mc.mcToolGetData(inst, mc.MTOOL_MILL_X, 1) or 0
+    local toolYOffset = mc.mcToolGetData(inst, mc.MTOOL_MILL_Y, 1) or 0
 
     -- Calculate spindle position needed to put probe tip at bore center
     local spindleTargetX = boreMachineX + toolXOffset
@@ -4123,9 +4209,9 @@ function ProbeScripts.FinalKeytopShaping(inst)
         return false
     end
 
-    -- Get T90 tool table offsets
-    local toolXOffset = mc.mcToolGetData(inst, mc.MTOOL_MILL_X, 90) or 0
-    local toolYOffset = mc.mcToolGetData(inst, mc.MTOOL_MILL_Y, 90) or 0
+    -- Get T1 tool table offsets
+    local toolXOffset = mc.mcToolGetData(inst, mc.MTOOL_MILL_X, 1) or 0
+    local toolYOffset = mc.mcToolGetData(inst, mc.MTOOL_MILL_Y, 1) or 0
 
     -- Calculate spindle position needed to put probe tip at bore center
     local spindleTargetX = boreMachineX + toolXOffset
@@ -4690,7 +4776,7 @@ end
 
 
 -- UI dialog for surface grid probing
--- Requires T90 (probe) to be active
+-- Requires T1 (probe) to be active
 function ProbeScripts.ProbeSurfaceGridDialog(inst)
     if not RequestMaintenance() then return end
     -- Check probe deployment first (same as other probe scripts)
@@ -4746,9 +4832,9 @@ function ProbeScripts.ProbeSurfaceGridDialog(inst)
     local origWorkY = mc.mcAxisGetPos(inst, mc.Y_AXIS)
     local origMachZ = mc.mcAxisGetMachinePos(inst, mc.Z_AXIS)
 
-    -- Get probe XY offset from tool 90 (needed for spindle-center grid boundaries)
-    local probeXOffset = mc.mcToolGetData(inst, mc.MTOOL_MILL_X, 90)
-    local probeYOffset = mc.mcToolGetData(inst, mc.MTOOL_MILL_Y, 90)
+    -- Get probe XY offset from tool 1 (needed for spindle-center grid boundaries)
+    local probeXOffset = mc.mcToolGetData(inst, mc.MTOOL_MILL_X, 1)
+    local probeYOffset = mc.mcToolGetData(inst, mc.MTOOL_MILL_Y, 1)
 
     -- Generate grid points in serpentine pattern
     local points = {}
