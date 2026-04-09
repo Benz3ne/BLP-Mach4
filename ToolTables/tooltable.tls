@@ -53,15 +53,15 @@ UsrField5=ProbeXOffset
 UsrFieldType5=Float(-1, 4)
 UsrFieldDesc5=Probe X Shift
 [Tool1]
-Length=5.47035
+Length=4.84104
 LengthWear=0
 Diameter=0
 DiameterWear=0
-Desc=Manual Touch Probe
+Desc=WP-500 Touch Probe
 Pocket=0.1234
-XOffset=0
+XOffset=0.0007
 XOffsetWear=0
-YOffset=0
+YOffset=-0.0003
 YOffsetWear=0
 XToolChange=4.78954
 YToolChange=4.07934
@@ -76,7 +76,7 @@ Material=Carbide
 LastMeasured=2025-01-15 14:30:00
 AutoProbe=0
 [Tool2]
-Length=2.81244
+Length=5.50124
 LengthWear=0
 Diameter=0
 DiameterWear=0
@@ -91,7 +91,7 @@ YToolChange=4.10441
 ZToolChange=-9.89641
 AutoProbe=1
 [Tool3]
-Length=2.47386
+Length=4.20301
 LengthWear=0
 Diameter=0
 DiameterWear=0
@@ -228,7 +228,7 @@ ZToolChange=-5.41456
 AutoProbe=1
 Desc=1/2" Left Hand Two flute
 [Tool12]
-Length=3.44657
+Length=3.52155
 LengthWear=0
 Diameter=0
 DiameterWear=0
@@ -258,7 +258,7 @@ XToolChange=12.4895
 YToolChange=107.393
 ZToolChange=-5.51315
 [Tool14]
-Length=2.74039
+Length=2.8188
 LengthWear=0
 Diameter=0
 DiameterWear=0
@@ -1151,7 +1151,7 @@ YOffset=0
 YOffsetWear=0
 AutoProbe=0
 [Tool90]
-Length=2.71096
+Length=1
 LengthWear=0
 Diameter=0
 DiameterWear=0
