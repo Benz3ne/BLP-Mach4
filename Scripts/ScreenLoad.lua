@@ -305,7 +305,7 @@ function _G.MaintenanceItems()
         if #dueItems == 0 then return end
 
         -- Build the dialog
-        local dialog = wx.wxDialog(wx.NULL, wx.wxID_ANY, "Maintenance Due",
+        local dialog = wx.wxDialog(wx.wxGetApp():GetTopWindow(), wx.wxID_ANY, "Maintenance Due",
                                    wx.wxDefaultPosition, wx.wxSize(400, 300),
                                    wx.wxDEFAULT_DIALOG_STYLE)
         local panel = wx.wxPanel(dialog, wx.wxID_ANY)
