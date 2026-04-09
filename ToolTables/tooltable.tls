@@ -213,7 +213,7 @@ YToolChange=107.468
 ZToolChange=-5.40141
 ProbeXOffset=-0.8000
 [Tool11]
-Length=3.47559
+Length=3.60143
 LengthWear=0
 Diameter=0
 DiameterWear=0
@@ -228,7 +228,7 @@ ZToolChange=-5.41456
 AutoProbe=1
 Desc=1/2" Left Hand Two flute
 [Tool12]
-Length=3.52155
+Length=3.52143
 LengthWear=0
 Diameter=0
 DiameterWear=0
