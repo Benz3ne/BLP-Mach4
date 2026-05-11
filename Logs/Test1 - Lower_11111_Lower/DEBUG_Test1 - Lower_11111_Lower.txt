@@ -1,0 +1,41 @@
+11:49:48 - === STARTING PROCESSING: Test1 - Lower_11111_Lower ===
+11:49:48 - [PROGRESS] Starting - Received trigger for Test1 - Lower_11111_Lower
+11:49:48 - [PROGRESS] Parsing CSV - \\BLPCNC\Mach4Hobby\Profiles\BLP\Logs\Test1 - Lower_11111_Lower\Test1 - Lower_11111_Lower.csv
+11:49:48 - Parsing CSV: \\BLPCNC\Mach4Hobby\Profiles\BLP\Logs\Test1 - Lower_11111_Lower\Test1 - Lower_11111_Lower.csv
+11:49:48 - Found data for 26 keys
+11:49:48 - Calculated Lower section params: ShoulderLength=1.8343, KeyHeight=0.2761
+11:49:48 - Processing 26 white keys in Lower section
+11:49:49 - Calculated parameters for 26 keys
+11:49:49 - [PROGRESS] Switching to Design workspace
+11:49:49 - Switching to Design workspace...
+11:49:50 - Switched to Design workspace
+11:49:50 - [PROGRESS] Updating parameters - Building batch update for 26 keys
+11:49:50 - Using batch modifyParameters API for efficient updates
+11:49:51 - Built batch update with 115 parameters
+11:49:51 - [PROGRESS] Updating parameters - Applying 115 params + geometry rebuild
+11:50:04 - Batch modifyParameters result: True
+11:50:05 - [PROGRESS] Switching to Manufacturing workspace
+11:50:05 - Switching to Manufacturing workspace...
+11:50:28 - Switched to Manufacturing workspace
+11:50:28 - [PROGRESS] Generating toolpaths - 1 setups for Lower
+11:50:28 - Starting toolpath generation for 1 setups: ['Lower Shaping']
+11:50:42 - [PROGRESS] Generating toolpaths - 10s elapsed
+11:50:52 - [PROGRESS] Generating toolpaths - 21s elapsed
+11:51:03 - [PROGRESS] Generating toolpaths - 31s elapsed
+11:51:13 - [PROGRESS] Generating toolpaths - 41s elapsed
+11:51:24 - [PROGRESS] Generating toolpaths - 52s elapsed
+11:51:32 - Still generating toolpaths... 60 seconds elapsed
+11:51:35 - [PROGRESS] Generating toolpaths - 63s elapsed
+11:51:45 - [PROGRESS] Generating toolpaths - 73s elapsed
+11:51:56 - [PROGRESS] Generating toolpaths - 84s elapsed
+11:51:56 - Toolpath generation complete
+11:51:56 - [PROGRESS] Exporting G-code
+11:51:56 - Starting G-code export...
+11:51:56 - Found 2 NC programs
+11:51:56 - Exporting NC program: 'Lower Shaping'
+11:51:57 -   Post process completed
+11:51:57 - Looking for exported file: C:\Users\BLP CNC\Downloads\Lower Shaping.tap
+11:51:57 - Moving to \\BLPCNC\Mach4Hobby\Profiles\BLP\Logs\Test1 - Lower_11111_Lower\Test1 - Lower_11111_Lower.tap
+11:51:58 - File moved successfully
+11:51:58 - === PROCESSING COMPLETE: SUCCESS ===
+11:51:58 - Output file: \\BLPCNC\Mach4Hobby\Profiles\BLP\Logs\Test1 - Lower_11111_Lower\Test1 - Lower_11111_Lower.tap

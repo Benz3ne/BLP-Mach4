@@ -1,0 +1,50 @@
+12:57:11 - === STARTING PROCESSING: HalletDavisReal_39365_Upper ===
+12:57:11 - [PROGRESS] Starting - Received trigger for HalletDavisReal_39365_Upper
+12:57:11 - [PROGRESS] Parsing CSV - \\BLPCNC\Mach4Hobby\Profiles\BLP\Logs\HalletDavisReal_39365_Upper\HalletDavisReal_39365_Upper.csv
+12:57:11 - Parsing CSV: \\BLPCNC\Mach4Hobby\Profiles\BLP\Logs\HalletDavisReal_39365_Upper\HalletDavisReal_39365_Upper.csv
+12:57:11 - Found data for 26 keys
+12:57:11 - Calculated Upper section params: ShoulderLength=1.8310, KeyHeight=0.2109
+12:57:11 - Processing 26 white keys in Upper section
+12:57:11 - Calculated parameters for 26 keys
+12:57:11 - [PROGRESS] Switching to Design workspace
+12:57:12 - Switching to Design workspace...
+12:57:14 - Switched to Design workspace
+12:57:14 - [PROGRESS] Updating parameters - Building batch update for 26 keys
+12:57:14 - Using batch modifyParameters API for efficient updates
+12:57:14 - Built batch update with 116 parameters
+12:57:15 - [PROGRESS] Updating parameters - Applying 116 params + geometry rebuild
+12:57:31 - Batch modifyParameters result: True
+12:57:31 - [PROGRESS] Switching to Manufacturing workspace
+12:57:32 - Switching to Manufacturing workspace...
+12:57:51 - Switched to Manufacturing workspace
+12:57:51 - [PROGRESS] Generating toolpaths - 1 setups for Upper
+12:57:51 - Starting toolpath generation for 1 setups: ['Upper Shaping']
+12:58:05 - [PROGRESS] Generating toolpaths - 10s elapsed
+12:58:16 - [PROGRESS] Generating toolpaths - 21s elapsed
+12:58:26 - [PROGRESS] Generating toolpaths - 31s elapsed
+12:58:36 - [PROGRESS] Generating toolpaths - 41s elapsed
+12:58:46 - [PROGRESS] Generating toolpaths - 51s elapsed
+12:58:57 - [PROGRESS] Generating toolpaths - 62s elapsed
+12:59:07 - [PROGRESS] Generating toolpaths - 72s elapsed
+12:59:17 - [PROGRESS] Generating toolpaths - 82s elapsed
+12:59:25 - Still generating toolpaths... 90 seconds elapsed
+12:59:27 - [PROGRESS] Generating toolpaths - 92s elapsed
+12:59:37 - [PROGRESS] Generating toolpaths - 102s elapsed
+12:59:47 - [PROGRESS] Generating toolpaths - 113s elapsed
+12:59:56 - Still generating toolpaths... 121 seconds elapsed
+12:59:58 - [PROGRESS] Generating toolpaths - 123s elapsed
+13:00:08 - [PROGRESS] Generating toolpaths - 133s elapsed
+13:00:18 - [PROGRESS] Generating toolpaths - 143s elapsed
+13:00:28 - [PROGRESS] Generating toolpaths - 153s elapsed
+13:00:38 - [PROGRESS] Generating toolpaths - 163s elapsed
+13:00:47 - Toolpath generation complete
+13:00:47 - [PROGRESS] Exporting G-code
+13:00:47 - Starting G-code export...
+13:00:47 - Found 2 NC programs
+13:00:47 - Exporting NC program: 'Upper Shaping'
+13:00:48 -   Post process completed
+13:00:48 - Looking for exported file: C:\Users\BLP CNC\Downloads\Upper Shaping.tap
+13:00:48 - Moving to \\BLPCNC\Mach4Hobby\Profiles\BLP\Logs\HalletDavisReal_39365_Upper\HalletDavisReal_39365_Upper.tap
+13:00:49 - File moved successfully
+13:00:49 - === PROCESSING COMPLETE: SUCCESS ===
+13:00:49 - Output file: \\BLPCNC\Mach4Hobby\Profiles\BLP\Logs\HalletDavisReal_39365_Upper\HalletDavisReal_39365_Upper.tap

@@ -1,0 +1,94 @@
+[2025-12-27 18:04:44] ===== ProbeKeys Lower - HalletDavis S/N 39365 =====
+[2025-12-27 18:04:44] Fixture ID: 43
+[2025-12-27 18:04:44] Bore alignment angle: -0.0067 degrees
+[2025-12-27 18:04:44] Probe Drop Depth: 0.1500
+[2025-12-27 18:04:44] Linearity Threshold: 0.0100
+[2025-12-27 18:04:44] Single Tap Feedrate: 40.0 IPM
+[2025-12-27 18:04:44] CSV output file: C:\Mach4Hobby\Profiles\BLP\Logs\HalletDavis_39365_Lower\HalletDavis_39365_Lower.csv
+[2025-12-27 18:04:44] Single-tap calibration offsets:
+[2025-12-27 18:04:44]   -X: -0.031619
+[2025-12-27 18:04:44]   +X: 0.034031
+[2025-12-27 18:04:44]   -Z: -0.027940
+[2025-12-27 18:04:44]   -Y: -0.033686
+[2025-12-27 18:04:44]   +Y: 0.031939
+[2025-12-27 18:04:57] Sample key 1 (piano key 1): Z=0.2862
+[2025-12-27 18:05:02] Sample key 7 (piano key 11): Z=0.2870
+[2025-12-27 18:05:06] Sample key 13 (piano key 21): Z=0.2871
+[2025-12-27 18:05:10] Sample key 19 (piano key 32): Z=0.2861
+[2025-12-27 18:05:15] Sample key 25 (piano key 42): Z=0.2832
+[2025-12-27 18:05:15] Average Z height: 0.2859
+[2025-12-27 18:05:15] Traverse height: 0.7859
+[2025-12-27 18:05:15] Probe Z depth: 0.1359
+[2025-12-27 18:05:27] Sample key 1 Y front: -1.1787
+[2025-12-27 18:05:31] Sample key 7 Y front: -1.1822
+[2025-12-27 18:05:36] Sample key 13 Y front: -1.1838
+[2025-12-27 18:05:41] Sample key 19 Y front: -1.1840
+[2025-12-27 18:05:45] Sample key 25 Y front: -1.1844
+[2025-12-27 18:05:46] Probed 5 Y front edges
+[2025-12-27 18:06:47] Key 1: right side shoulder accessible (clearance: 0.1053)
+[2025-12-27 18:07:07] Key 3: left side shoulder accessible (clearance: 0.3629)
+[2025-12-27 18:08:19] Key 4: right side shoulder accessible (clearance: 0.3371)
+[2025-12-27 18:08:39] Key 6: left side shoulder accessible (clearance: 0.1541)
+[2025-12-27 18:09:12] Key 6: right side shoulder accessible (clearance: 0.1390)
+[2025-12-27 18:09:31] Key 8: left side shoulder accessible (clearance: 0.3534)
+[2025-12-27 18:10:31] Key 9: right side shoulder accessible (clearance: 0.3574)
+[2025-12-27 18:11:04] Key 11: left side shoulder accessible (clearance: 0.0959)
+[2025-12-27 18:11:24] Key 11: right side shoulder accessible (clearance: 0.2280)
+[2025-12-27 18:11:44] Key 13: left side shoulder accessible (clearance: 0.2208)
+[2025-12-27 18:12:18] Key 13: right side shoulder accessible (clearance: 0.1329)
+[2025-12-27 18:12:39] Key 15: left side shoulder accessible (clearance: 0.3396)
+[2025-12-27 18:13:38] Key 16: right side shoulder accessible (clearance: 0.3445)
+[2025-12-27 18:13:57] Key 18: left side shoulder accessible (clearance: 0.1758)
+[2025-12-27 18:14:32] Key 18: right side shoulder accessible (clearance: 0.1415)
+[2025-12-27 18:14:52] Key 20: left side shoulder accessible (clearance: 0.3168)
+[2025-12-27 18:15:51] Key 21: right side shoulder accessible (clearance: 0.3546)
+[2025-12-27 18:16:10] Key 23: left side shoulder accessible (clearance: 0.1027)
+[2025-12-27 18:16:31] Key 23: right side shoulder accessible (clearance: 0.2340)
+[2025-12-27 18:16:51] Key 25: left side shoulder accessible (clearance: 0.2322)
+[2025-12-27 18:17:11] Key 25: right side shoulder accessible (clearance: 0.1035)
+[2025-12-27 18:17:31] Key 27: left side shoulder accessible (clearance: 0.3478)
+[2025-12-27 18:18:45] Key 28: right side shoulder accessible (clearance: 0.3236)
+[2025-12-27 18:19:05] Key 30: left side shoulder accessible (clearance: 0.1663)
+[2025-12-27 18:19:25] Key 30: right side shoulder accessible (clearance: 0.1324)
+[2025-12-27 18:19:45] Key 32: left side shoulder accessible (clearance: 0.3474)
+[2025-12-27 18:20:45] Key 33: right side shoulder accessible (clearance: 0.3472)
+[2025-12-27 18:21:18] Key 35: left side shoulder accessible (clearance: 0.1501)
+[2025-12-27 18:21:40] Key 35: right side shoulder accessible (clearance: 0.2182)
+[2025-12-27 18:21:59] Key 37: left side shoulder accessible (clearance: 0.2593)
+[2025-12-27 18:22:19] Key 37: right side shoulder accessible (clearance: 0.0731)
+[2025-12-27 18:22:40] Key 39: left side shoulder accessible (clearance: 0.3545)
+[2025-12-27 18:23:39] Key 40: right side shoulder accessible (clearance: 0.3430)
+[2025-12-27 18:23:58] Key 42: left side shoulder accessible (clearance: 0.1687)
+[2025-12-27 18:24:18] Key 42: right side shoulder accessible (clearance: 0.1087)
+[2025-12-27 18:24:39] Key 44: left side shoulder accessible (clearance: 0.3279)
+[2025-12-27 18:27:44] Probed 36 accessible shoulders
+[2025-12-27 18:27:50] G68 rotation cleared
+[2025-12-27 18:27:50] ===== ProbeKeys Lower Half Completed Successfully =====
+[2026-01-08 11:48:32] ===== Final Keytop Shaping Started =====
+[2026-01-08 11:49:07] Single-tap calibration offset:
+[2026-01-08 11:49:07]   -Z: -0.028937
+[2026-01-08 11:49:07] Left bore center: X2.4458 Y-4.2691
+[2026-01-08 11:49:13] Surface Z datum set at: 0.0000
+[2026-01-08 11:49:16] ID hole 1: Z=-0.0991 (calibrated), bit=1
+[2026-01-08 11:49:19] ID hole 2: Z=-0.0987 (calibrated), bit=1
+[2026-01-08 11:49:22] ID hole 3: Z=0.0030 (calibrated), bit=0
+[2026-01-08 11:49:25] ID hole 4: Z=-0.0982 (calibrated), bit=1
+[2026-01-08 11:49:27] ID hole 5: Z=0.0063 (calibrated), bit=0
+[2026-01-08 11:49:30] ID hole 6: Z=-0.0971 (calibrated), bit=1
+[2026-01-08 11:49:33] ID hole 7: Z=0.0123 (calibrated), bit=0
+[2026-01-08 11:49:35] ID hole 8: Z=0.0165 (calibrated), bit=0
+[2026-01-08 11:49:38] ID hole 9: Z=0.0198 (calibrated), bit=0
+[2026-01-08 11:49:41] ID hole 10: Z=-0.0955 (calibrated), bit=1
+[2026-01-08 11:49:41] Fixture ID detected: 43 (binary: 00101011)
+[2026-01-08 11:50:09] Right bore center (in datum coords): X46.0025 Y0.0103
+[2026-01-08 11:50:09] Right bore position relative to left: X46.0025 Y0.0103
+[2026-01-08 11:50:09] Bore alignment angle: 0.0128 degrees
+[2026-01-08 11:50:09] G68 rotation applied: 0.0128 degrees centered at 0,0
+[2026-01-08 11:50:09] Found matching fixture ID 43 in folder: HalletDavis_39365_Lower
+[2026-01-08 11:50:09] Piano: HalletDavis S/N 39365, Section: Lower
+[2026-01-08 11:50:09] Found shaping file: C:\Mach4Hobby\Profiles\BLP\Logs\HalletDavis_39365_Lower\HalletDavis_39365_Lower.tap
+[2026-01-08 11:50:12] ===== Final Shaping Started =====
+[2026-01-08 11:50:12] Fixture ID: 43
+[2026-01-08 11:50:12] Section: Lower
+[2026-01-08 11:50:12] G-code file: C:\Mach4Hobby\Profiles\BLP\Logs\HalletDavis_39365_Lower\HalletDavis_39365_Lower.tap
+[2026-01-08 11:50:12] Deferred load marker created: C:\Mach4Hobby\Profiles\BLP\Temp\DeferredGCode.txt

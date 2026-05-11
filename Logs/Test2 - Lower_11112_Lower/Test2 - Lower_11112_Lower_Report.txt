@@ -1,0 +1,83 @@
+[2026-04-26 12:47:45] ===== ProbeKeys Lower - Test2 - Lower S/N 11112 =====
+[2026-04-26 12:47:45] Fixture ID: 43
+[2026-04-26 12:47:45] Bore alignment angle: 0.0034 degrees
+[2026-04-26 12:47:45] Probe Drop Depth: 0.1500
+[2026-04-26 12:47:45] Linearity Threshold: 0.0100
+[2026-04-26 12:47:45] Single Tap Feedrate: 40.0 IPM
+[2026-04-26 12:47:45] CSV output file: C:\Mach4Hobby\Profiles\BLP\Logs\Test2 - Lower_11112_Lower\Test2 - Lower_11112_Lower.csv
+[2026-04-26 12:47:45] Single-tap calibration offsets:
+[2026-04-26 12:47:45]   -Z: -0.025722
+[2026-04-26 12:47:45]   -Y: -0.027731
+[2026-04-26 12:47:45]   +X: 0.027190
+[2026-04-26 12:47:45]   +Y: 0.028223
+[2026-04-26 12:47:45]   -X: -0.027141
+[2026-04-26 12:47:59] Sample key 1 (piano key 1): Z=0.2475
+[2026-04-26 12:48:03] Sample key 7 (piano key 11): Z=0.2827
+[2026-04-26 12:48:08] Sample key 13 (piano key 21): Z=0.2840
+[2026-04-26 12:48:12] Sample key 19 (piano key 32): Z=0.2734
+[2026-04-26 12:48:17] Sample key 25 (piano key 42): Z=0.2597
+[2026-04-26 12:48:17] Average Z height: 0.2694
+[2026-04-26 12:48:17] Traverse height: 0.7694
+[2026-04-26 12:48:17] Probe Z depth: 0.1194
+[2026-04-26 12:48:29] Sample key 1 Y front: -1.1836
+[2026-04-26 12:48:33] Sample key 7 Y front: -1.1817
+[2026-04-26 12:48:38] Sample key 13 Y front: -1.1844
+[2026-04-26 12:48:43] Sample key 19 Y front: -1.1782
+[2026-04-26 12:48:47] Sample key 25 Y front: -1.1849
+[2026-04-26 12:48:48] Probed 5 Y front edges
+[2026-04-26 12:50:24] Key 3: left side shoulder accessible (clearance: 0.3175)
+[2026-04-26 12:51:48] Key 4: right side shoulder accessible (clearance: 0.3354)
+[2026-04-26 12:52:08] Key 6: left side shoulder accessible (clearance: 0.1476)
+[2026-04-26 12:52:41] Key 6: right side shoulder accessible (clearance: 0.1375)
+[2026-04-26 12:53:00] Key 8: left side shoulder accessible (clearance: 0.3460)
+[2026-04-26 12:54:12] Key 9: right side shoulder accessible (clearance: 0.3473)
+[2026-04-26 12:57:08] Key 15: left side shoulder accessible (clearance: 0.3627)
+[2026-04-26 12:58:21] Key 16: right side shoulder accessible (clearance: 0.3419)
+[2026-04-26 12:58:40] Key 18: left side shoulder accessible (clearance: 0.1860)
+[2026-04-26 12:59:15] Key 18: right side shoulder accessible (clearance: 0.1405)
+[2026-04-26 12:59:35] Key 20: left side shoulder accessible (clearance: 0.3200)
+[2026-04-26 13:00:47] Key 21: right side shoulder accessible (clearance: 0.3402)
+[2026-04-26 13:01:25] Key 23: right side shoulder accessible (clearance: 0.2424)
+[2026-04-26 13:01:45] Key 25: left side shoulder accessible (clearance: 0.2294)
+[2026-04-26 13:02:25] Key 27: left side shoulder accessible (clearance: 0.3407)
+[2026-04-26 13:03:40] Key 28: right side shoulder accessible (clearance: 0.3327)
+[2026-04-26 13:03:59] Key 30: left side shoulder accessible (clearance: 0.1640)
+[2026-04-26 13:04:34] Key 30: right side shoulder accessible (clearance: 0.1396)
+[2026-04-26 13:05:10] Key 32: left side shoulder accessible (clearance: 0.3459)
+[2026-04-26 13:06:09] Key 33: right side shoulder accessible (clearance: 0.3578)
+[2026-04-26 13:06:42] Key 35: left side shoulder accessible (clearance: 0.1518)
+[2026-04-26 13:07:03] Key 35: right side shoulder accessible (clearance: 0.2305)
+[2026-04-26 13:07:23] Key 37: left side shoulder accessible (clearance: 0.2605)
+[2026-04-26 13:08:03] Key 39: left side shoulder accessible (clearance: 0.3532)
+[2026-04-26 13:09:16] Key 40: right side shoulder accessible (clearance: 0.3459)
+[2026-04-26 13:09:48] Key 42: left side shoulder accessible (clearance: 0.1555)
+[2026-04-26 13:10:28] Key 44: left side shoulder accessible (clearance: 0.3326)
+[2026-04-26 13:12:58] Probed 27 accessible shoulders
+[2026-04-26 13:13:05] G68 rotation cleared
+[2026-04-26 13:13:05] ===== ProbeKeys Lower Half Completed Successfully =====
+[2026-04-26 16:08:54] ===== Final Keytop Shaping Started =====
+[2026-04-26 16:09:29] Single-tap calibration offset:
+[2026-04-26 16:09:29]   -Z: -0.025709
+[2026-04-26 16:09:29] Left bore center: X-0.0123 Y0.0041
+[2026-04-26 16:09:35] Surface Z datum set at: 0.0000
+[2026-04-26 16:09:38] ID hole 1: Z=-0.0962 (calibrated), bit=1
+[2026-04-26 16:09:41] ID hole 2: Z=-0.0948 (calibrated), bit=1
+[2026-04-26 16:09:44] ID hole 3: Z=0.0090 (calibrated), bit=0
+[2026-04-26 16:09:47] ID hole 4: Z=-0.0907 (calibrated), bit=1
+[2026-04-26 16:09:49] ID hole 5: Z=0.0147 (calibrated), bit=0
+[2026-04-26 16:09:52] ID hole 6: Z=-0.0906 (calibrated), bit=1
+[2026-04-26 16:09:55] ID hole 7: Z=0.0209 (calibrated), bit=0
+[2026-04-26 16:09:57] ID hole 8: Z=0.0243 (calibrated), bit=0
+[2026-04-26 16:10:00] ID hole 9: Z=0.0289 (calibrated), bit=0
+[2026-04-26 16:10:03] ID hole 10: Z=-0.0875 (calibrated), bit=1
+[2026-04-26 16:10:03] Fixture ID detected: 43 (binary: 00101011)
+[2026-04-26 16:10:32] Right bore center (in datum coords): X46.0092 Y0.0025
+[2026-04-26 16:10:32] Right bore position relative to left: X46.0092 Y0.0025
+[2026-04-26 16:10:32] Bore alignment angle: 0.0032 degrees
+[2026-04-26 16:10:32] G68 rotation applied: 0.0032 degrees centered at 0,0
+[2026-04-26 16:10:32] User selected file: C:\Mach4Hobby\Profiles\BLP\Logs\Test2 - Lower_11112_Lower\Test2 - Lower_11112_Lower.tap
+[2026-04-26 16:10:34] ===== Final Shaping Started =====
+[2026-04-26 16:10:34] Fixture ID: 43
+[2026-04-26 16:10:34] Section: Lower
+[2026-04-26 16:10:34] G-code file: C:\Mach4Hobby\Profiles\BLP\Logs\Test2 - Lower_11112_Lower\Test2 - Lower_11112_Lower.tap
+[2026-04-26 16:10:34] Deferred load marker created: C:\Mach4Hobby\Profiles\BLP\Temp\DeferredGCode.txt

@@ -1,0 +1,99 @@
+[2025-12-17 13:34:01] ===== ProbeKeys Upper - HalletDavis S/N 39365 =====
+[2025-12-17 13:34:01] Fixture ID: 42
+[2025-12-17 13:34:01] Bore alignment angle: 0.0029 degrees
+[2025-12-17 13:34:01] Probe Drop Depth: 0.0500
+[2025-12-17 13:34:01] Linearity Threshold: 0.0100
+[2025-12-17 13:34:01] Single Tap Feedrate: 40.0 IPM
+[2025-12-17 13:34:01] CSV output file: C:\Mach4Hobby\Profiles\BLP\Logs\HalletDavis_39365_Upper\HalletDavis_39365_Upper.csv
+[2025-12-17 13:34:01] Single-tap calibration offsets:
+[2025-12-17 13:34:01]   +X: 0.031250
+[2025-12-17 13:34:01]   -X: -0.031816
+[2025-12-17 13:34:01]   -Z: -0.030354
+[2025-12-17 13:34:01]   -Y: -0.032554
+[2025-12-17 13:34:01]   +Y: 0.032037
+[2025-12-17 13:34:14] Sample key 1 (piano key 45): Z=0.2905
+[2025-12-17 13:34:18] Sample key 7 (piano key 56): Z=0.2903
+[2025-12-17 13:34:22] Sample key 13 (piano key 66): Z=0.2906
+[2025-12-17 13:34:26] Sample key 19 (piano key 76): Z=0.2898
+[2025-12-17 13:34:30] Sample key 25 (piano key 87): Z=0.2893
+[2025-12-17 13:34:30] Average Z height: 0.2901
+[2025-12-17 13:34:30] Traverse height: 0.7901
+[2025-12-17 13:34:30] Probe Z depth: 0.2401
+[2025-12-17 13:34:42] Sample key 1 Y front: -1.1781
+[2025-12-17 13:34:46] Sample key 7 Y front: -1.1785
+[2025-12-17 13:34:50] Sample key 13 Y front: -1.1775
+[2025-12-17 13:34:54] Sample key 19 Y front: -1.1755
+[2025-12-17 13:34:59] Sample key 25 Y front: -1.1759
+[2025-12-17 13:34:59] Probed 5 Y front edges
+[2025-12-17 13:35:42] Key 45: right side shoulder accessible (clearance: 0.3706)
+[2025-12-17 13:37:10] Key 51: left side shoulder accessible (clearance: 0.3469)
+[2025-12-17 13:38:02] Key 52: right side shoulder accessible (clearance: 0.3413)
+[2025-12-17 13:39:07] Key 56: left side shoulder accessible (clearance: 0.3689)
+[2025-12-17 13:39:59] Key 57: right side shoulder accessible (clearance: 0.3594)
+[2025-12-17 13:41:26] Key 63: left side shoulder accessible (clearance: 0.3495)
+[2025-12-17 13:42:18] Key 64: right side shoulder accessible (clearance: 0.3224)
+[2025-12-17 13:43:11] Key 68: left side shoulder accessible (clearance: 0.3307)
+[2025-12-17 13:44:03] Key 69: right side shoulder accessible (clearance: 0.3976)
+[2025-12-17 13:45:30] Key 75: left side shoulder accessible (clearance: 0.3546)
+[2025-12-17 13:46:22] Key 76: right side shoulder accessible (clearance: 0.3389)
+[2025-12-17 13:48:07] Key 81: right side shoulder accessible (clearance: 0.3638)
+[2025-12-17 13:49:34] Key 87: left side shoulder accessible (clearance: 0.3813)
+[2025-12-17 13:51:26] Probed 13 accessible shoulders
+[2025-12-17 13:51:32] G68 rotation cleared
+[2025-12-17 13:51:32] ===== ProbeKeys Upper Half Completed Successfully =====
+[2025-12-17 14:58:16] ===== Final Keytop Shaping Started =====
+[2025-12-17 14:59:07] Single-tap calibration offset:
+[2025-12-17 14:59:07]   -Z: -0.030354
+[2025-12-17 14:59:07] Left bore center: X-0.0001 Y-0.0004
+[2025-12-17 14:59:14] Surface Z datum set at: 0.0000
+[2025-12-17 14:59:17] ID hole 1: Z=-0.0031 (calibrated), bit=0
+[2025-12-17 14:59:19] ID hole 2: Z=-0.0986 (calibrated), bit=1
+[2025-12-17 14:59:22] ID hole 3: Z=-0.0014 (calibrated), bit=0
+[2025-12-17 14:59:24] ID hole 4: Z=-0.0975 (calibrated), bit=1
+[2025-12-17 14:59:27] ID hole 5: Z=0.0018 (calibrated), bit=0
+[2025-12-17 14:59:29] ID hole 6: Z=-0.0936 (calibrated), bit=1
+[2025-12-17 14:59:32] ID hole 7: Z=0.0068 (calibrated), bit=0
+[2025-12-17 14:59:34] ID hole 8: Z=0.0107 (calibrated), bit=0
+[2025-12-17 14:59:36] ID hole 9: Z=0.0139 (calibrated), bit=0
+[2025-12-17 14:59:39] ID hole 10: Z=-0.0821 (calibrated), bit=1
+[2025-12-17 14:59:39] Fixture ID detected: 42 (binary: 00101010)
+[2025-12-17 15:00:11] Right bore center (in datum coords): X46.0172 Y0.0023
+[2025-12-17 15:00:11] Right bore position relative to left: X46.0172 Y0.0023
+[2025-12-17 15:00:11] Bore alignment angle: 0.0028 degrees
+[2025-12-17 15:00:11] G68 rotation applied: 0.0028 degrees centered at 0,0
+[2025-12-17 15:00:11] Found matching fixture ID 42 in folder: HalletDavis_39365_Upper
+[2025-12-17 15:00:11] Piano: HalletDavis S/N 39365, Section: Upper
+[2025-12-17 15:00:11] Found shaping file: C:\Mach4Hobby\Profiles\BLP\Logs\HalletDavis_39365_Upper\HalletDavis_39365_Upper.tap
+[2025-12-17 15:00:14] ===== Final Shaping Started =====
+[2025-12-17 15:00:14] Fixture ID: 42
+[2025-12-17 15:00:14] Section: Upper
+[2025-12-17 15:00:14] G-code file: C:\Mach4Hobby\Profiles\BLP\Logs\HalletDavis_39365_Upper\HalletDavis_39365_Upper.tap
+[2025-12-17 15:00:14] Deferred load marker created: C:\Mach4Hobby\Profiles\BLP\Temp\DeferredGCode.txt
+[2025-12-27 15:33:17] ===== Final Keytop Shaping Started =====
+[2025-12-27 15:33:55] Single-tap calibration offset:
+[2025-12-27 15:33:55]   -Z: -0.027992
+[2025-12-27 15:33:55] Left bore center: X2.4586 Y-4.2584
+[2025-12-27 15:34:00] Surface Z datum set at: 0.0000
+[2025-12-27 15:34:03] ID hole 1: Z=-0.0107 (calibrated), bit=0
+[2025-12-27 15:34:06] ID hole 2: Z=-0.1069 (calibrated), bit=1
+[2025-12-27 15:34:09] ID hole 3: Z=-0.0080 (calibrated), bit=0
+[2025-12-27 15:34:12] ID hole 4: Z=-0.1049 (calibrated), bit=1
+[2025-12-27 15:34:14] ID hole 5: Z=-0.0046 (calibrated), bit=0
+[2025-12-27 15:34:17] ID hole 6: Z=-0.1009 (calibrated), bit=1
+[2025-12-27 15:34:20] ID hole 7: Z=0.0009 (calibrated), bit=0
+[2025-12-27 15:34:22] ID hole 8: Z=0.0028 (calibrated), bit=0
+[2025-12-27 15:34:25] ID hole 9: Z=0.0070 (calibrated), bit=0
+[2025-12-27 15:34:28] ID hole 10: Z=-0.0893 (calibrated), bit=1
+[2025-12-27 15:34:28] Fixture ID detected: 42 (binary: 00101010)
+[2025-12-27 15:34:56] Right bore center (in datum coords): X46.0239 Y-0.0039
+[2025-12-27 15:34:56] Right bore position relative to left: X46.0239 Y-0.0039
+[2025-12-27 15:34:56] Bore alignment angle: -0.0049 degrees
+[2025-12-27 15:34:56] G68 rotation applied: -0.0049 degrees centered at 0,0
+[2025-12-27 15:34:56] Found matching fixture ID 42 in folder: HalletDavis_39365_Upper
+[2025-12-27 15:34:56] Piano: HalletDavis S/N 39365, Section: Upper
+[2025-12-27 15:34:56] Found shaping file: C:\Mach4Hobby\Profiles\BLP\Logs\HalletDavis_39365_Upper\HalletDavis_39365_Upper.tap
+[2025-12-27 15:34:59] ===== Final Shaping Started =====
+[2025-12-27 15:34:59] Fixture ID: 42
+[2025-12-27 15:34:59] Section: Upper
+[2025-12-27 15:34:59] G-code file: C:\Mach4Hobby\Profiles\BLP\Logs\HalletDavis_39365_Upper\HalletDavis_39365_Upper.tap
+[2025-12-27 15:34:59] Deferred load marker created: C:\Mach4Hobby\Profiles\BLP\Temp\DeferredGCode.txt

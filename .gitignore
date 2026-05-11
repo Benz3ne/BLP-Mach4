@@ -10,3 +10,6 @@ Backups/
 
 # System/cache files
 *.dat
+
+# Claude Code memory
+.claude/

@@ -1,0 +1,50 @@
+18:27:50 - === STARTING PROCESSING: HalletDavis_39365_Lower ===
+18:27:50 - [PROGRESS] Starting - Received trigger for HalletDavis_39365_Lower
+18:27:50 - [PROGRESS] Parsing CSV - \\BLPCNC\Mach4Hobby\Profiles\BLP\Logs\HalletDavis_39365_Lower\HalletDavis_39365_Lower.csv
+18:27:50 - Parsing CSV: \\BLPCNC\Mach4Hobby\Profiles\BLP\Logs\HalletDavis_39365_Lower\HalletDavis_39365_Lower.csv
+18:27:50 - Found data for 26 keys
+18:27:50 - Calculated Lower section params: ShoulderLength=1.8400, KeyHeight=0.2862
+18:27:50 - Processing 26 white keys in Lower section
+18:27:50 - Calculated parameters for 26 keys
+18:27:50 - [PROGRESS] Switching to Design workspace
+18:27:50 - Switching to Design workspace...
+18:27:51 - Switched to Design workspace
+18:27:51 - [PROGRESS] Updating parameters - Building batch update for 26 keys
+18:27:51 - Using batch modifyParameters API for efficient updates
+18:27:51 - Built batch update with 116 parameters
+18:27:51 - [PROGRESS] Updating parameters - Applying 116 params + geometry rebuild
+18:28:05 - Batch modifyParameters result: True
+18:28:05 - [PROGRESS] Switching to Manufacturing workspace
+18:28:05 - Switching to Manufacturing workspace...
+18:28:39 - Switched to Manufacturing workspace
+18:28:39 - [PROGRESS] Generating toolpaths - 1 setups for Lower
+18:28:39 - Starting toolpath generation for 1 setups: ['Lower Shaping']
+18:28:54 - [PROGRESS] Generating toolpaths - 10s elapsed
+18:29:04 - [PROGRESS] Generating toolpaths - 21s elapsed
+18:29:14 - [PROGRESS] Generating toolpaths - 31s elapsed
+18:29:14 - Still generating toolpaths... 31 seconds elapsed
+18:29:25 - [PROGRESS] Generating toolpaths - 41s elapsed
+18:29:35 - [PROGRESS] Generating toolpaths - 51s elapsed
+18:29:45 - [PROGRESS] Generating toolpaths - 61s elapsed
+18:29:55 - [PROGRESS] Generating toolpaths - 71s elapsed
+18:30:05 - [PROGRESS] Generating toolpaths - 81s elapsed
+18:30:15 - [PROGRESS] Generating toolpaths - 92s elapsed
+18:30:25 - [PROGRESS] Generating toolpaths - 102s elapsed
+18:30:36 - [PROGRESS] Generating toolpaths - 112s elapsed
+18:30:46 - [PROGRESS] Generating toolpaths - 122s elapsed
+18:30:56 - [PROGRESS] Generating toolpaths - 132s elapsed
+18:31:06 - [PROGRESS] Generating toolpaths - 142s elapsed
+18:31:14 - Still generating toolpaths... 150 seconds elapsed
+18:31:16 - [PROGRESS] Generating toolpaths - 152s elapsed
+18:31:26 - [PROGRESS] Generating toolpaths - 162s elapsed
+18:31:30 - Toolpath generation complete
+18:31:30 - [PROGRESS] Exporting G-code
+18:31:30 - Starting G-code export...
+18:31:30 - Found 2 NC programs
+18:31:30 - Exporting NC program: 'Lower Shaping'
+18:31:31 -   Post process completed
+18:31:31 - Looking for exported file: C:\Users\BLP CNC\Downloads\Lower Shaping.tap
+18:31:31 - Moving to \\BLPCNC\Mach4Hobby\Profiles\BLP\Logs\HalletDavis_39365_Lower\HalletDavis_39365_Lower.tap
+18:31:31 - File moved successfully
+18:31:31 - === PROCESSING COMPLETE: SUCCESS ===
+18:31:31 - Output file: \\BLPCNC\Mach4Hobby\Profiles\BLP\Logs\HalletDavis_39365_Lower\HalletDavis_39365_Lower.tap

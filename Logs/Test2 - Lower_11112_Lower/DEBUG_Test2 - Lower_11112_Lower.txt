@@ -1,0 +1,121 @@
+13:57:51 - === STARTING PROCESSING: Test2 - Lower_11112_Lower ===
+13:57:51 - [PROGRESS] Starting - Received trigger for Test2 - Lower_11112_Lower
+13:57:51 - [PROGRESS] Parsing CSV - \\BLPCNC\Mach4Hobby\Profiles\BLP\Logs\Test2 - Lower_11112_Lower\Test2 - Lower_11112_Lower.csv
+13:57:51 - Parsing CSV: \\BLPCNC\Mach4Hobby\Profiles\BLP\Logs\Test2 - Lower_11112_Lower\Test2 - Lower_11112_Lower.csv
+13:57:52 - Found data for 26 keys
+13:57:52 - Calculated Lower section params: ShoulderLength=1.8366, KeyHeight=0.2734
+13:57:52 - Processing 26 white keys in Lower section
+13:57:52 - Calculated parameters for 26 keys
+13:57:52 - [PROGRESS] Switching to Design workspace
+13:57:52 - Switching to Design workspace...
+13:57:54 - Switched to Design workspace
+13:57:54 - [PROGRESS] Updating parameters - Building batch update for 26 keys
+13:57:54 - Using batch modifyParameters API for efficient updates
+13:57:54 - Built batch update with 116 parameters
+13:57:54 - [PROGRESS] Updating parameters - Applying 116 params + geometry rebuild
+13:58:07 - Batch modifyParameters result: True
+13:58:07 - [PROGRESS] Switching to Manufacturing workspace
+13:58:08 - Switching to Manufacturing workspace...
+13:59:13 - Switched to Manufacturing workspace
+13:59:13 - [PROGRESS] Generating toolpaths - 1 setups for Lower
+13:59:13 - Starting toolpath generation for 1 setups: ['Lower Shaping']
+13:59:32 - [PROGRESS] Generating toolpaths - 16s elapsed
+13:59:32 - Toolpath generation complete
+13:59:32 - [PROGRESS] Exporting G-code
+13:59:32 - Starting G-code export...
+13:59:32 - ERROR: Traceback (most recent call last):
+  File "C:/Users/BLP CNC/AppData/Roaming/Autodesk/Autodesk Fusion 360/API/AddIns/KeytopParametricUpdate/KeytopParametricUpdate.py", line 549, in notify
+    log(f"Found {cam.ncPrograms.count} NC programs")
+                 ^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users/BLP CNC/AppData/Local/Autodesk/webdeploy/production/2b84ec48843dc39cc73fec4274fad44f45968ec2/Api/Python/packages\adsk\cam.py", line 12077, in _get_count
+    return _cam.NCPrograms__get_count(self)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+RuntimeError: 4 : An API Object refers to a deleted Object
+
+13:59:32 - === PROCESSING COMPLETE: FAILED ===
+15:46:46 - === STARTING PROCESSING: Test2 - Lower_11112_Lower ===
+15:46:46 - [PROGRESS] Starting - Received trigger for Test2 - Lower_11112_Lower
+15:46:46 - [PROGRESS] Parsing CSV - \\BLPCNC\Mach4Hobby\Profiles\BLP\Logs\Test2 - Lower_11112_Lower\Test2 - Lower_11112_Lower.csv
+15:46:46 - Parsing CSV: \\BLPCNC\Mach4Hobby\Profiles\BLP\Logs\Test2 - Lower_11112_Lower\Test2 - Lower_11112_Lower.csv
+15:46:46 - Found data for 26 keys
+15:46:46 - Calculated Lower section params: ShoulderLength=1.8366, KeyHeight=0.2734
+15:46:46 - Processing 26 white keys in Lower section
+15:46:46 - Calculated parameters for 26 keys
+15:46:46 - [PROGRESS] Switching to Design workspace
+15:46:46 - Switching to Design workspace...
+15:46:48 - Switched to Design workspace
+15:46:48 - [PROGRESS] Updating parameters - Building batch update for 26 keys
+15:46:48 - Using batch modifyParameters API for efficient updates
+15:46:48 - Built batch update with 116 parameters
+15:46:48 - [PROGRESS] Updating parameters - Applying 116 params + geometry rebuild
+15:47:02 - Batch modifyParameters result: True
+15:47:02 - [PROGRESS] Switching to Manufacturing workspace
+15:47:02 - Switching to Manufacturing workspace...
+15:47:22 - Switched to Manufacturing workspace
+15:47:22 - [PROGRESS] Generating toolpaths - 1 setups for Lower
+15:47:22 - Starting toolpath generation for 1 setups: ['Lower Shaping']
+15:47:35 - [PROGRESS] Generating toolpaths - 10s elapsed
+15:47:45 - [PROGRESS] Generating toolpaths - 21s elapsed
+15:47:55 - [PROGRESS] Generating toolpaths - 31s elapsed
+15:47:55 - Still generating toolpaths... 31 seconds elapsed
+15:48:06 - [PROGRESS] Generating toolpaths - 41s elapsed
+15:48:16 - [PROGRESS] Generating toolpaths - 51s elapsed
+15:48:26 - [PROGRESS] Generating toolpaths - 61s elapsed
+15:48:36 - [PROGRESS] Generating toolpaths - 72s elapsed
+15:48:46 - [PROGRESS] Generating toolpaths - 82s elapsed
+15:48:57 - [PROGRESS] Generating toolpaths - 92s elapsed
+15:49:07 - [PROGRESS] Generating toolpaths - 102s elapsed
+15:49:11 - Toolpath generation complete
+15:49:11 - [PROGRESS] Exporting G-code
+15:49:11 - Starting G-code export...
+15:49:11 - Found 2 NC programs
+15:49:11 - Exporting NC program: 'Lower Shaping'
+15:49:12 -   Post process completed
+15:49:12 - Looking for exported file: C:\Users\BLP CNC\Downloads\Lower Shaping.tap
+15:49:12 - Moving to \\BLPCNC\Mach4Hobby\Profiles\BLP\Logs\Test2 - Lower_11112_Lower\Test2 - Lower_11112_Lower.tap
+15:49:12 - File moved successfully
+15:49:12 - === PROCESSING COMPLETE: SUCCESS ===
+15:49:12 - Output file: \\BLPCNC\Mach4Hobby\Profiles\BLP\Logs\Test2 - Lower_11112_Lower\Test2 - Lower_11112_Lower.tap
+16:06:01 - === STARTING PROCESSING: Test2 - Lower_11112_Lower ===
+16:06:01 - [PROGRESS] Starting - Received trigger for Test2 - Lower_11112_Lower
+16:06:01 - Removed old file: Test2 - Lower_11112_Lower.tap
+16:06:01 - [PROGRESS] Parsing CSV - \\BLPCNC\Mach4Hobby\Profiles\BLP\Logs\Test2 - Lower_11112_Lower\Test2 - Lower_11112_Lower.csv
+16:06:01 - Parsing CSV: \\BLPCNC\Mach4Hobby\Profiles\BLP\Logs\Test2 - Lower_11112_Lower\Test2 - Lower_11112_Lower.csv
+16:06:01 - Found data for 26 keys
+16:06:01 - Calculated Lower section params: ShoulderLength=1.8366, KeyHeight=0.2734
+16:06:01 - Processing 26 white keys in Lower section
+16:06:02 - Calculated parameters for 26 keys
+16:06:02 - [PROGRESS] Switching to Design workspace
+16:06:02 - Switching to Design workspace...
+16:06:03 - Switched to Design workspace
+16:06:03 - [PROGRESS] Updating parameters - Building batch update for 26 keys
+16:06:03 - Using batch modifyParameters API for efficient updates
+16:06:03 - Built batch update with 116 parameters
+16:06:03 - [PROGRESS] Updating parameters - Applying 116 params + geometry rebuild
+16:06:07 - Batch modifyParameters result: True
+16:06:07 - [PROGRESS] Switching to Manufacturing workspace
+16:06:07 - Switching to Manufacturing workspace...
+16:06:09 - Switched to Manufacturing workspace
+16:06:09 - [PROGRESS] Generating toolpaths - 1 setups for Lower
+16:06:09 - Starting toolpath generation for 1 setups: ['Lower Shaping']
+16:06:23 - [PROGRESS] Generating toolpaths - 10s elapsed
+16:06:33 - [PROGRESS] Generating toolpaths - 20s elapsed
+16:06:44 - [PROGRESS] Generating toolpaths - 31s elapsed
+16:06:44 - Still generating toolpaths... 31 seconds elapsed
+16:06:54 - [PROGRESS] Generating toolpaths - 41s elapsed
+16:07:04 - [PROGRESS] Generating toolpaths - 51s elapsed
+16:07:14 - [PROGRESS] Generating toolpaths - 61s elapsed
+16:07:24 - [PROGRESS] Generating toolpaths - 72s elapsed
+16:07:35 - [PROGRESS] Generating toolpaths - 82s elapsed
+16:07:43 - Still generating toolpaths... 90 seconds elapsed
+16:07:43 - Toolpath generation complete
+16:07:43 - [PROGRESS] Exporting G-code
+16:07:43 - Starting G-code export...
+16:07:43 - Found 2 NC programs
+16:07:43 - Exporting NC program: 'Lower Shaping'
+16:07:44 -   Post process completed
+16:07:44 - Looking for exported file: C:\Users\BLP CNC\Downloads\Lower Shaping.tap
+16:07:44 - Moving to \\BLPCNC\Mach4Hobby\Profiles\BLP\Logs\Test2 - Lower_11112_Lower\Test2 - Lower_11112_Lower.tap
+16:07:45 - File moved successfully
+16:07:45 - === PROCESSING COMPLETE: SUCCESS ===
+16:07:45 - Output file: \\BLPCNC\Mach4Hobby\Profiles\BLP\Logs\Test2 - Lower_11112_Lower\Test2 - Lower_11112_Lower.tap

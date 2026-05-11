@@ -1,0 +1,43 @@
+[2025-12-17 12:39:42] ===== ProbeKeys Upper - HalletDavisReal S/N 39365 =====
+[2025-12-17 12:39:42] Fixture ID: 42
+[2025-12-17 12:39:42] Bore alignment angle: 0.0031 degrees
+[2025-12-17 12:39:42] Probe Drop Depth: 0.0500
+[2025-12-17 12:39:42] Linearity Threshold: 0.0100
+[2025-12-17 12:39:42] Single Tap Feedrate: 40.0 IPM
+[2025-12-17 12:39:42] CSV output file: C:\Mach4Hobby\Profiles\BLP\Logs\HalletDavisReal_39365_Upper\HalletDavisReal_39365_Upper.csv
+[2025-12-17 12:39:42] Single-tap calibration offsets:
+[2025-12-17 12:39:42]   +X: 0.031275
+[2025-12-17 12:39:42]   -X: -0.031619
+[2025-12-17 12:39:42]   -Z: -0.030079
+[2025-12-17 12:39:42]   -Y: -0.032628
+[2025-12-17 12:39:42]   +Y: 0.032160
+[2025-12-17 12:39:55] Sample key 1 (piano key 45): Z=0.2906
+[2025-12-17 12:39:59] Sample key 7 (piano key 56): Z=0.2899
+[2025-12-17 12:40:03] Sample key 13 (piano key 66): Z=0.2903
+[2025-12-17 12:40:07] Sample key 19 (piano key 76): Z=0.2893
+[2025-12-17 12:40:11] Sample key 25 (piano key 87): Z=0.2891
+[2025-12-17 12:40:11] Average Z height: 0.2898
+[2025-12-17 12:40:11] Traverse height: 0.7898
+[2025-12-17 12:40:11] Probe Z depth: 0.2398
+[2025-12-17 12:40:23] Sample key 1 Y front: -1.1784
+[2025-12-17 12:40:27] Sample key 7 Y front: -1.1785
+[2025-12-17 12:40:31] Sample key 13 Y front: -1.1772
+[2025-12-17 12:40:35] Sample key 19 Y front: -1.1758
+[2025-12-17 12:40:40] Sample key 25 Y front: -1.1764
+[2025-12-17 12:40:40] Probed 5 Y front edges
+[2025-12-17 12:41:23] Key 45: right side shoulder accessible (clearance: 0.3709)
+[2025-12-17 12:42:51] Key 51: left side shoulder accessible (clearance: 0.3467)
+[2025-12-17 12:43:42] Key 52: right side shoulder accessible (clearance: 0.3418)
+[2025-12-17 12:44:48] Key 56: left side shoulder accessible (clearance: 0.3687)
+[2025-12-17 12:45:40] Key 57: right side shoulder accessible (clearance: 0.3601)
+[2025-12-17 12:47:07] Key 63: left side shoulder accessible (clearance: 0.3496)
+[2025-12-17 12:47:59] Key 64: right side shoulder accessible (clearance: 0.3229)
+[2025-12-17 12:48:52] Key 68: left side shoulder accessible (clearance: 0.3312)
+[2025-12-17 12:49:43] Key 69: right side shoulder accessible (clearance: 0.3986)
+[2025-12-17 12:51:11] Key 75: left side shoulder accessible (clearance: 0.3556)
+[2025-12-17 12:52:03] Key 76: right side shoulder accessible (clearance: 0.3386)
+[2025-12-17 12:53:48] Key 81: right side shoulder accessible (clearance: 0.3634)
+[2025-12-17 12:55:15] Key 87: left side shoulder accessible (clearance: 0.3812)
+[2025-12-17 12:57:06] Probed 13 accessible shoulders
+[2025-12-17 12:57:12] G68 rotation cleared
+[2025-12-17 12:57:12] ===== ProbeKeys Upper Half Completed Successfully =====

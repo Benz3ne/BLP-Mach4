@@ -1,0 +1,20 @@
+[2026-04-03 15:09:31] ===== Test ProbeKeys (5 Keys) - Steinway-Test S/N 123456 =====
+[2026-04-03 15:09:31] Mode: Lower half assumed, first 5 keys only
+[2026-04-03 15:10:39] Left bore calibration complete
+[2026-04-03 15:10:39] Offsets: +X=0.027338  -X=-0.027633  +Y=0.027313  -Y=-0.027584  -Z=-0.025827
+[2026-04-03 15:11:06] Fixture ID: 43
+[2026-04-03 15:11:35] G68 rotation: -0.0142 degrees
+[2026-04-03 15:11:49] Key 1 (piano 1): Z=0.3515
+[2026-04-03 15:11:51] Key 2 (piano 3): Z=0.3645
+[2026-04-03 15:11:54] Key 3 (piano 4): Z=0.3544
+[2026-04-03 15:11:57] Key 4 (piano 6): Z=0.3506
+[2026-04-03 15:11:59] Key 5 (piano 8): Z=0.3520
+[2026-04-03 15:11:59] Average Z: 0.3546  traverseHeight: 0.8546  probeZ: 0.2046
+[2026-04-03 15:12:05] Key 1 Y front: -1.3498
+[2026-04-03 15:12:07] Key 2 Y front: -1.3398
+[2026-04-03 15:12:10] Key 3 Y front: -1.3353
+[2026-04-03 15:12:12] Key 4 Y front: -1.3364
+[2026-04-03 15:12:15] Key 5 Y front: -1.3360
+[2026-04-03 15:15:53] Probed 5 shoulders
+[2026-04-03 15:15:55] G68 rotation cleared
+[2026-04-03 15:15:55] ===== Test ProbeKeys (5 Keys) Complete =====

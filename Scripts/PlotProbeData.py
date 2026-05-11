@@ -12,7 +12,7 @@ import math
 
 # Configuration - matches KeytopParametricUpdate.py
 CONFIG = {
-    'plastic_thickness': 0.09,
+    'plastic_thickness': 0.07,
     'max_rotation': 2.0,
     'angle_step': 0.01,
     'tail_weight': 3,
@@ -21,7 +21,7 @@ CONFIG = {
     'tail_overhang': 0.01,
 }
 
-KEY_LENGTH = 6.1  # inches (approximate full key length for visualization)
+KEY_LENGTH = 6.195  # inches (approximate full key length for visualization)
 LOGS_DIR = r"C:\Mach4Hobby\Profiles\BLP\Logs"
 
 

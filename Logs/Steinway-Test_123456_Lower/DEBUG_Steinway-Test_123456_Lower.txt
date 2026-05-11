@@ -1,0 +1,41 @@
+15:15:56 - === STARTING PROCESSING: Steinway-Test_123456_Lower ===
+15:15:56 - [PROGRESS] Starting - Received trigger for Steinway-Test_123456_Lower
+15:15:57 - [PROGRESS] Parsing CSV - \\BLPCNC\Mach4Hobby\Profiles\BLP\Logs\Steinway-Test_123456_Lower\Steinway-Test_123456_Lower.csv
+15:15:57 - Parsing CSV: \\BLPCNC\Mach4Hobby\Profiles\BLP\Logs\Steinway-Test_123456_Lower\Steinway-Test_123456_Lower.csv
+15:15:57 - Found data for 5 keys
+15:15:57 - Calculated Lower section params: ShoulderLength=2.0129, KeyHeight=0.3520
+15:15:57 - Processing 5 white keys in Lower section
+15:15:57 - Calculated parameters for 5 keys
+15:15:57 - [PROGRESS] Switching to Design workspace
+15:15:57 - Switching to Design workspace...
+15:15:59 - Switched to Design workspace
+15:15:59 - [PROGRESS] Updating parameters - Building batch update for 5 keys
+15:15:59 - Using batch modifyParameters API for efficient updates
+15:15:59 - Built batch update with 23 parameters
+15:15:59 - [PROGRESS] Updating parameters - Applying 23 params + geometry rebuild
+15:16:12 - Batch modifyParameters result: True
+15:16:13 - [PROGRESS] Switching to Manufacturing workspace
+15:16:13 - Switching to Manufacturing workspace...
+15:16:34 - Switched to Manufacturing workspace
+15:16:34 - [PROGRESS] Generating toolpaths - 1 setups for Lower
+15:16:34 - Starting toolpath generation for 1 setups: ['Lower Shaping']
+15:16:48 - [PROGRESS] Generating toolpaths - 10s elapsed
+15:16:58 - [PROGRESS] Generating toolpaths - 21s elapsed
+15:17:09 - [PROGRESS] Generating toolpaths - 31s elapsed
+15:17:09 - Still generating toolpaths... 31 seconds elapsed
+15:17:19 - [PROGRESS] Generating toolpaths - 41s elapsed
+15:17:29 - [PROGRESS] Generating toolpaths - 51s elapsed
+15:17:39 - [PROGRESS] Generating toolpaths - 61s elapsed
+15:17:49 - [PROGRESS] Generating toolpaths - 71s elapsed
+15:18:00 - [PROGRESS] Generating toolpaths - 82s elapsed
+15:18:06 - Toolpath generation complete
+15:18:06 - [PROGRESS] Exporting G-code
+15:18:06 - Starting G-code export...
+15:18:06 - Found 2 NC programs
+15:18:06 - Exporting NC program: 'Lower Shaping'
+15:18:07 -   Post process completed
+15:18:07 - Looking for exported file: C:\Users\BLP CNC\Downloads\Lower Shaping.tap
+15:18:07 - Moving to \\BLPCNC\Mach4Hobby\Profiles\BLP\Logs\Steinway-Test_123456_Lower\Steinway-Test_123456_Lower.tap
+15:18:08 - File moved successfully
+15:18:08 - === PROCESSING COMPLETE: SUCCESS ===
+15:18:08 - Output file: \\BLPCNC\Mach4Hobby\Profiles\BLP\Logs\Steinway-Test_123456_Lower\Steinway-Test_123456_Lower.tap

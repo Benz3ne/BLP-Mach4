@@ -1,0 +1,39 @@
+[2026-03-22 18:53:45] ===== ProbeKeys Lower - Hallet Davis S/N 39365 =====
+[2026-03-22 18:53:45] Fixture ID: 43
+[2026-03-22 18:53:45] Bore alignment angle: -0.0100 degrees
+[2026-03-22 18:53:45] Probe Drop Depth: 0.1500
+[2026-03-22 18:53:45] Linearity Threshold: 0.0100
+[2026-03-22 18:53:45] Single Tap Feedrate: 40.0 IPM
+[2026-03-22 18:53:45] CSV output file: C:\Mach4Hobby\Profiles\BLP\Logs\Hallet Davis_39365_Lower\Hallet Davis_39365_Lower.csv
+[2026-03-22 18:53:45] Single-tap calibration offsets:
+[2026-03-22 18:53:45]   +X: 0.029847
+[2026-03-22 18:53:45]   -X: -0.030118
+[2026-03-22 18:53:45]   -Z: -0.029108
+[2026-03-22 18:53:45]   -Y: -0.029503
+[2026-03-22 18:53:45]   +Y: 0.030143
+[2026-03-22 18:53:58] Sample key 1 (piano key 1): Z=0.3525
+[2026-03-22 18:54:03] Sample key 7 (piano key 11): Z=0.3556
+[2026-03-22 18:54:07] Sample key 13 (piano key 21): Z=0.3538
+[2026-03-22 18:54:11] Sample key 19 (piano key 32): Z=0.3543
+[2026-03-22 18:54:16] Sample key 25 (piano key 42): Z=0.3508
+[2026-03-22 18:54:16] Average Z height: 0.3534
+[2026-03-22 18:54:16] Traverse height: 0.8534
+[2026-03-22 18:54:16] Probe Z depth: 0.2034
+[2026-03-22 18:54:27] Sample key 1 Y front: -1.3015
+[2026-03-22 18:54:32] Sample key 7 Y front: -1.2895
+[2026-03-22 18:54:36] Sample key 13 Y front: -1.2919
+[2026-03-22 18:54:41] Sample key 19 Y front: -1.2919
+[2026-03-22 18:54:51] Sample key 25 Y front: -1.2936
+[2026-03-22 18:54:51] Probed 5 Y front edges
+[2026-03-22 18:57:54] Key 4: right side shoulder accessible (clearance: 0.3274)
+[2026-03-22 18:59:18] Key 8: left side shoulder accessible (clearance: 0.3261)
+[2026-03-22 19:00:15] Key 9: right side shoulder accessible (clearance: 0.3509)
+[2026-03-22 19:02:18] Key 15: left side shoulder accessible (clearance: 0.3616)
+[2026-03-22 19:03:15] Key 16: right side shoulder accessible (clearance: 0.3422)
+[2026-03-22 19:04:26] Key 20: left side shoulder accessible (clearance: 0.3278)
+[2026-03-22 19:05:34] Key 21: right side shoulder accessible (clearance: 0.3353)
+[2026-03-22 19:07:10] Key 27: left side shoulder accessible (clearance: 0.3357)
+[2026-03-22 19:08:34] Key 28: right side shoulder accessible (clearance: 0.3327)
+[2026-03-22 19:10:28] Key 33: right side shoulder accessible (clearance: 0.3476)
+[2026-03-22 19:12:58] Key 39: left side shoulder accessible (clearance: 0.3462)
+[2026-03-22 19:14:07] Key 40: right side shoulder accessible (clearance: 0.3398)

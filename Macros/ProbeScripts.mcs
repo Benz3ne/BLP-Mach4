@@ -2859,7 +2859,15 @@ function ProbeScripts.ProbeKeys(inst)
     local HEARTBEAT_FILE = "C:\\Mach4Hobby\\Profiles\\BLP\\Logs\\FUSION_HEARTBEAT.txt"
     local HEARTBEAT_MAX_AGE = 30  -- seconds - allow some slack for network latency
 
+    local fusionCheckResult = wx.wxMessageBox(
+        "Do you want to verify Fusion 360 is running before probing?\n\nSelect 'Yes' to check, 'No' to skip and collect data only.",
+        "Fusion Check", wx.wxYES_NO + wx.wxICON_QUESTION)
+    local fusionCheckEnabled = (fusionCheckResult == wx.wxYES)
+
     local function checkHeartbeat()
+        if not fusionCheckEnabled then
+            return true, "READY", "Check disabled"
+        end
         local heartbeatFile = io.open(HEARTBEAT_FILE, "r")
         if not heartbeatFile then
             return false, "NO_FILE", "Heartbeat file not found"
