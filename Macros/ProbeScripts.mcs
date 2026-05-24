@@ -3951,18 +3951,73 @@ function ProbeScripts.InitialKeytopTrim(inst)
     -- Show dialog to get trim parameters
     local fields = {
         {type = "instructions",
-         text = "Initial keytop trim operation.\nEnter the plastic thickness to remove."},
+         text = "Initial keytop trim operation.\n" ..
+                "  Top and Front / Top Only: enter Removal Depth.\n" ..
+                "  Additional Top Only: re-runs top toolpath with no probing,\n" ..
+                "    shifting Z datum by Additional Removal amount."},
         {type = "number", key = "removalDepth", label = "Removal Depth (inches)",
          default = 0.08, persist = false, min = 0.001, max = 0.25,
-         validateMsg = "Must be between 0.001-0.5"},
+         validateMsg = "Must be between 0.001-0.25"},
+        {type = "number", key = "additionalRemoval", label = "Additional Removal (inches)",
+         default = 0.010, persist = true, min = 0.001, max = 0.100,
+         validateMsg = "Must be between 0.001-0.100"},
         {type = "separator"},
         {type = "radio", key = "trimOperation", label = "Trim Operation",
-         options = {"Top and Front", "Top Only"},
-         columns = 2, default = 0}
+         options = {"Top and Front", "Top Only", "Additional Top Only"},
+         columns = 1, default = 0}
     }
 
-    local params = ProbeScripts.ShowDialog(inst, "Initial Trim", fields, "InitialTrim", {width = 300})
+    local params = ProbeScripts.ShowDialog(inst, "Initial Trim", fields, "InitialTrim", {width = 360})
     if not params then return end
+
+    -- ========== ADDITIONAL TOP ONLY (no probing) ==========
+    if params.trimOperation == 2 then
+        local extra = params.additionalRemoval or 0.010
+
+        local result = wx.wxMessageBox(
+            string.format(
+                "Additional Top Removal: %.4f\"\n\n" ..
+                "The current Z datum will be shifted down %.4f\" and the\n" ..
+                "top surfacing toolpath will run again — no probing is done.\n\n" ..
+                "The Z datum from the previous trim run must still be valid\n" ..
+                "(machine not homed or coordinates not reset since last trim).\n\n" ..
+                "Continue?", extra, extra),
+            "Additional Top Removal", wx.wxYES_NO + wx.wxICON_QUESTION)
+        if result ~= wx.wxYES then return end
+
+        -- Shift the Z work coordinate: raising the DRO reading by extra moves
+        -- the Z=0 cutting plane down by that amount.
+        local currentZ = mc.mcAxisGetPos(inst, mc.Z_AXIS)
+        mc.mcAxisSetPos(inst, mc.Z_AXIS, currentZ + extra)
+
+        -- Retract to machine Z0 and queue top trim file
+        mc.mcCntlGcodeExecuteWait(inst, "G90 G53 G0 Z0")
+        mc.mcCntlCloseGCodeFile(inst)
+
+        local gcodeDir   = "C:\\Mach4Hobby\\Profiles\\BLP\\Scripts\\GCode"
+        local topTrimFile = gcodeDir .. "\\Initial Trim Top.tap"
+
+        local testFile = io.open(topTrimFile, "r")
+        if not testFile then
+            wx.wxMessageBox("Top trim file not found:\n" .. topTrimFile, "Error", wx.wxOK + wx.wxICON_ERROR)
+            return false
+        end
+        testFile:close()
+
+        local markerPath = "C:\\Mach4Hobby\\Profiles\\BLP\\Temp\\DeferredGCode.txt"
+        local markerFile = io.open(markerPath, "w")
+        if markerFile then
+            markerFile:write(topTrimFile)
+            markerFile:close()
+        else
+            wx.wxMessageBox("Failed to queue G-code file for execution.", "Error", wx.wxOK + wx.wxICON_ERROR)
+            return false
+        end
+
+        mc.mcCntlSetLastError(inst, string.format(
+            "Additional top removal: %.4f\" — Z shifted, top trim queued", extra))
+        return true
+    end
 
     -- Cancel any existing G68 rotation
     mc.mcCntlGcodeExecuteWait(inst, "G69")
