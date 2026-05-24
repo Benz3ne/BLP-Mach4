@@ -344,6 +344,9 @@ class ProbeDataHandler(adsk.core.CustomEventHandler):
                     input_data = json.loads(args.additionalInfo)
                     csv_path = input_data.get('csv_path', '')
                     piano_id = input_data.get('piano_id', 'Unknown')
+                    chamfer_style = input_data.get('chamfer_style', None)
+                    edge_chamfer  = input_data.get('edge_chamfer', None)
+                    lip_fillet    = input_data.get('lip_fillet',   None)
 
                     # Determine section from piano_id
                     if piano_id.endswith('_Upper'):
@@ -450,6 +453,25 @@ class ProbeDataHandler(adsk.core.CustomEventHandler):
                         if param:
                             params_list.append(param)
                             values_list.append(adsk.core.ValueInput.createByString(f"{key_height} in"))
+
+                        # Add style parameters (only when explicitly provided in trigger)
+                        if edge_chamfer is not None:
+                            param = user_params.itemByName('EdgeChamfer')
+                            if param:
+                                params_list.append(param)
+                                values_list.append(adsk.core.ValueInput.createByString(f"{edge_chamfer} in"))
+                                log(f"Style: EdgeChamfer = {edge_chamfer} in")
+                            else:
+                                log("Warning: EdgeChamfer parameter not found in Fusion document")
+
+                        if lip_fillet is not None:
+                            param = user_params.itemByName('LipFillet')
+                            if param:
+                                params_list.append(param)
+                                values_list.append(adsk.core.ValueInput.createByString(f"{lip_fillet} in"))
+                                log(f"Style: LipFillet = {lip_fillet} in")
+                            else:
+                                log("Warning: LipFillet parameter not found in Fusion document")
 
                         # Add key parameters
                         for key_num, params in key_params.items():
@@ -558,6 +580,10 @@ class ProbeDataHandler(adsk.core.CustomEventHandler):
                                     if section == 'Upper' and 'upper' not in prog_name_lower:
                                         continue
                                     if section == 'Lower' and 'lower' not in prog_name_lower:
+                                        continue
+                                    # Skip roundover programs when chamfer style is selected
+                                    if chamfer_style == 'chamfer' and 'roundover' in prog_name_lower:
+                                        log(f"Skipping roundover program '{prog.name}' (chamfer style selected)")
                                         continue
 
                                     log(f"Exporting NC program: '{prog.name}'")

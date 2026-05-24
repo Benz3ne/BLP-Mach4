@@ -3061,6 +3061,7 @@ function ProbeScripts.ProbeKeys(inst)
     local keyHalfName = nil
     local traverseHeight  -- calculated after Z probing
     local probeZ  -- uniform probe depth for X and -Y
+    local keyValidation = {}  -- shoulder step data per key for placement validation
 
     -- Files - set after key section is determined
     local pianoFolder = nil
@@ -3123,6 +3124,35 @@ function ProbeScripts.ProbeKeys(inst)
         local centerY = (yEdge1 + yEdge2) / 2
 
         return centerX, centerY
+    end
+
+    -- Validation helpers
+    local function calcAvg(vals)
+        if #vals == 0 then return 0 end
+        local sum = 0
+        for _, v in ipairs(vals) do sum = sum + v end
+        return sum / #vals
+    end
+
+    local function calcMedian(vals)
+        if #vals == 0 then return 0 end
+        local sorted = {}
+        for _, v in ipairs(vals) do table.insert(sorted, v) end
+        table.sort(sorted)
+        local n = #sorted
+        if n % 2 == 1 then return sorted[math.ceil(n / 2)] end
+        return (sorted[math.floor(n / 2)] + sorted[math.floor(n / 2) + 1]) / 2
+    end
+
+    local function keyShoulderType(pianoKey)
+        if pianoKey == 1  then return "right" end
+        if pianoKey == 88 then return "none"  end
+        local notes = {"C","C#","D","D#","E","F","F#","G","G#","A","A#","B"}
+        local note = notes[((pianoKey + 20) % 12) + 1]
+        if note == "B" or note == "E" then return "left"  end
+        if note == "F" or note == "C" then return "right" end
+        if note == "D" or note == "G" or note == "A" then return "both" end
+        return "none"
     end
 
     -- Helper to probe key side (X edges)
@@ -3640,6 +3670,22 @@ function ProbeScripts.ProbeKeys(inst)
             table.insert(accessibleShoulders, rightShoulder)
         end
 
+        -- Accumulate shoulder step data for placement validation
+        if leftData and rightData then
+            local lf, lb, rf, rb = {}, {}, {}, {}
+            for _, pt in ipairs(leftData) do
+                if pt.y < 0.5 then table.insert(lf, pt.x) else table.insert(lb, pt.x) end
+            end
+            for _, pt in ipairs(rightData) do
+                if pt.y < 0.5 then table.insert(rf, pt.x) else table.insert(rb, pt.x) end
+            end
+            table.insert(keyValidation, {
+                pianoKey  = pianoKey,
+                leftStep  = calcAvg(lb) - calcAvg(lf),
+                rightStep = calcAvg(rf) - calcAvg(rb),
+            })
+        end
+
         mc.mcCntlSetLastError(inst, string.format("Probing key %d of %d...", keyIdx, #TEST_KEYS))
     end
 
@@ -3703,6 +3749,98 @@ function ProbeScripts.ProbeKeys(inst)
     writeReport(string.format("===== ProbeKeys %s Half Completed Successfully =====", keyHalfName))
     reportFile:close()
 
+    -- ========== PLACEMENT VALIDATION ==========
+
+    local Z_TOLERANCE  = 0.025
+    local Y_TOLERANCE  = 0.020
+    local SHOULDER_MIN = 0.075
+    local SHOULDER_MAX = 0.500
+
+    local validationErrors = {}
+
+    -- Z seating check (sample keys against their average)
+    for i, zVal in ipairs(sampleZHeights) do
+        local dev = math.abs(zVal - avgZ)
+        if dev > Z_TOLERANCE then
+            local pk = TEST_KEYS[(i - 1) * SAMPLE_KEY_INTERVAL + 1][1]
+            table.insert(validationErrors, string.format(
+                "Z SEATING  Key %-3d  measured=%.4f\"  avg=%.4f\"  deviation=%.4f\" (limit +/-%.3f\")",
+                pk, zVal, avgZ, dev, Z_TOLERANCE))
+        end
+    end
+
+    -- Y+ front position check (sample keys against their median)
+    local yVals = {}
+    for _, pt in ipairs(yFrontData) do table.insert(yVals, pt.y) end
+    local medianY = calcMedian(yVals)
+    for _, pt in ipairs(yFrontData) do
+        local dev = math.abs(pt.y - medianY)
+        if dev > Y_TOLERANCE then
+            table.insert(validationErrors, string.format(
+                "Y POSITION Key %-3d  measured=%.4f\"  median=%.4f\"  deviation=%.4f\" (limit +/-%.3f\")",
+                pt.pianoKey, pt.y, medianY, dev, Y_TOLERANCE))
+        end
+    end
+
+    -- Shoulder placement check (all keys)
+    for _, kv in ipairs(keyValidation) do
+        local shld = keyShoulderType(kv.pianoKey)
+        local expectLeft  = (shld == "left"  or shld == "both")
+        local expectRight = (shld == "right" or shld == "both")
+
+        if expectLeft then
+            if kv.leftStep < SHOULDER_MIN then
+                table.insert(validationErrors, string.format(
+                    "SHOULDER   Key %-3d  LEFT expected but not found (step=%.4f\")",
+                    kv.pianoKey, kv.leftStep))
+            elseif kv.leftStep > SHOULDER_MAX then
+                table.insert(validationErrors, string.format(
+                    "SHOULDER   Key %-3d  LEFT width out of range (step=%.4f\")",
+                    kv.pianoKey, kv.leftStep))
+            end
+        elseif kv.leftStep > SHOULDER_MIN then
+            table.insert(validationErrors, string.format(
+                "SHOULDER   Key %-3d  LEFT shoulder unexpected (step=%.4f\")",
+                kv.pianoKey, kv.leftStep))
+        end
+
+        if expectRight then
+            if kv.rightStep < SHOULDER_MIN then
+                table.insert(validationErrors, string.format(
+                    "SHOULDER   Key %-3d  RIGHT expected but not found (step=%.4f\")",
+                    kv.pianoKey, kv.rightStep))
+            elseif kv.rightStep > SHOULDER_MAX then
+                table.insert(validationErrors, string.format(
+                    "SHOULDER   Key %-3d  RIGHT width out of range (step=%.4f\")",
+                    kv.pianoKey, kv.rightStep))
+            end
+        elseif kv.rightStep > SHOULDER_MIN then
+            table.insert(validationErrors, string.format(
+                "SHOULDER   Key %-3d  RIGHT shoulder unexpected (step=%.4f\")",
+                kv.pianoKey, kv.rightStep))
+        end
+    end
+
+    -- Save validation report file
+    local validationReportPath = string.format("%s\\%s_ValidationReport.txt", pianoFolder, pianoName)
+    local valFile = io.open(validationReportPath, "w")
+    if valFile then
+        valFile:write(string.format("===== Placement Validation Report =====\n"))
+        valFile:write(string.format("Piano: %s  S/N: %s  Section: %s\n", params.make, params.serial, keyHalfName))
+        valFile:write(string.format("Date:  %s\n\n", os.date("%Y-%m-%d %H:%M:%S")))
+        valFile:write(string.format("Thresholds: Z +/-%.3f\"  Y+ +/-%.3f\"  Shoulder %.3f\"-%.3f\"\n\n",
+            Z_TOLERANCE, Y_TOLERANCE, SHOULDER_MIN, SHOULDER_MAX))
+        if #validationErrors == 0 then
+            valFile:write("RESULT: PASS -- No placement errors detected.\n")
+        else
+            valFile:write(string.format("RESULT: %d ERROR(S) DETECTED\n\n", #validationErrors))
+            for _, err in ipairs(validationErrors) do
+                valFile:write("  !! " .. err .. "\n")
+            end
+        end
+        valFile:close()
+    end
+
     -- ========== TRIGGER FUSION ADD-IN ==========
 
     local triggerPath = "C:\\Mach4Hobby\\Profiles\\BLP\\Logs\\PROBE_COMPLETE_" .. pianoName .. ".txt"
@@ -3712,14 +3850,44 @@ function ProbeScripts.ProbeKeys(inst)
         pianoName,
         avgZ)
 
-    local triggerFile = io.open(triggerPath, "w")
-    if triggerFile then
-        triggerFile:write(triggerData)
-        triggerFile:close()
-        mc.mcCntlSetLastError(inst, string.format("ProbeKeys complete - trigger sent to Fusion"))
-    else
-        wx.wxMessageBox("Warning: Could not create trigger file for Fusion 360.\n\nManually trigger the add-in or re-run ProbeKeys.",
-            "Trigger Warning", wx.wxOK + wx.wxICON_WARNING)
+    local sendTrigger = true
+
+    if #validationErrors > 0 then
+        local errorLines = ""
+        for _, err in ipairs(validationErrors) do
+            errorLines = errorLines .. "  - " .. err .. "\n"
+        end
+        local msg = string.format(
+            "PLACEMENT VALIDATION -- %d ERROR(S) DETECTED\n" ..
+            string.rep("=", 52) .. "\n\n" ..
+            "%s\n" ..
+            string.rep("=", 52) .. "\n\n" ..
+            "A validation report has been saved to:\n" ..
+            "  %s\n\n" ..
+            "YES -> Send data to Fusion 360 anyway\n" ..
+            "NO  -> Abort -- do not send (re-seat keys and re-run)",
+            #validationErrors, errorLines, validationReportPath)
+        local result = wx.wxMessageBox(msg, "Placement Validation", wx.wxYES_NO + wx.wxICON_WARNING)
+        if result == wx.wxNO then
+            sendTrigger = false
+            mc.mcCntlSetLastError(inst, "ProbeKeys: placement errors acknowledged -- Fusion not triggered")
+        end
+    end
+
+    if sendTrigger then
+        local triggerFile = io.open(triggerPath, "w")
+        if triggerFile then
+            triggerFile:write(triggerData)
+            triggerFile:close()
+            if #validationErrors > 0 then
+                mc.mcCntlSetLastError(inst, string.format("ProbeKeys complete - trigger sent (with %d validation warning(s))", #validationErrors))
+            else
+                mc.mcCntlSetLastError(inst, "ProbeKeys complete - trigger sent to Fusion")
+            end
+        else
+            wx.wxMessageBox("Warning: Could not create trigger file for Fusion 360.\n\nManually trigger the add-in or re-run ProbeKeys.",
+                "Trigger Warning", wx.wxOK + wx.wxICON_WARNING)
+        end
     end
 
     return true
@@ -4515,6 +4683,98 @@ end
 
 
 
+
+
+function ProbeScripts.ApplyStyle(inst)
+    -- Preset bundles: {EdgeChamfer, LipFillet} in inches
+    local PRESETS = {
+        [0] = {edge_chamfer = 0.0075, lip_fillet = 0.050},  -- Light
+        [1] = {edge_chamfer = 0.011,  lip_fillet = 0.075},  -- Medium
+        [2] = {edge_chamfer = 0.0175, lip_fillet = 0.110},  -- Heavy
+    }
+    local logsDir = "C:\\Mach4Hobby\\Profiles\\BLP\\Logs"
+
+    -- Scan log folders for available probe CSVs
+    local pianoOptions = {}
+    local pianoCSVs    = {}
+
+    local handle = io.popen('dir "' .. logsDir .. '" /b /ad /o-d 2>nul')
+    local folders = handle:read("*a")
+    handle:close()
+
+    for folderName in folders:gmatch("[^\r\n]+") do
+        local csvPath = logsDir .. "\\" .. folderName .. "\\" .. folderName .. ".csv"
+        local f = io.open(csvPath, "r")
+        if f then
+            f:close()
+            table.insert(pianoOptions, folderName)
+            table.insert(pianoCSVs,    csvPath)
+        end
+    end
+
+    if #pianoOptions == 0 then
+        wx.wxMessageBox("No probe data found in Logs folder.\n\nRun ProbeKeys first to generate probe data.",
+            "No Data Available", wx.wxOK + wx.wxICON_ERROR)
+        return
+    end
+
+    local fields = {
+        {type = "instructions",
+         text = "Select probe data and style options.\nFusion 360 will regenerate toolpaths with the chosen parameters."},
+        {type = "choice", key = "pianoSelection", label = "Probe Data",
+         options = pianoOptions,
+         default = 0,
+         tooltip = "Select which probed piano data to apply styles to"},
+        {type = "separator"},
+        {type = "radio", key = "edgeType", label = "Edge Type",
+         options = {"Chamfer"},
+         columns = 1, default = 0},
+        {type = "separator"},
+        {type = "radio", key = "finishStyle", label = "Finish Style",
+         options = {
+             "Light  — Chamfer 0.0075\"  |  Lip Fillet 0.050\"",
+             "Medium — Chamfer 0.011\"   |  Lip Fillet 0.075\"",
+             "Heavy  — Chamfer 0.0175\"  |  Lip Fillet 0.110\"",
+         },
+         columns = 1, default = 1},
+    }
+
+    local params = ProbeScripts.ShowDialog(inst, "Apply Style", fields, "ApplyStyle", {width = 520})
+    if not params then return end
+
+    local selectedIdx  = (params.pianoSelection or 0) + 1
+    local csvPathLocal = pianoCSVs[selectedIdx]
+    local pianoName    = pianoOptions[selectedIdx]
+    local preset       = PRESETS[params.finishStyle or 1]
+
+    local csvPathNetwork = csvPathLocal:gsub("C:\\Mach4Hobby", "\\\\BLPCNC\\Mach4Hobby")
+    local triggerPath    = logsDir .. "\\PROBE_COMPLETE_" .. pianoName .. ".txt"
+    local triggerData    = string.format(
+        '{"csv_path": "%s", "piano_id": "%s", "avg_z": 0, "chamfer_style": "chamfer", "edge_chamfer": %.6f, "lip_fillet": %.6f}',
+        csvPathNetwork:gsub("\\", "\\\\"), pianoName, preset.edge_chamfer, preset.lip_fillet)
+
+    local styleLabels = {"Light", "Medium", "Heavy"}
+    local styleLabel  = styleLabels[(params.finishStyle or 1) + 1] or "Medium"
+
+    local tFile = io.open(triggerPath, "w")
+    if tFile then
+        tFile:write(triggerData)
+        tFile:close()
+        mc.mcCntlSetLastError(inst, string.format("Style trigger sent for %s (%s)", pianoName, styleLabel))
+        wx.wxMessageBox(
+            string.format("Style trigger sent for:\n  %s\n\n", pianoName) ..
+            string.format("  Finish Style : %s\n",     styleLabel) ..
+            string.format("  Edge Chamfer : %.4f\"\n", preset.edge_chamfer) ..
+            string.format("  Lip Fillet   : %.4f\"\n\n", preset.lip_fillet) ..
+            "Fusion 360 is regenerating toolpaths. Any existing shaping file\n" ..
+            "for this piano will be overwritten when complete.\n\n" ..
+            "Run Final Shaping once Fusion notifies you it is finished.",
+            "Style Applied", wx.wxOK + wx.wxICON_INFORMATION)
+    else
+        wx.wxMessageBox("Failed to send style trigger to Fusion 360.\n\nCheck that the Logs folder is accessible.",
+            "Trigger Error", wx.wxOK + wx.wxICON_ERROR)
+    end
+end
 
 
 -- Main surface grid probing function
