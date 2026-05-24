@@ -6,9 +6,9 @@ A_Offset=0
 B_Offset=-0.217753
 C_Offset=27.4145
 [Fixture_2]
-X_Offset=4.9751
-Y_Offset=13.6268
-Z_Offset=-10.205
+X_Offset=4.9905
+Y_Offset=13.626
+Z_Offset=-9.92499
 A_Offset=0
 B_Offset=6.87352
 C_Offset=13.6173

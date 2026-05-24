@@ -56,3 +56,107 @@
 [2026-05-11 11:17:49] Probed 28 accessible shoulders
 [2026-05-11 11:17:55] G68 rotation cleared
 [2026-05-11 11:17:55] ===== ProbeKeys Lower Half Completed Successfully =====
+[2026-05-17 11:05:56] ===== Final Keytop Shaping Started =====
+[2026-05-17 11:06:29] Single-tap calibration offset:
+[2026-05-17 11:06:29]   -Z: -0.025787
+[2026-05-17 11:06:29] Left bore center: X0.0006 Y-0.0029
+[2026-05-17 11:06:35] Surface Z datum set at: 0.0000
+[2026-05-17 11:06:39] ID hole 1: Z=-0.0026 (calibrated), bit=0
+[2026-05-17 11:06:41] ID hole 2: Z=-0.0974 (calibrated), bit=1
+[2026-05-17 11:06:44] ID hole 3: Z=0.0001 (calibrated), bit=0
+[2026-05-17 11:06:47] ID hole 4: Z=-0.0959 (calibrated), bit=1
+[2026-05-17 11:06:50] ID hole 5: Z=0.0039 (calibrated), bit=0
+[2026-05-17 11:06:52] ID hole 6: Z=-0.0911 (calibrated), bit=1
+[2026-05-17 11:06:55] ID hole 7: Z=0.0094 (calibrated), bit=0
+[2026-05-17 11:06:58] ID hole 8: Z=0.0127 (calibrated), bit=0
+[2026-05-17 11:07:00] ID hole 9: Z=0.0161 (calibrated), bit=0
+[2026-05-17 11:07:03] ID hole 10: Z=-0.0796 (calibrated), bit=1
+[2026-05-17 11:07:03] Fixture ID detected: 42 (binary: 00101010)
+[2026-05-17 11:07:32] Right bore center (in datum coords): X46.0063 Y0.0013
+[2026-05-17 11:07:32] Right bore position relative to left: X46.0063 Y0.0013
+[2026-05-17 11:07:32] Bore alignment angle: 0.0016 degrees
+[2026-05-17 11:07:32] G68 rotation applied: 0.0016 degrees centered at 0,0
+[2026-05-17 11:07:32] User selected file: C:\Mach4Hobby\Profiles\BLP\Logs\Test4 - Lower_11114_Lower\Test4 - Lower_11114_Lower.tap
+[2026-05-17 11:07:34] ===== Final Shaping Started =====
+[2026-05-17 11:07:34] Fixture ID: 42
+[2026-05-17 11:07:34] Section: Lower
+[2026-05-17 11:07:34] G-code file: C:\Mach4Hobby\Profiles\BLP\Logs\Test4 - Lower_11114_Lower\Test4 - Lower_11114_Lower.tap
+[2026-05-17 11:07:34] Deferred load marker created: C:\Mach4Hobby\Profiles\BLP\Temp\DeferredGCode.txt
+[2026-05-17 11:38:59] ===== Final Keytop Shaping Started =====
+[2026-05-17 11:39:32] Single-tap calibration offset:
+[2026-05-17 11:39:32]   -Z: -0.022402
+[2026-05-17 11:39:32] Left bore center: X0.0005 Y-0.0022
+[2026-05-17 11:39:38] Surface Z datum set at: 0.0000
+[2026-05-17 11:39:41] ID hole 1: Z=-0.0066 (calibrated), bit=0
+[2026-05-17 11:39:44] ID hole 2: Z=-0.1022 (calibrated), bit=1
+[2026-05-17 11:39:47] ID hole 3: Z=-0.0045 (calibrated), bit=0
+[2026-05-17 11:39:50] ID hole 4: Z=-0.1007 (calibrated), bit=1
+[2026-05-17 11:39:52] ID hole 5: Z=-0.0013 (calibrated), bit=0
+[2026-05-17 11:39:55] ID hole 6: Z=-0.0965 (calibrated), bit=1
+[2026-05-17 11:39:58] ID hole 7: Z=0.0038 (calibrated), bit=0
+[2026-05-17 11:40:01] ID hole 8: Z=0.0066 (calibrated), bit=0
+[2026-05-17 11:40:03] ID hole 9: Z=0.0098 (calibrated), bit=0
+[2026-05-17 11:40:06] ID hole 10: Z=-0.0861 (calibrated), bit=1
+[2026-05-17 11:40:06] Fixture ID detected: 42 (binary: 00101010)
+[2026-05-17 11:40:35] Right bore center (in datum coords): X46.0048 Y0.0015
+[2026-05-17 11:40:35] Right bore position relative to left: X46.0048 Y0.0015
+[2026-05-17 11:40:35] Bore alignment angle: 0.0019 degrees
+[2026-05-17 11:40:35] G68 rotation applied: 0.0019 degrees centered at 0,0
+[2026-05-17 11:40:35] User selected file: C:\Mach4Hobby\Profiles\BLP\Logs\Test4 - Lower_11114_Lower\Test4 - Lower_11114_Lower.tap
+[2026-05-17 11:40:37] ===== Final Shaping Started =====
+[2026-05-17 11:40:37] Fixture ID: 42
+[2026-05-17 11:40:37] Section: Lower
+[2026-05-17 11:40:37] G-code file: C:\Mach4Hobby\Profiles\BLP\Logs\Test4 - Lower_11114_Lower\Test4 - Lower_11114_Lower.tap
+[2026-05-17 11:40:37] Deferred load marker created: C:\Mach4Hobby\Profiles\BLP\Temp\DeferredGCode.txt
+[2026-05-17 16:11:11] ===== Final Keytop Shaping Started =====
+[2026-05-17 16:11:45] Single-tap calibration offset:
+[2026-05-17 16:11:45]   -Z: -0.026024
+[2026-05-17 16:11:45] Left bore center: X0.0042 Y-0.0018
+[2026-05-17 16:11:51] Surface Z datum set at: 0.0000
+[2026-05-17 16:11:54] ID hole 1: Z=-0.0022 (calibrated), bit=0
+[2026-05-17 16:11:57] ID hole 2: Z=-0.0973 (calibrated), bit=1
+[2026-05-17 16:12:00] ID hole 3: Z=0.0004 (calibrated), bit=0
+[2026-05-17 16:12:02] ID hole 4: Z=-0.0957 (calibrated), bit=1
+[2026-05-17 16:12:05] ID hole 5: Z=0.0040 (calibrated), bit=0
+[2026-05-17 16:12:08] ID hole 6: Z=-0.0910 (calibrated), bit=1
+[2026-05-17 16:12:11] ID hole 7: Z=0.0094 (calibrated), bit=0
+[2026-05-17 16:12:13] ID hole 8: Z=0.0123 (calibrated), bit=0
+[2026-05-17 16:12:16] ID hole 9: Z=0.0156 (calibrated), bit=0
+[2026-05-17 16:12:19] ID hole 10: Z=-0.0804 (calibrated), bit=1
+[2026-05-17 16:12:19] Fixture ID detected: 42 (binary: 00101010)
+[2026-05-17 16:12:47] Right bore center (in datum coords): X46.0023 Y0.0009
+[2026-05-17 16:12:47] Right bore position relative to left: X46.0023 Y0.0009
+[2026-05-17 16:12:47] Bore alignment angle: 0.0011 degrees
+[2026-05-17 16:12:48] G68 rotation applied: 0.0011 degrees centered at 0,0
+[2026-05-17 16:12:48] User selected file: C:\Mach4Hobby\Profiles\BLP\Logs\Test4 - Lower_11114_Lower\Test4 - Lower_11114_T19Resume_Lower.tap
+[2026-05-17 16:12:50] ===== Final Shaping Started =====
+[2026-05-17 16:12:50] Fixture ID: 42
+[2026-05-17 16:12:50] Section: Lower
+[2026-05-17 16:12:50] G-code file: C:\Mach4Hobby\Profiles\BLP\Logs\Test4 - Lower_11114_Lower\Test4 - Lower_11114_T19Resume_Lower.tap
+[2026-05-17 16:12:50] Deferred load marker created: C:\Mach4Hobby\Profiles\BLP\Temp\DeferredGCode.txt
+[2026-05-24 14:05:47] ===== Final Keytop Shaping Started =====
+[2026-05-24 14:06:21] Single-tap calibration offset:
+[2026-05-24 14:06:21]   -Z: -0.026142
+[2026-05-24 14:06:21] Left bore center: X0.0219 Y0.0062
+[2026-05-24 14:06:26] Surface Z datum set at: 0.0000
+[2026-05-24 14:06:30] ID hole 1: Z=-0.0024 (calibrated), bit=0
+[2026-05-24 14:06:33] ID hole 2: Z=-0.0978 (calibrated), bit=1
+[2026-05-24 14:06:36] ID hole 3: Z=-0.0002 (calibrated), bit=0
+[2026-05-24 14:06:38] ID hole 4: Z=-0.0964 (calibrated), bit=1
+[2026-05-24 14:06:41] ID hole 5: Z=0.0030 (calibrated), bit=0
+[2026-05-24 14:06:44] ID hole 6: Z=-0.0922 (calibrated), bit=1
+[2026-05-24 14:06:47] ID hole 7: Z=0.0081 (calibrated), bit=0
+[2026-05-24 14:06:49] ID hole 8: Z=0.0109 (calibrated), bit=0
+[2026-05-24 14:06:52] ID hole 9: Z=0.0141 (calibrated), bit=0
+[2026-05-24 14:06:55] ID hole 10: Z=-0.0820 (calibrated), bit=1
+[2026-05-24 14:06:55] Fixture ID detected: 42 (binary: 00101010)
+[2026-05-24 14:07:24] Right bore center (in datum coords): X46.0034 Y-0.0039
+[2026-05-24 14:07:24] Right bore position relative to left: X46.0034 Y-0.0039
+[2026-05-24 14:07:24] Bore alignment angle: -0.0049 degrees
+[2026-05-24 14:07:24] G68 rotation applied: -0.0049 degrees centered at 0,0
+[2026-05-24 14:07:24] User selected file: C:\Mach4Hobby\Profiles\BLP\Logs\Test4 - Lower_11114_Lower\Test4 - Lower_11114_T19Resume_Lower.tap
+[2026-05-24 14:07:26] ===== Final Shaping Started =====
+[2026-05-24 14:07:26] Fixture ID: 42
+[2026-05-24 14:07:26] Section: Lower
+[2026-05-24 14:07:26] G-code file: C:\Mach4Hobby\Profiles\BLP\Logs\Test4 - Lower_11114_Lower\Test4 - Lower_11114_T19Resume_Lower.tap
+[2026-05-24 14:07:26] Deferred load marker created: C:\Mach4Hobby\Profiles\BLP\Temp\DeferredGCode.txt

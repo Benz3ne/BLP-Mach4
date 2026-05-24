@@ -1,0 +1,9 @@
+===== Placement Validation Report =====
+Piano: Test5 - Lower  S/N: 11115  Section: Lower
+Date:  2026-05-24 16:19:30
+
+Thresholds: Z +/-0.025"  Y+ +/-0.020"  Shoulder 0.075"-0.500"
+
+RESULT: 1 ERROR(S) DETECTED
+
+  !! Y POSITION Key 1    measured=-1.1594"  median=-1.1953"  deviation=0.0359" (limit +/-0.020")

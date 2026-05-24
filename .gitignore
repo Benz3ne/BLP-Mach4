@@ -11,5 +11,8 @@ Backups/
 # System/cache files
 *.dat
 
+# Fusion heartbeat (auto-written every 5s by add-in)
+Logs/FUSION_HEARTBEAT.txt
+
 # Claude Code memory
 .claude/

@@ -1,0 +1,1 @@
+{"csv_path": "\\\\BLPCNC\\Mach4Hobby\\Profiles\\BLP\\Logs\\Test5 - Lower_11115_Lower\\Test5 - Lower_11115_Lower.csv", "piano_id": "Test5 - Lower_11115_Lower", "avg_z": 0.265535}
