@@ -603,7 +603,10 @@ class ProbeDataHandler(adsk.core.CustomEventHandler):
                                         log(f"  Traceback: {traceback.format_exc()}")
 
                             # Find and move the exported file from Downloads to piano folder
-                            expected_filename = f"{section} Shaping.tap"
+                            if chamfer_style == 'roundover':
+                                expected_filename = f"{section} Shaping Roundover.tap"
+                            else:
+                                expected_filename = f"{section} Shaping.tap"
                             source_file = os.path.join(downloads_dir, expected_filename)
                             dest_name = f"{piano_id}.tap"
                             dest_file = os.path.join(piano_folder, dest_name)
