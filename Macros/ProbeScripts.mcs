@@ -4782,8 +4782,8 @@ function ProbeScripts.ApplyStyle(inst)
          tooltip = "Select which probed piano data to apply styles to"},
         {type = "separator"},
         {type = "radio", key = "edgeType", label = "Edge Type",
-         options = {"Chamfer"},
-         columns = 1, default = 0},
+         options = {"Chamfer", "Roundover"},
+         columns = 2, default = 0},
         {type = "separator"},
         {type = "radio", key = "finishStyle", label = "Finish Style",
          options = {
@@ -4804,9 +4804,11 @@ function ProbeScripts.ApplyStyle(inst)
 
     local csvPathNetwork = csvPathLocal:gsub("C:\\Mach4Hobby", "\\\\BLPCNC\\Mach4Hobby")
     local triggerPath    = logsDir .. "\\PROBE_COMPLETE_" .. pianoName .. ".txt"
+    local edgeTypeNames  = {"chamfer", "roundover"}
+    local chamferStyle   = edgeTypeNames[(params.edgeType or 0) + 1] or "chamfer"
     local triggerData    = string.format(
-        '{"csv_path": "%s", "piano_id": "%s", "avg_z": 0, "chamfer_style": "chamfer", "edge_chamfer": %.6f, "lip_fillet": %.6f}',
-        csvPathNetwork:gsub("\\", "\\\\"), pianoName, preset.edge_chamfer, preset.lip_fillet)
+        '{"csv_path": "%s", "piano_id": "%s", "avg_z": 0, "chamfer_style": "%s", "edge_chamfer": %.6f, "lip_fillet": %.6f}',
+        csvPathNetwork:gsub("\\", "\\\\"), pianoName, chamferStyle, preset.edge_chamfer, preset.lip_fillet)
 
     local styleLabels = {"Light", "Medium", "Heavy"}
     local styleLabel  = styleLabels[(params.finishStyle or 1) + 1] or "Medium"
@@ -4815,12 +4817,22 @@ function ProbeScripts.ApplyStyle(inst)
     if tFile then
         tFile:write(triggerData)
         tFile:close()
-        mc.mcCntlSetLastError(inst, string.format("Style trigger sent for %s (%s)", pianoName, styleLabel))
+        mc.mcCntlSetLastError(inst, string.format("Style trigger sent for %s (%s %s)", pianoName, styleLabel, chamferStyle))
+        local detailLine
+        if chamferStyle == "roundover" then
+            detailLine =
+                string.format("  Edge Type    : Roundover\n") ..
+                string.format("  Lip Fillet   : %.4f\"\n\n", preset.lip_fillet)
+        else
+            detailLine =
+                string.format("  Edge Type    : Chamfer\n") ..
+                string.format("  Edge Chamfer : %.4f\"\n", preset.edge_chamfer) ..
+                string.format("  Lip Fillet   : %.4f\"\n\n", preset.lip_fillet)
+        end
         wx.wxMessageBox(
             string.format("Style trigger sent for:\n  %s\n\n", pianoName) ..
             string.format("  Finish Style : %s\n",     styleLabel) ..
-            string.format("  Edge Chamfer : %.4f\"\n", preset.edge_chamfer) ..
-            string.format("  Lip Fillet   : %.4f\"\n\n", preset.lip_fillet) ..
+            detailLine ..
             "Fusion 360 is regenerating toolpaths. Any existing shaping file\n" ..
             "for this piano will be overwritten when complete.\n\n" ..
             "Run Final Shaping once Fusion notifies you it is finished.",

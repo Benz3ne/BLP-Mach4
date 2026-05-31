@@ -585,6 +585,10 @@ class ProbeDataHandler(adsk.core.CustomEventHandler):
                                     if chamfer_style == 'chamfer' and 'roundover' in prog_name_lower:
                                         log(f"Skipping roundover program '{prog.name}' (chamfer style selected)")
                                         continue
+                                    # Skip non-roundover programs when roundover style is selected
+                                    if chamfer_style == 'roundover' and 'roundover' not in prog_name_lower:
+                                        log(f"Skipping non-roundover program '{prog.name}' (roundover style selected)")
+                                        continue
 
                                     log(f"Exporting NC program: '{prog.name}'")
                                     try:
