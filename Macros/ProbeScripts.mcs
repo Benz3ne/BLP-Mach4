@@ -3026,6 +3026,7 @@ function ProbeScripts.ProbeKeys(inst)
     local BORE_SEPARATION = 46.0  -- inches between calibration bores
     local PROBE_DROP_DEPTH = 0.15  -- uniform drop depth for X and -Y probing
     local LINEARITY_THRESHOLD = 0.01  -- maximum deviation before adding extra probe points
+    local X_OUTLIER_THRESHOLD = 0.012 -- chip/outlier threshold for X edge validation
     local safeTraverseZ = 2.0  -- safe Z height in work coords
     local ID_HOLE_DEPTH_THRESHOLD = -0.05  -- halfway between 0 and -0.1
     local SAMPLE_KEY_INTERVAL = 6  -- probe every 6th key (1, 7, 13, 19, 25)
@@ -3062,6 +3063,7 @@ function ProbeScripts.ProbeKeys(inst)
     local traverseHeight  -- calculated after Z probing
     local probeZ  -- uniform probe depth for X and -Y
     local keyValidation = {}  -- shoulder step data per key for placement validation
+    local xOutlierAdjustments = {}  -- keys with auto-excluded chip/outlier X measurements
 
     -- Files - set after key section is determined
     local pianoFolder = nil
@@ -3142,6 +3144,21 @@ function ProbeScripts.ProbeKeys(inst)
         local n = #sorted
         if n % 2 == 1 then return sorted[math.ceil(n / 2)] end
         return (sorted[math.floor(n / 2)] + sorted[math.floor(n / 2) + 1]) / 2
+    end
+
+    local function filterOutliers(vals, threshold)
+        if #vals < 3 then return vals, {} end
+        local med = calcMedian(vals)
+        local good, bad = {}, {}
+        for _, v in ipairs(vals) do
+            if math.abs(v - med) > threshold then
+                table.insert(bad, v)
+            else
+                table.insert(good, v)
+            end
+        end
+        if #good < 2 then return vals, {} end  -- not enough clean points, don't filter
+        return good, bad
     end
 
     local function keyShoulderType(pianoKey)
@@ -3679,10 +3696,29 @@ function ProbeScripts.ProbeKeys(inst)
             for _, pt in ipairs(rightData) do
                 if pt.y < 0.5 then table.insert(rf, pt.x) else table.insert(rb, pt.x) end
             end
+
+            local lf_clean, lf_bad = filterOutliers(lf, X_OUTLIER_THRESHOLD)
+            local lb_clean, lb_bad = filterOutliers(lb, X_OUTLIER_THRESHOLD)
+            local rf_clean, rf_bad = filterOutliers(rf, X_OUTLIER_THRESHOLD)
+            local rb_clean, rb_bad = filterOutliers(rb, X_OUTLIER_THRESHOLD)
+
+            local nBadL = #lf_bad + #lb_bad
+            local nBadR = #rf_bad + #rb_bad
+            if nBadL > 0 then
+                table.insert(xOutlierAdjustments, string.format(
+                    "Key %-3d  +X: %d outlier(s) excluded (front:%d  back:%d)",
+                    pianoKey, nBadL, #lf_bad, #lb_bad))
+            end
+            if nBadR > 0 then
+                table.insert(xOutlierAdjustments, string.format(
+                    "Key %-3d  -X: %d outlier(s) excluded (front:%d  back:%d)",
+                    pianoKey, nBadR, #rf_bad, #rb_bad))
+            end
+
             table.insert(keyValidation, {
                 pianoKey  = pianoKey,
-                leftStep  = calcAvg(lb) - calcAvg(lf),
-                rightStep = calcAvg(rf) - calcAvg(rb),
+                leftStep  = calcAvg(lb_clean) - calcAvg(lf_clean),
+                rightStep = calcAvg(rf_clean) - calcAvg(rb_clean),
             })
         end
 
@@ -3838,6 +3874,13 @@ function ProbeScripts.ProbeKeys(inst)
                 valFile:write("  !! " .. err .. "\n")
             end
         end
+        if #xOutlierAdjustments > 0 then
+            valFile:write(string.format("\nOUTLIER ADJUSTMENTS: %d X measurement(s) auto-excluded from validation\n", #xOutlierAdjustments))
+            valFile:write(string.format("Threshold: +/-%.3f\"  (raw CSV data unchanged, Fusion NC output unaffected)\n", X_OUTLIER_THRESHOLD))
+            for _, note in ipairs(xOutlierAdjustments) do
+                valFile:write("  ** " .. note .. "\n")
+            end
+        end
         valFile:close()
     end
 
@@ -3852,25 +3895,52 @@ function ProbeScripts.ProbeKeys(inst)
 
     local sendTrigger = true
 
-    if #validationErrors > 0 then
+    if #validationErrors > 0 or #xOutlierAdjustments > 0 then
         local errorLines = ""
         for _, err in ipairs(validationErrors) do
             errorLines = errorLines .. "  - " .. err .. "\n"
         end
-        local msg = string.format(
-            "PLACEMENT VALIDATION -- %d ERROR(S) DETECTED\n" ..
-            string.rep("=", 52) .. "\n\n" ..
-            "%s\n" ..
-            string.rep("=", 52) .. "\n\n" ..
-            "A validation report has been saved to:\n" ..
-            "  %s\n\n" ..
-            "YES -> Send data to Fusion 360 anyway\n" ..
-            "NO  -> Abort -- do not send (re-seat keys and re-run)",
-            #validationErrors, errorLines, validationReportPath)
-        local result = wx.wxMessageBox(msg, "Placement Validation", wx.wxYES_NO + wx.wxICON_WARNING)
-        if result == wx.wxNO then
-            sendTrigger = false
-            mc.mcCntlSetLastError(inst, "ProbeKeys: placement errors acknowledged -- Fusion not triggered")
+        local adjLines = ""
+        for _, note in ipairs(xOutlierAdjustments) do
+            adjLines = adjLines .. "  ** " .. note .. "\n"
+        end
+
+        if #validationErrors > 0 then
+            local msg = string.format(
+                "PLACEMENT VALIDATION -- %d ERROR(S) DETECTED\n" ..
+                string.rep("=", 52) .. "\n\n" ..
+                "%s\n",
+                #validationErrors, errorLines)
+            if #xOutlierAdjustments > 0 then
+                msg = msg .. string.format(
+                    "OUTLIER ADJUSTMENTS (%d X measurement(s) auto-excluded)\n" ..
+                    string.rep("-", 52) .. "\n" ..
+                    "%s\n",
+                    #xOutlierAdjustments, adjLines)
+            end
+            msg = msg .. string.format(
+                string.rep("=", 52) .. "\n\n" ..
+                "A validation report has been saved to:\n" ..
+                "  %s\n\n" ..
+                "YES -> Send data to Fusion 360 anyway\n" ..
+                "NO  -> Abort -- do not send (re-seat keys and re-run)",
+                validationReportPath)
+            local result = wx.wxMessageBox(msg, "Placement Validation", wx.wxYES_NO + wx.wxICON_WARNING)
+            if result == wx.wxNO then
+                sendTrigger = false
+                mc.mcCntlSetLastError(inst, "ProbeKeys: placement errors acknowledged -- Fusion not triggered")
+            end
+        else
+            wx.wxMessageBox(
+                string.format(
+                    "OUTLIER ADJUSTMENTS -- %d X measurement(s) auto-excluded\n" ..
+                    string.rep("=", 52) .. "\n\n" ..
+                    "%s\n" ..
+                    "Excluded from shoulder step validation only.\n" ..
+                    "Raw CSV data is unchanged.\n" ..
+                    "Fusion uses max() positioning so NC output is unaffected.",
+                    #xOutlierAdjustments, adjLines),
+                "Outlier Adjustments", wx.wxOK + wx.wxICON_INFORMATION)
         end
     end
 

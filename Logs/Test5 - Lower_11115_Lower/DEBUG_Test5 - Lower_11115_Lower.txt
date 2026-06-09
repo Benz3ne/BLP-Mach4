@@ -1,0 +1,220 @@
+13:58:40 - === STARTING PROCESSING: Test5 - Lower_11115_Lower ===
+13:58:40 - [PROGRESS] Starting - Received trigger for Test5 - Lower_11115_Lower
+13:58:40 - ERROR: No active document
+13:58:41 - === PROCESSING COMPLETE: FAILED ===
+15:01:32 - === STARTING PROCESSING: Test5 - Lower_11115_Lower ===
+15:01:32 - [PROGRESS] Starting - Received trigger for Test5 - Lower_11115_Lower
+15:01:32 - [PROGRESS] Parsing CSV - \\BLPCNC\Mach4Hobby\Profiles\BLP\Logs\Test5 - Lower_11115_Lower\Test5 - Lower_11115_Lower.csv
+15:01:32 - Parsing CSV: \\BLPCNC\Mach4Hobby\Profiles\BLP\Logs\Test5 - Lower_11115_Lower\Test5 - Lower_11115_Lower.csv
+15:01:33 - Found data for 26 keys
+15:01:33 - Calculated Lower section params: ShoulderLength=1.8423, KeyHeight=0.2646
+15:01:34 - Processing 26 white keys in Lower section
+15:01:34 - Calculated parameters for 26 keys
+15:01:35 - [PROGRESS] Switching to Design workspace
+15:01:35 - Switching to Design workspace...
+15:01:37 - Switched to Design workspace
+15:01:38 - [PROGRESS] Updating parameters - Building batch update for 26 keys
+15:01:38 - Using batch modifyParameters API for efficient updates
+15:01:38 - Style: EdgeChamfer = 0.011 in
+15:01:38 - Style: LipFillet = 0.075 in
+15:01:38 - Built batch update with 117 parameters
+15:01:38 - [PROGRESS] Updating parameters - Applying 117 params + geometry rebuild
+15:01:54 - Batch modifyParameters result: True
+15:01:56 - [PROGRESS] Switching to Manufacturing workspace
+15:01:56 - Switching to Manufacturing workspace...
+15:03:53 - Switched to Manufacturing workspace
+15:03:53 - [PROGRESS] Generating toolpaths - 2 setups for Lower
+15:03:53 - Starting toolpath generation for 2 setups: ['Lower Shaping', 'Lower Shaping Roundover']
+15:04:10 - [PROGRESS] Generating toolpaths - 11s elapsed
+15:04:20 - [PROGRESS] Generating toolpaths - 22s elapsed
+15:04:29 - Still generating toolpaths... 31 seconds elapsed
+15:04:31 - [PROGRESS] Generating toolpaths - 33s elapsed
+15:04:42 - [PROGRESS] Generating toolpaths - 43s elapsed
+15:05:03 - [PROGRESS] Generating toolpaths - 62s elapsed
+15:05:11 - [PROGRESS] Generating toolpaths - 73s elapsed
+15:05:22 - [PROGRESS] Generating toolpaths - 83s elapsed
+15:05:32 - [PROGRESS] Generating toolpaths - 94s elapsed
+15:05:43 - [PROGRESS] Generating toolpaths - 104s elapsed
+15:05:54 - [PROGRESS] Generating toolpaths - 115s elapsed
+15:05:59 - Still generating toolpaths... 120 seconds elapsed
+15:06:06 - [PROGRESS] Generating toolpaths - 127s elapsed
+15:06:16 - [PROGRESS] Generating toolpaths - 138s elapsed
+15:06:27 - [PROGRESS] Generating toolpaths - 148s elapsed
+15:06:38 - [PROGRESS] Generating toolpaths - 159s elapsed
+15:06:48 - [PROGRESS] Generating toolpaths - 170s elapsed
+15:07:03 - [PROGRESS] Generating toolpaths - 180s elapsed
+15:07:10 - [PROGRESS] Generating toolpaths - 192s elapsed
+15:07:23 - [PROGRESS] Generating toolpaths - 202s elapsed
+15:07:29 - Still generating toolpaths... 211 seconds elapsed
+15:07:32 - [PROGRESS] Generating toolpaths - 213s elapsed
+15:07:42 - [PROGRESS] Generating toolpaths - 224s elapsed
+15:07:53 - [PROGRESS] Generating toolpaths - 235s elapsed
+15:08:04 - [PROGRESS] Generating toolpaths - 245s elapsed
+15:08:14 - [PROGRESS] Generating toolpaths - 256s elapsed
+15:08:25 - [PROGRESS] Generating toolpaths - 267s elapsed
+15:08:26 - Toolpath generation complete
+15:08:26 - [PROGRESS] Exporting G-code
+15:08:27 - Starting G-code export...
+15:08:27 - Found 2 NC programs
+15:08:28 - Skipping non-roundover program 'Lower Shaping' (roundover style selected)
+15:08:29 - Looking for exported file: C:\Users\BLP CNC\Downloads\Lower Shaping.tap
+15:08:29 - ERROR: Exported file not found: C:\Users\BLP CNC\Downloads\Lower Shaping.tap
+15:08:29 - === PROCESSING COMPLETE: FAILED ===
+15:14:07 - === STARTING PROCESSING: Test5 - Lower_11115_Lower ===
+15:14:07 - [PROGRESS] Starting - Received trigger for Test5 - Lower_11115_Lower
+15:14:07 - [PROGRESS] Parsing CSV - \\BLPCNC\Mach4Hobby\Profiles\BLP\Logs\Test5 - Lower_11115_Lower\Test5 - Lower_11115_Lower.csv
+15:14:08 - Parsing CSV: \\BLPCNC\Mach4Hobby\Profiles\BLP\Logs\Test5 - Lower_11115_Lower\Test5 - Lower_11115_Lower.csv
+15:14:08 - Found data for 26 keys
+15:14:09 - Calculated Lower section params: ShoulderLength=1.8423, KeyHeight=0.2646
+15:14:10 - Processing 26 white keys in Lower section
+15:14:10 - Calculated parameters for 26 keys
+15:14:10 - [PROGRESS] Switching to Design workspace
+15:14:10 - Switching to Design workspace...
+15:14:12 - Switched to Design workspace
+15:14:13 - [PROGRESS] Updating parameters - Building batch update for 26 keys
+15:14:14 - Using batch modifyParameters API for efficient updates
+15:14:14 - Style: EdgeChamfer = 0.011 in
+15:14:14 - Style: LipFillet = 0.075 in
+15:14:15 - Built batch update with 117 parameters
+15:14:15 - [PROGRESS] Updating parameters - Applying 117 params + geometry rebuild
+15:14:18 - Batch modifyParameters result: True
+15:14:18 - [PROGRESS] Switching to Manufacturing workspace
+15:14:19 - Switching to Manufacturing workspace...
+15:14:21 - Switched to Manufacturing workspace
+15:14:21 - [PROGRESS] Generating toolpaths - 2 setups for Lower
+15:14:21 - Starting toolpath generation for 2 setups: ['Lower Shaping', 'Lower Shaping Roundover']
+15:14:35 - [PROGRESS] Generating toolpaths - 10s elapsed
+15:14:46 - [PROGRESS] Generating toolpaths - 21s elapsed
+15:14:56 - [PROGRESS] Generating toolpaths - 31s elapsed
+15:15:06 - [PROGRESS] Generating toolpaths - 41s elapsed
+15:15:16 - [PROGRESS] Generating toolpaths - 51s elapsed
+15:15:27 - [PROGRESS] Generating toolpaths - 62s elapsed
+15:15:37 - [PROGRESS] Generating toolpaths - 72s elapsed
+15:15:47 - [PROGRESS] Generating toolpaths - 82s elapsed
+15:16:03 - Still generating toolpaths... 90 seconds elapsed
+15:16:05 - [PROGRESS] Generating toolpaths - 100s elapsed
+15:16:16 - [PROGRESS] Generating toolpaths - 111s elapsed
+15:16:26 - [PROGRESS] Generating toolpaths - 121s elapsed
+15:16:26 - Still generating toolpaths... 121 seconds elapsed
+15:16:37 - [PROGRESS] Generating toolpaths - 132s elapsed
+15:16:47 - [PROGRESS] Generating toolpaths - 142s elapsed
+15:16:55 - Still generating toolpaths... 150 seconds elapsed
+15:16:57 - [PROGRESS] Generating toolpaths - 153s elapsed
+15:17:08 - [PROGRESS] Generating toolpaths - 163s elapsed
+15:17:18 - [PROGRESS] Generating toolpaths - 173s elapsed
+15:17:28 - [PROGRESS] Generating toolpaths - 183s elapsed
+15:17:39 - [PROGRESS] Generating toolpaths - 194s elapsed
+15:17:49 - [PROGRESS] Generating toolpaths - 204s elapsed
+15:17:55 - Still generating toolpaths... 210 seconds elapsed
+15:17:59 - [PROGRESS] Generating toolpaths - 214s elapsed
+15:18:10 - [PROGRESS] Generating toolpaths - 225s elapsed
+15:18:20 - [PROGRESS] Generating toolpaths - 235s elapsed
+15:18:30 - [PROGRESS] Generating toolpaths - 245s elapsed
+15:18:40 - [PROGRESS] Generating toolpaths - 255s elapsed
+15:18:51 - [PROGRESS] Generating toolpaths - 266s elapsed
+15:18:57 - Toolpath generation complete
+15:18:57 - [PROGRESS] Exporting G-code
+15:18:57 - Starting G-code export...
+15:18:57 - Found 3 NC programs
+15:18:57 - Skipping non-roundover program 'Lower Shaping' (roundover style selected)
+15:19:02 - Exporting NC program: 'Lower Shaping Roundover'
+15:19:03 -   Post process completed
+15:19:03 - Looking for exported file: C:\Users\BLP CNC\Downloads\Lower Shaping.tap
+15:19:03 - ERROR: Exported file not found: C:\Users\BLP CNC\Downloads\Lower Shaping.tap
+15:19:03 - === PROCESSING COMPLETE: FAILED ===
+16:33:37 - === STARTING PROCESSING: Test5 - Lower_11115_Lower ===
+16:33:37 - [PROGRESS] Starting - Received trigger for Test5 - Lower_11115_Lower
+16:33:38 - Removed old file: Test5 - Lower_11115_Lower.tap
+16:33:38 - ERROR: Traceback (most recent call last):
+  File "C:/Users/BLP CNC/AppData/Roaming/Autodesk/Autodesk Fusion 360/API/AddIns/KeytopParametricUpdate/KeytopParametricUpdate.py", line 398, in notify
+    os.remove(os.path.join(piano_folder, file))
+    ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+PermissionError: [WinError 32] The process cannot access the file because it is being used by another process: '\\\\BLPCNC\\Mach4Hobby\\Profiles\\BLP\\Logs\\Test5 - Lower_11115_Lower\\Test5 - roundover Lower_11115_Lower.tap'
+
+16:33:38 - === PROCESSING COMPLETE: FAILED ===
+16:34:38 - === STARTING PROCESSING: Test5 - Lower_11115_Lower ===
+16:34:38 - [PROGRESS] Starting - Received trigger for Test5 - Lower_11115_Lower
+16:34:38 - ERROR: Traceback (most recent call last):
+  File "C:/Users/BLP CNC/AppData/Roaming/Autodesk/Autodesk Fusion 360/API/AddIns/KeytopParametricUpdate/KeytopParametricUpdate.py", line 398, in notify
+    os.remove(os.path.join(piano_folder, file))
+    ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+PermissionError: [WinError 32] The process cannot access the file because it is being used by another process: '\\\\BLPCNC\\Mach4Hobby\\Profiles\\BLP\\Logs\\Test5 - Lower_11115_Lower\\Test5 - roundover Lower_11115_Lower.tap'
+
+16:34:38 - === PROCESSING COMPLETE: FAILED ===
+16:41:25 - === STARTING PROCESSING: Test5 - Lower_11115_Lower ===
+16:41:25 - [PROGRESS] Starting - Received trigger for Test5 - Lower_11115_Lower
+16:41:25 - ERROR: Traceback (most recent call last):
+  File "C:/Users/BLP CNC/AppData/Roaming/Autodesk/Autodesk Fusion 360/API/AddIns/KeytopParametricUpdate/KeytopParametricUpdate.py", line 398, in notify
+    os.remove(os.path.join(piano_folder, file))
+    ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+PermissionError: [WinError 32] The process cannot access the file because it is being used by another process: '\\\\BLPCNC\\Mach4Hobby\\Profiles\\BLP\\Logs\\Test5 - Lower_11115_Lower\\Test5 - roundover Lower_11115_Lower.tap'
+
+16:41:25 - === PROCESSING COMPLETE: FAILED ===
+16:44:17 - === STARTING PROCESSING: Test5 - Lower_11115_Lower ===
+16:44:17 - [PROGRESS] Starting - Received trigger for Test5 - Lower_11115_Lower
+16:44:18 - Removed old file: Test5 - roundover Lower_11115_Lower.tap
+16:44:18 - [PROGRESS] Parsing CSV - \\BLPCNC\Mach4Hobby\Profiles\BLP\Logs\Test5 - Lower_11115_Lower\Test5 - Lower_11115_Lower.csv
+16:44:18 - Parsing CSV: \\BLPCNC\Mach4Hobby\Profiles\BLP\Logs\Test5 - Lower_11115_Lower\Test5 - Lower_11115_Lower.csv
+16:44:18 - Found data for 26 keys
+16:44:18 - Calculated Lower section params: ShoulderLength=1.8423, KeyHeight=0.2646
+16:44:18 - Processing 26 white keys in Lower section
+16:44:19 - Calculated parameters for 26 keys
+16:44:19 - [PROGRESS] Switching to Design workspace
+16:44:19 - Switching to Design workspace...
+16:44:21 - Switched to Design workspace
+16:44:21 - [PROGRESS] Updating parameters - Building batch update for 26 keys
+16:44:21 - Using batch modifyParameters API for efficient updates
+16:44:21 - Style: EdgeChamfer = 0.011 in
+16:44:22 - Style: LipFillet = 0.075 in
+16:44:22 - Built batch update with 117 parameters
+16:44:22 - [PROGRESS] Updating parameters - Applying 117 params + geometry rebuild
+16:44:38 - Batch modifyParameters result: True
+16:44:38 - [PROGRESS] Switching to Manufacturing workspace
+16:44:39 - Switching to Manufacturing workspace...
+16:46:01 - Switched to Manufacturing workspace
+16:46:02 - [PROGRESS] Generating toolpaths - 2 setups for Lower
+16:46:02 - Starting toolpath generation for 2 setups: ['Lower Shaping', 'Lower Shaping Roundover']
+16:46:16 - [PROGRESS] Generating toolpaths - 10s elapsed
+16:46:26 - [PROGRESS] Generating toolpaths - 21s elapsed
+16:46:37 - [PROGRESS] Generating toolpaths - 31s elapsed
+16:46:47 - [PROGRESS] Generating toolpaths - 42s elapsed
+16:46:58 - [PROGRESS] Generating toolpaths - 52s elapsed
+16:47:06 - Still generating toolpaths... 60 seconds elapsed
+16:47:08 - [PROGRESS] Generating toolpaths - 63s elapsed
+16:47:19 - [PROGRESS] Generating toolpaths - 73s elapsed
+16:47:29 - [PROGRESS] Generating toolpaths - 83s elapsed
+16:47:36 - Still generating toolpaths... 90 seconds elapsed
+16:47:40 - [PROGRESS] Generating toolpaths - 94s elapsed
+16:47:50 - [PROGRESS] Generating toolpaths - 104s elapsed
+16:48:00 - [PROGRESS] Generating toolpaths - 115s elapsed
+16:48:06 - Still generating toolpaths... 121 seconds elapsed
+16:48:11 - [PROGRESS] Generating toolpaths - 125s elapsed
+16:48:21 - [PROGRESS] Generating toolpaths - 136s elapsed
+16:48:32 - [PROGRESS] Generating toolpaths - 146s elapsed
+16:48:37 - Still generating toolpaths... 151 seconds elapsed
+16:48:43 - [PROGRESS] Generating toolpaths - 157s elapsed
+16:48:54 - [PROGRESS] Generating toolpaths - 168s elapsed
+16:49:06 - [PROGRESS] Generating toolpaths - 179s elapsed
+16:49:17 - [PROGRESS] Generating toolpaths - 191s elapsed
+16:49:28 - [PROGRESS] Generating toolpaths - 202s elapsed
+16:49:36 - Still generating toolpaths... 211 seconds elapsed
+16:49:38 - [PROGRESS] Generating toolpaths - 213s elapsed
+16:49:48 - [PROGRESS] Generating toolpaths - 223s elapsed
+16:49:59 - [PROGRESS] Generating toolpaths - 234s elapsed
+16:50:06 - Still generating toolpaths... 240 seconds elapsed
+16:50:10 - [PROGRESS] Generating toolpaths - 245s elapsed
+16:50:20 - [PROGRESS] Generating toolpaths - 255s elapsed
+16:50:32 - [PROGRESS] Generating toolpaths - 267s elapsed
+16:50:43 - [PROGRESS] Generating toolpaths - 278s elapsed
+16:50:46 - Toolpath generation complete
+16:50:46 - [PROGRESS] Exporting G-code
+16:50:46 - Starting G-code export...
+16:50:46 - Found 3 NC programs
+16:50:46 - Skipping non-roundover program 'Lower Shaping' (roundover style selected)
+16:50:46 - Exporting NC program: 'Lower Shaping Roundover'
+16:50:47 -   Post process completed
+16:50:48 - Looking for exported file: C:\Users\BLP CNC\Downloads\Lower Shaping Roundover.tap
+16:50:48 - Moving to \\BLPCNC\Mach4Hobby\Profiles\BLP\Logs\Test5 - Lower_11115_Lower\Test5 - Lower_11115_Lower.tap
+16:50:50 - File moved successfully
+16:50:50 - === PROCESSING COMPLETE: SUCCESS ===
+16:50:50 - Output file: \\BLPCNC\Mach4Hobby\Profiles\BLP\Logs\Test5 - Lower_11115_Lower\Test5 - Lower_11115_Lower.tap

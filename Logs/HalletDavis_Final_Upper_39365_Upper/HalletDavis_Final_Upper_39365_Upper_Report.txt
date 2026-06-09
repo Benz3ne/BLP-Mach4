@@ -1,0 +1,60 @@
+[2026-06-07 13:01:34] ===== ProbeKeys Upper - HalletDavis_Final_Upper S/N 39365 =====
+[2026-06-07 13:01:34] Fixture ID: 43
+[2026-06-07 13:01:34] Bore alignment angle: -0.0076 degrees
+[2026-06-07 13:01:34] Probe Drop Depth: 0.1500
+[2026-06-07 13:01:34] Linearity Threshold: 0.0100
+[2026-06-07 13:01:34] Single Tap Feedrate: 40.0 IPM
+[2026-06-07 13:01:34] CSV output file: C:\Mach4Hobby\Profiles\BLP\Logs\HalletDavis_Final_Upper_39365_Upper\HalletDavis_Final_Upper_39365_Upper.csv
+[2026-06-07 13:01:34] Single-tap calibration offsets:
+[2026-06-07 13:01:34]   -Y: -0.027387
+[2026-06-07 13:01:34]   -X: -0.027461
+[2026-06-07 13:01:34]   -Z: -0.025367
+[2026-06-07 13:01:34]   +Y: 0.026993
+[2026-06-07 13:01:34]   +X: 0.027338
+[2026-06-07 13:01:47] Sample key 1 (piano key 45): Z=0.2864
+[2026-06-07 13:01:52] Sample key 7 (piano key 56): Z=0.2852
+[2026-06-07 13:01:56] Sample key 13 (piano key 66): Z=0.2832
+[2026-06-07 13:02:01] Sample key 19 (piano key 76): Z=0.2812
+[2026-06-07 13:02:05] Sample key 25 (piano key 87): Z=0.2877
+[2026-06-07 13:02:05] Average Z height: 0.2848
+[2026-06-07 13:02:05] Traverse height: 0.7848
+[2026-06-07 13:02:05] Probe Z depth: 0.1348
+[2026-06-07 13:02:17] Sample key 1 Y front: -1.2166
+[2026-06-07 13:02:22] Sample key 7 Y front: -1.2377
+[2026-06-07 13:02:26] Sample key 13 Y front: -1.2086
+[2026-06-07 13:02:31] Sample key 19 Y front: -1.2274
+[2026-06-07 13:02:35] Sample key 25 Y front: -1.2138
+[2026-06-07 13:02:36] Probed 5 Y front edges
+[2026-06-07 13:03:24] Key 45: right side shoulder accessible (clearance: 0.3613)
+[2026-06-07 13:04:04] Key 47: right side shoulder accessible (clearance: 0.2753)
+[2026-06-07 13:04:23] Key 49: left side shoulder accessible (clearance: 0.2164)
+[2026-06-07 13:05:04] Key 51: left side shoulder accessible (clearance: 0.3661)
+[2026-06-07 13:06:14] Key 52: right side shoulder accessible (clearance: 0.3403)
+[2026-06-07 13:06:48] Key 54: left side shoulder accessible (clearance: 0.1442)
+[2026-06-07 13:07:08] Key 54: right side shoulder accessible (clearance: 0.1533)
+[2026-06-07 13:07:44] Key 56: left side shoulder accessible (clearance: 0.3735)
+[2026-06-07 13:08:44] Key 57: right side shoulder accessible (clearance: 0.3537)
+[2026-06-07 13:09:23] Key 59: right side shoulder accessible (clearance: 0.2174)
+[2026-06-07 13:09:43] Key 61: left side shoulder accessible (clearance: 0.2396)
+[2026-06-07 13:10:23] Key 63: left side shoulder accessible (clearance: 0.3627)
+[2026-06-07 13:11:22] Key 64: right side shoulder accessible (clearance: 0.3139)
+[2026-06-07 13:11:42] Key 66: left side shoulder accessible (clearance: 0.1863)
+[2026-06-07 13:12:14] Key 66: right side shoulder accessible (clearance: 0.1436)
+[2026-06-07 13:12:33] Key 68: left side shoulder accessible (clearance: 0.3326)
+[2026-06-07 13:13:33] Key 69: right side shoulder accessible (clearance: 0.3997)
+[2026-06-07 13:14:12] Key 71: right side shoulder accessible (clearance: 0.2668)
+[2026-06-07 13:14:32] Key 73: left side shoulder accessible (clearance: 0.2305)
+[2026-06-07 13:14:52] Key 73: right side shoulder accessible (clearance: 0.1400)
+[2026-06-07 13:15:13] Key 75: left side shoulder accessible (clearance: 0.3732)
+[2026-06-07 13:16:27] Key 76: right side shoulder accessible (clearance: 0.3512)
+[2026-06-07 13:16:47] Key 78: left side shoulder accessible (clearance: 0.1497)
+[2026-06-07 13:17:07] Key 78: right side shoulder accessible (clearance: 0.1702)
+[2026-06-07 13:17:27] Key 80: left side shoulder accessible (clearance: 0.3298)
+[2026-06-07 13:18:26] Key 81: right side shoulder accessible (clearance: 0.3441)
+[2026-06-07 13:18:45] Key 83: left side shoulder accessible (clearance: 0.1352)
+[2026-06-07 13:19:06] Key 83: right side shoulder accessible (clearance: 0.2195)
+[2026-06-07 13:19:26] Key 85: left side shoulder accessible (clearance: 0.2655)
+[2026-06-07 13:20:06] Key 87: left side shoulder accessible (clearance: 0.3760)
+[2026-06-07 13:23:29] Probed 30 accessible shoulders
+[2026-06-07 13:23:35] G68 rotation cleared
+[2026-06-07 13:23:35] ===== ProbeKeys Upper Half Completed Successfully =====

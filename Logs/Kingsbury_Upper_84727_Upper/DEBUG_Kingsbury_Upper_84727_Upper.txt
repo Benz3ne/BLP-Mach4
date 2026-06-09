@@ -1,0 +1,30 @@
+16:16:35 - === STARTING PROCESSING: Kingsbury_Upper_84727_Upper ===
+16:16:35 - [PROGRESS] Starting - Received trigger for Kingsbury_Upper_84727_Upper
+16:16:35 - [PROGRESS] Parsing CSV - \\BLPCNC\Mach4Hobby\Profiles\BLP\Logs\Kingsbury_Upper_84727_Upper\Kingsbury_Upper_84727_Upper.csv
+16:16:35 - Parsing CSV: \\BLPCNC\Mach4Hobby\Profiles\BLP\Logs\Kingsbury_Upper_84727_Upper\Kingsbury_Upper_84727_Upper.csv
+16:16:35 - Found data for 26 keys
+16:16:35 - Calculated Upper section params: ShoulderLength=1.7436, KeyHeight=0.4208
+16:16:35 - Processing 26 white keys in Upper section
+16:16:36 - Calculated parameters for 26 keys
+16:16:36 - [PROGRESS] Switching to Design workspace
+16:16:36 - Switching to Design workspace...
+16:16:38 - Switched to Design workspace
+16:16:38 - [PROGRESS] Updating parameters - Building batch update for 26 keys
+16:16:38 - Using batch modifyParameters API for efficient updates
+16:16:38 - Built batch update with 0 parameters
+16:16:38 - [PROGRESS] Updating parameters - Applying 0 params + geometry rebuild
+16:16:38 - Batch modifyParameters result: True
+16:16:38 - [PROGRESS] Switching to Manufacturing workspace
+16:16:38 - Switching to Manufacturing workspace...
+16:16:40 - Switched to Manufacturing workspace
+16:16:40 - [PROGRESS] Generating toolpaths - 0 setups for Upper
+16:16:40 - Starting toolpath generation for 0 setups: []
+16:16:40 - ERROR generating toolpaths: 3 : The operations are not CAM objects.
+16:16:40 - [PROGRESS] Exporting G-code
+16:16:40 - Starting G-code export...
+16:16:40 - Found 9 NC programs
+16:16:40 - Looking for exported file: C:\Users\BLP CNC\Downloads\Upper Shaping.tap
+16:16:41 - Moving to \\BLPCNC\Mach4Hobby\Profiles\BLP\Logs\Kingsbury_Upper_84727_Upper\Kingsbury_Upper_84727_Upper.tap
+16:16:41 - File moved successfully
+16:16:42 - === PROCESSING COMPLETE: SUCCESS ===
+16:16:42 - Output file: \\BLPCNC\Mach4Hobby\Profiles\BLP\Logs\Kingsbury_Upper_84727_Upper\Kingsbury_Upper_84727_Upper.tap

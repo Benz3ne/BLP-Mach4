@@ -1,0 +1,78 @@
+14:53:56 - === STARTING PROCESSING: HalletDavis_Final_Lower_39365_Lower ===
+14:53:57 - [PROGRESS] Starting - Received trigger for HalletDavis_Final_Lower_39365_Lower
+14:53:57 - ERROR: No active document
+14:53:57 - === PROCESSING COMPLETE: FAILED ===
+14:57:49 - === STARTING PROCESSING: HalletDavis_Final_Lower_39365_Lower ===
+14:57:49 - [PROGRESS] Starting - Received trigger for HalletDavis_Final_Lower_39365_Lower
+14:57:49 - [PROGRESS] Parsing CSV - \\BLPCNC\Mach4Hobby\Profiles\BLP\Logs\HalletDavis_Final_Lower_39365_Lower\HalletDavis_Final_Lower_39365_Lower.csv
+14:57:49 - Parsing CSV: \\BLPCNC\Mach4Hobby\Profiles\BLP\Logs\HalletDavis_Final_Lower_39365_Lower\HalletDavis_Final_Lower_39365_Lower.csv
+14:57:49 - Found data for 26 keys
+14:57:49 - Calculated Lower section params: ShoulderLength=1.8412, KeyHeight=0.2530
+14:57:49 - Processing 26 white keys in Lower section
+14:57:49 - Calculated parameters for 26 keys
+14:57:49 - [PROGRESS] Switching to Design workspace
+14:57:49 - Switching to Design workspace...
+14:57:51 - Switched to Design workspace
+14:57:51 - [PROGRESS] Updating parameters - Building batch update for 26 keys
+14:57:51 - Using batch modifyParameters API for efficient updates
+14:57:51 - Style: EdgeChamfer = 0.011 in
+14:57:51 - Style: LipFillet = 0.075 in
+14:57:51 - Built batch update with 118 parameters
+14:57:51 - [PROGRESS] Updating parameters - Applying 118 params + geometry rebuild
+14:58:04 - Batch modifyParameters result: True
+14:58:05 - [PROGRESS] Switching to Manufacturing workspace
+14:58:05 - Switching to Manufacturing workspace...
+14:59:30 - Switched to Manufacturing workspace
+14:59:30 - [PROGRESS] Generating toolpaths - 2 setups for Lower
+14:59:30 - Starting toolpath generation for 2 setups: ['Lower Shaping', 'Lower Shaping Roundover']
+14:59:43 - [PROGRESS] Generating toolpaths - 10s elapsed
+14:59:53 - [PROGRESS] Generating toolpaths - 21s elapsed
+15:00:04 - [PROGRESS] Generating toolpaths - 31s elapsed
+15:00:04 - Still generating toolpaths... 31 seconds elapsed
+15:00:14 - [PROGRESS] Generating toolpaths - 41s elapsed
+15:00:24 - [PROGRESS] Generating toolpaths - 51s elapsed
+15:00:34 - [PROGRESS] Generating toolpaths - 61s elapsed
+15:00:44 - [PROGRESS] Generating toolpaths - 71s elapsed
+15:00:54 - [PROGRESS] Generating toolpaths - 82s elapsed
+15:01:04 - [PROGRESS] Generating toolpaths - 92s elapsed
+15:01:15 - [PROGRESS] Generating toolpaths - 102s elapsed
+15:01:25 - [PROGRESS] Generating toolpaths - 112s elapsed
+15:01:33 - Still generating toolpaths... 120 seconds elapsed
+15:01:35 - [PROGRESS] Generating toolpaths - 122s elapsed
+15:01:45 - [PROGRESS] Generating toolpaths - 132s elapsed
+15:01:55 - [PROGRESS] Generating toolpaths - 142s elapsed
+15:02:03 - Still generating toolpaths... 150 seconds elapsed
+15:02:05 - [PROGRESS] Generating toolpaths - 153s elapsed
+15:02:15 - [PROGRESS] Generating toolpaths - 163s elapsed
+15:02:26 - [PROGRESS] Generating toolpaths - 173s elapsed
+15:02:36 - [PROGRESS] Generating toolpaths - 183s elapsed
+15:02:50 - [PROGRESS] Generating toolpaths - 193s elapsed
+15:02:56 - [PROGRESS] Generating toolpaths - 203s elapsed
+15:03:06 - [PROGRESS] Generating toolpaths - 214s elapsed
+15:03:17 - [PROGRESS] Generating toolpaths - 224s elapsed
+15:03:28 - [PROGRESS] Generating toolpaths - 234s elapsed
+15:03:38 - [PROGRESS] Generating toolpaths - 245s elapsed
+15:03:48 - [PROGRESS] Generating toolpaths - 255s elapsed
+15:03:58 - [PROGRESS] Generating toolpaths - 266s elapsed
+15:04:09 - [PROGRESS] Generating toolpaths - 276s elapsed
+15:04:19 - [PROGRESS] Generating toolpaths - 286s elapsed
+15:04:33 - [PROGRESS] Generating toolpaths - 296s elapsed
+15:04:41 - [PROGRESS] Generating toolpaths - 308s elapsed
+15:04:51 - [PROGRESS] Generating toolpaths - 318s elapsed
+15:05:01 - [PROGRESS] Generating toolpaths - 328s elapsed
+15:05:03 - Still generating toolpaths... 330 seconds elapsed
+15:05:11 - [PROGRESS] Generating toolpaths - 338s elapsed
+15:05:21 - [PROGRESS] Generating toolpaths - 349s elapsed
+15:05:32 - [PROGRESS] Generating toolpaths - 359s elapsed
+15:05:32 - Toolpath generation complete
+15:05:32 - [PROGRESS] Exporting G-code
+15:05:32 - Starting G-code export...
+15:05:32 - Found 3 NC programs
+15:05:32 - Exporting NC program: 'Lower Shaping'
+15:05:34 -   Post process completed
+15:05:34 - Skipping roundover program 'Lower Shaping Roundover' (chamfer style selected)
+15:05:34 - Looking for exported file: C:\Users\BLP CNC\Downloads\Lower Shaping.tap
+15:05:34 - Moving to \\BLPCNC\Mach4Hobby\Profiles\BLP\Logs\HalletDavis_Final_Lower_39365_Lower\HalletDavis_Final_Lower_39365_Lower.tap
+15:05:35 - File moved successfully
+15:05:35 - === PROCESSING COMPLETE: SUCCESS ===
+15:05:35 - Output file: \\BLPCNC\Mach4Hobby\Profiles\BLP\Logs\HalletDavis_Final_Lower_39365_Lower\HalletDavis_Final_Lower_39365_Lower.tap

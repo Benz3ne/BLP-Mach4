@@ -1,0 +1,7 @@
+===== Placement Validation Report =====
+Piano: Kingsbury_Upper  S/N: 84727  Section: Upper
+Date:  2026-06-09 16:16:35
+
+Thresholds: Z +/-0.025"  Y+ +/-0.020"  Shoulder 0.075"-0.500"
+
+RESULT: PASS -- No placement errors detected.

@@ -1,0 +1,4 @@
+14:53:57 - === STARTING PROCESSING: HalletDavis_Final_Upper_39365_Upper ===
+14:53:57 - [PROGRESS] Starting - Received trigger for HalletDavis_Final_Upper_39365_Upper
+14:53:57 - ERROR: No active document
+14:53:57 - === PROCESSING COMPLETE: FAILED ===

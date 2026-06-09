@@ -1,0 +1,9 @@
+===== Placement Validation Report =====
+Piano: HalletDavis_Final_Upper  S/N: 39365  Section: Upper
+Date:  2026-06-07 13:23:35
+
+Thresholds: Z +/-0.025"  Y+ +/-0.020"  Shoulder 0.075"-0.500"
+
+RESULT: 1 ERROR(S) DETECTED
+
+  !! Y POSITION Key 56   measured=-1.2377"  median=-1.2166"  deviation=0.0211" (limit +/-0.020")

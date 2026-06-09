@@ -462,3 +462,35 @@
   End Mach:   (22.8961, 12.9046, -5.1509)
   PROBE TRIGGERED - Collision detected
 
+[2026-06-07 12:27:39] ProtectedMove Collision:
+  Type: work, Feed: 100.0
+  Start Work: (26.3999, -0.9534, 0.1355)
+  Start Mach: (31.3790, 12.6850, -5.1651)
+  End Work:   (26.4000, -0.6774, 0.1355)
+  End Mach:   (31.3791, 12.9610, -5.1651)
+  PROBE TRIGGERED - Collision detected
+
+[2026-06-07 12:27:40] ProtectedMove Collision:
+  Type: work, Feed: 50.0
+  Start Work: (26.3999, -0.9534, 0.1355)
+  Start Mach: (31.3790, 12.6850, -5.1651)
+  End Work:   (26.3999, -0.7237, 0.1355)
+  End Mach:   (31.3790, 12.9147, -5.1651)
+  PROBE TRIGGERED - Collision detected
+
+[2026-06-07 12:47:15] ProtectedMove Collision:
+  Type: work, Feed: 100.0
+  Start Work: (26.3999, -0.9533, 0.1349)
+  Start Mach: (31.3795, 12.6850, -5.1663)
+  End Work:   (26.3999, -0.6713, 0.1349)
+  End Mach:   (31.3795, 12.9670, -5.1663)
+  PROBE TRIGGERED - Collision detected
+
+[2026-06-07 12:47:16] ProtectedMove Collision:
+  Type: work, Feed: 50.0
+  Start Work: (26.3999, -0.9533, 0.1349)
+  Start Mach: (31.3795, 12.6850, -5.1663)
+  End Work:   (26.4000, -0.7170, 0.1349)
+  End Mach:   (31.3796, 12.9213, -5.1663)
+  PROBE TRIGGERED - Collision detected
+
