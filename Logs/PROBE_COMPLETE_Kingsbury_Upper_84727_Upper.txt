@@ -1,0 +1,1 @@
+{"csv_path": "\\\\BLPCNC\\Mach4Hobby\\Profiles\\BLP\\Logs\\Kingsbury_Upper_84727_Upper\\Kingsbury_Upper_84727_Upper.csv", "piano_id": "Kingsbury_Upper_84727_Upper", "avg_z": 0.414491}

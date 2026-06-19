@@ -1,7 +1,22 @@
 ===== Placement Validation Report =====
 Piano: Kingsbury_Upper  S/N: 84727  Section: Upper
-Date:  2026-06-09 16:16:35
+Date:  2026-06-19 10:14:51
 
 Thresholds: Z +/-0.025"  Y+ +/-0.020"  Shoulder 0.075"-0.500"
 
-RESULT: PASS -- No placement errors detected.
+RESULT: 1 ERROR(S) DETECTED
+
+  !! SHOULDER   Key 78   RIGHT expected but not found (step=0.0732")
+
+OUTLIER ADJUSTMENTS: 10 X measurement(s) auto-excluded from validation
+Threshold: +/-0.012"  (raw CSV data unchanged, Fusion NC output unaffected)
+  ** Key 49   -X: 1 outlier(s) excluded (front:0  back:1)
+  ** Key 52   +X: 1 outlier(s) excluded (front:0  back:1)
+  ** Key 61   +X: 1 outlier(s) excluded (front:0  back:1)
+  ** Key 64   -X: 4 outlier(s) excluded (front:3  back:1)
+  ** Key 66   -X: 1 outlier(s) excluded (front:0  back:1)
+  ** Key 69   -X: 1 outlier(s) excluded (front:0  back:1)
+  ** Key 78   -X: 3 outlier(s) excluded (front:2  back:1)
+  ** Key 80   +X: 1 outlier(s) excluded (front:0  back:1)
+  ** Key 83   +X: 1 outlier(s) excluded (front:0  back:1)
+  ** Key 88   +X: 3 outlier(s) excluded (front:3  back:0)
