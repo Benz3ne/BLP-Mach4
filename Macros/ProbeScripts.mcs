@@ -3697,28 +3697,23 @@ function ProbeScripts.ProbeKeys(inst)
                 if pt.y < 0.5 then table.insert(rf, pt.x) else table.insert(rb, pt.x) end
             end
 
+            -- Only filter front groups: back variation from non-orthogonal key shape is expected
             local lf_clean, lf_bad = filterOutliers(lf, X_OUTLIER_THRESHOLD)
-            local lb_clean, lb_bad = filterOutliers(lb, X_OUTLIER_THRESHOLD)
             local rf_clean, rf_bad = filterOutliers(rf, X_OUTLIER_THRESHOLD)
-            local rb_clean, rb_bad = filterOutliers(rb, X_OUTLIER_THRESHOLD)
 
-            local nBadL = #lf_bad + #lb_bad
-            local nBadR = #rf_bad + #rb_bad
-            if nBadL > 0 then
+            if #lf_bad > 0 then
                 table.insert(xOutlierAdjustments, string.format(
-                    "Key %-3d  +X: %d outlier(s) excluded (front:%d  back:%d)",
-                    pianoKey, nBadL, #lf_bad, #lb_bad))
+                    "Key %-3d  +X: %d front outlier(s) excluded", pianoKey, #lf_bad))
             end
-            if nBadR > 0 then
+            if #rf_bad > 0 then
                 table.insert(xOutlierAdjustments, string.format(
-                    "Key %-3d  -X: %d outlier(s) excluded (front:%d  back:%d)",
-                    pianoKey, nBadR, #rf_bad, #rb_bad))
+                    "Key %-3d  -X: %d front outlier(s) excluded", pianoKey, #rf_bad))
             end
 
             table.insert(keyValidation, {
                 pianoKey  = pianoKey,
-                leftStep  = calcAvg(lb_clean) - calcAvg(lf_clean),
-                rightStep = calcAvg(rf_clean) - calcAvg(rb_clean),
+                leftStep  = calcAvg(lb) - calcAvg(lf_clean),
+                rightStep = calcAvg(rf_clean) - calcAvg(rb),
             })
         end
 
@@ -3875,8 +3870,8 @@ function ProbeScripts.ProbeKeys(inst)
             end
         end
         if #xOutlierAdjustments > 0 then
-            valFile:write(string.format("\nOUTLIER ADJUSTMENTS: %d X measurement(s) auto-excluded from validation\n", #xOutlierAdjustments))
-            valFile:write(string.format("Threshold: +/-%.3f\"  (raw CSV data unchanged, Fusion NC output unaffected)\n", X_OUTLIER_THRESHOLD))
+            valFile:write(string.format("\nOUTLIER ADJUSTMENTS: %d front X measurement(s) auto-excluded from validation\n", #xOutlierAdjustments))
+            valFile:write(string.format("Threshold: +/-%.3f\" from group median  (back groups not filtered -- key shape variation expected)\n", X_OUTLIER_THRESHOLD))
             for _, note in ipairs(xOutlierAdjustments) do
                 valFile:write("  ** " .. note .. "\n")
             end

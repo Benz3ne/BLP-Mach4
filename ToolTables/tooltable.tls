@@ -76,7 +76,7 @@ Material=Carbide
 LastMeasured=2025-01-15 14:30:00
 AutoProbe=0
 [Tool2]
-Length=4.38061
+Length=4.10868
 LengthWear=0
 Diameter=0
 DiameterWear=0
@@ -91,7 +91,7 @@ YToolChange=4.10441
 ZToolChange=-9.89641
 AutoProbe=1
 [Tool3]
-Length=4.72411
+Length=4.72076
 LengthWear=0
 Diameter=0
 DiameterWear=0
@@ -107,7 +107,7 @@ ZToolChange=-9.88602
 AutoProbe=1
 ProbeXOffset=0.0000
 [Tool4]
-Length=2.51194
+Length=4.13297
 LengthWear=0
 Diameter=0
 DiameterWear=0
@@ -137,7 +137,7 @@ YToolChange=4.10871
 ZToolChange=-9.89271
 AutoProbe=1
 [Tool6]
-Length=4.13202
+Length=4.03824
 LengthWear=0
 Diameter=0
 DiameterWear=0
@@ -152,7 +152,7 @@ YToolChange=4.11381
 ZToolChange=-9.88878
 AutoProbe=1
 [Tool7]
-Length=4.58061
+Length=3.30419
 LengthWear=0
 Diameter=0
 DiameterWear=0
@@ -182,7 +182,7 @@ YToolChange=4.14651
 ZToolChange=-9.87878
 AutoProbe=1
 [Tool9]
-Length=3.13761
+Length=3.1371
 LengthWear=0
 Diameter=0
 DiameterWear=0
