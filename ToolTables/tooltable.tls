@@ -152,7 +152,7 @@ YToolChange=4.11381
 ZToolChange=-9.88878
 AutoProbe=1
 [Tool7]
-Length=3.30419
+Length=2.91738
 LengthWear=0
 Diameter=0
 DiameterWear=0
@@ -167,7 +167,7 @@ YToolChange=4.12731
 ZToolChange=-9.88767
 AutoProbe=1
 [Tool8]
-Length=4.59332
+Length=2.44159
 LengthWear=0
 Diameter=0
 DiameterWear=0
@@ -243,7 +243,7 @@ XToolChange=8.94762
 YToolChange=107.413
 ZToolChange=-5.44704
 [Tool13]
-Length=2.95667
+Length=2.95982
 LengthWear=0
 Diameter=0
 DiameterWear=0
@@ -273,7 +273,7 @@ XToolChange=16.048
 YToolChange=107.386
 ZToolChange=-5.53212
 [Tool15]
-Length=3.15187
+Length=3.15659
 LengthWear=0
 Diameter=0
 DiameterWear=0
@@ -333,7 +333,7 @@ YToolChange=107.323
 ZToolChange=-5.635
 AutoProbe=1
 [Tool19]
-Length=3.06163
+Length=3.15088
 LengthWear=0
 Diameter=0
 DiameterWear=0
@@ -348,7 +348,7 @@ YToolChange=107.31
 ZToolChange=-5.66098
 Desc=6mm O-Flute Upcut
 [Tool20]
-Length=2.56372
+Length=2.56671
 LengthWear=0
 Diameter=0
 DiameterWear=0
@@ -378,7 +378,7 @@ XToolChange=40.7946
 YToolChange=107.354
 ZToolChange=-5.6289
 [Tool22]
-Length=4.131
+Length=4.1345
 LengthWear=0
 Diameter=0
 DiameterWear=0

@@ -4425,8 +4425,8 @@ function ProbeScripts.FinalKeytopShaping(inst)
         fileHandle:close()
 
         for fileName in files:gmatch("[^\r\n]+") do
-            -- Only include files that end in _Upper.tap or _Lower.tap (shaping files)
-            if fileName:match("_Upper%.tap$") or fileName:match("_Lower%.tap$") then
+            -- Include files containing _Upper or _Lower anywhere (covers variants like _front_only)
+            if fileName:match("_Upper") or fileName:match("_Lower") then
                 local displayName = fileName:gsub("%.tap$", "")
                 table.insert(fileOptions, displayName)
                 table.insert(availableFiles, {
