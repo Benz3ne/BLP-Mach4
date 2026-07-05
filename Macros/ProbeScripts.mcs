@@ -4809,7 +4809,7 @@ function ProbeScripts.ApplyStyle(inst)
     -- Preset bundles: {EdgeChamfer, LipFillet} in inches
     local PRESETS = {
         [0] = {edge_chamfer = 0.0075, lip_fillet = 0.050},  -- Light
-        [1] = {edge_chamfer = 0.011,  lip_fillet = 0.075},  -- Medium
+        [1] = {edge_chamfer = 0.0135, lip_fillet = 0.085},  -- Medium
         [2] = {edge_chamfer = 0.0175, lip_fillet = 0.110},  -- Heavy
     }
     local logsDir = "C:\\Mach4Hobby\\Profiles\\BLP\\Logs"
