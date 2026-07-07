@@ -56,3 +56,55 @@
 [2026-07-02 15:44:34] Probed 28 accessible shoulders
 [2026-07-02 15:44:40] G68 rotation cleared
 [2026-07-02 15:44:40] ===== ProbeKeys Upper Half Completed Successfully =====
+[2026-07-05 09:59:55] ===== Final Keytop Shaping Started =====
+[2026-07-05 10:00:29] Single-tap calibration offset:
+[2026-07-05 10:00:29]   -Z: -0.027520
+[2026-07-05 10:00:29] Left bore center: X-0.0217 Y0.0047
+[2026-07-05 10:00:35] Surface Z datum set at: 0.0000
+[2026-07-05 10:00:39] ID hole 1: Z=-0.0813 (calibrated), bit=1
+[2026-07-05 10:00:41] ID hole 2: Z=0.0042 (calibrated), bit=0
+[2026-07-05 10:00:44] ID hole 3: Z=-0.0801 (calibrated), bit=1
+[2026-07-05 10:00:47] ID hole 4: Z=-0.0792 (calibrated), bit=1
+[2026-07-05 10:00:50] ID hole 5: Z=0.0070 (calibrated), bit=0
+[2026-07-05 10:00:53] ID hole 6: Z=-0.0773 (calibrated), bit=1
+[2026-07-05 10:00:55] ID hole 7: Z=0.0096 (calibrated), bit=0
+[2026-07-05 10:00:58] ID hole 8: Z=0.0108 (calibrated), bit=0
+[2026-07-05 10:01:01] ID hole 9: Z=0.0130 (calibrated), bit=0
+[2026-07-05 10:01:04] ID hole 10: Z=-0.0713 (calibrated), bit=1
+[2026-07-05 10:01:04] Fixture ID detected: 45 (binary: 00101101)
+[2026-07-05 10:01:33] Right bore center (in datum coords): X46.0016 Y-0.0004
+[2026-07-05 10:01:33] Right bore position relative to left: X46.0016 Y-0.0004
+[2026-07-05 10:01:33] Bore alignment angle: -0.0004 degrees
+[2026-07-05 10:01:33] G68 rotation applied: -0.0004 degrees centered at 0,0
+[2026-07-05 10:01:33] User selected file: C:\Mach4Hobby\Profiles\BLP\Logs\Kingsbury2_Upper_84727_Upper\Kingsbury2_Upper_84727_Upper.tap
+[2026-07-05 10:01:35] ===== Final Shaping Started =====
+[2026-07-05 10:01:35] Fixture ID: 45
+[2026-07-05 10:01:35] Section: Upper
+[2026-07-05 10:01:35] G-code file: C:\Mach4Hobby\Profiles\BLP\Logs\Kingsbury2_Upper_84727_Upper\Kingsbury2_Upper_84727_Upper.tap
+[2026-07-05 10:01:35] Deferred load marker created: C:\Mach4Hobby\Profiles\BLP\Temp\DeferredGCode.txt
+[2026-07-05 10:15:56] ===== Final Keytop Shaping Started =====
+[2026-07-05 10:16:30] Single-tap calibration offset:
+[2026-07-05 10:16:30]   -Z: -0.027362
+[2026-07-05 10:16:30] Left bore center: X0.0001 Y0.0001
+[2026-07-05 10:16:36] Surface Z datum set at: 0.0000
+[2026-07-05 10:16:40] ID hole 1: Z=-0.0816 (calibrated), bit=1
+[2026-07-05 10:16:42] ID hole 2: Z=0.0040 (calibrated), bit=0
+[2026-07-05 10:16:45] ID hole 3: Z=-0.0803 (calibrated), bit=1
+[2026-07-05 10:16:48] ID hole 4: Z=-0.0794 (calibrated), bit=1
+[2026-07-05 10:16:51] ID hole 5: Z=0.0068 (calibrated), bit=0
+[2026-07-05 10:16:54] ID hole 6: Z=-0.0776 (calibrated), bit=1
+[2026-07-05 10:16:56] ID hole 7: Z=0.0094 (calibrated), bit=0
+[2026-07-05 10:16:59] ID hole 8: Z=0.0106 (calibrated), bit=0
+[2026-07-05 10:17:02] ID hole 9: Z=0.0128 (calibrated), bit=0
+[2026-07-05 10:17:05] ID hole 10: Z=-0.0715 (calibrated), bit=1
+[2026-07-05 10:17:05] Fixture ID detected: 45 (binary: 00101101)
+[2026-07-05 10:17:34] Right bore center (in datum coords): X46.0013 Y-0.0005
+[2026-07-05 10:17:34] Right bore position relative to left: X46.0013 Y-0.0005
+[2026-07-05 10:17:34] Bore alignment angle: -0.0006 degrees
+[2026-07-05 10:17:34] G68 rotation applied: -0.0006 degrees centered at 0,0
+[2026-07-05 10:17:34] User selected file: C:\Mach4Hobby\Profiles\BLP\Logs\Kingsbury2_Upper_84727_Upper\Kingsbury2_Upper_84727_Upper.tap
+[2026-07-05 10:17:36] ===== Final Shaping Started =====
+[2026-07-05 10:17:36] Fixture ID: 45
+[2026-07-05 10:17:36] Section: Upper
+[2026-07-05 10:17:36] G-code file: C:\Mach4Hobby\Profiles\BLP\Logs\Kingsbury2_Upper_84727_Upper\Kingsbury2_Upper_84727_Upper.tap
+[2026-07-05 10:17:36] Deferred load marker created: C:\Mach4Hobby\Profiles\BLP\Temp\DeferredGCode.txt

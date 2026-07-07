@@ -1,0 +1,9 @@
+===== Placement Validation Report =====
+Piano: Kingsbury_Lower  S/N: 84727  Section: Lower
+Date:  2026-07-07 15:25:18
+
+Thresholds: Z +/-0.025"  Y+ +/-0.020"  Shoulder 0.075"-0.500"
+
+RESULT: 1 ERROR(S) DETECTED
+
+  !! SHOULDER LENGTH  min+0.02"=0.4927"  exceeds p40=0.4780"  (shoulder Y spread too tight/inconsistent)
