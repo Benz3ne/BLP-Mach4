@@ -85,18 +85,6 @@ def median(values):
     return (sorted_vals[n//2-1] + sorted_vals[n//2]) / 2.0
 
 
-def percentile(values, p):
-    """Calculate percentile of a list (p is 0-100)"""
-    if not values:
-        return 0
-    sorted_vals = sorted(values)
-    n = len(sorted_vals)
-    k = (n - 1) * p / 100.0
-    f = int(k)
-    c = f + 1 if f + 1 < n else f
-    return sorted_vals[f] + (k - f) * (sorted_vals[c] - sorted_vals[f])
-
-
 def rotate_point(point, angle_deg, center):
     """Rotate a point around a center by angle in degrees"""
     angle_rad = math.radians(angle_deg)
@@ -174,13 +162,14 @@ def calculate_global_params(probe_data):
         if key_data['5']:
             z_values.extend([p['Z'] for p in key_data['5']])
 
-    # Shoulder length: difference between median front Y and 75th percentile back Y
-    # Using 75th percentile for back to skew shoulder width larger
+    # Shoulder length: difference between median front Y and the tightest observed
+    # back/shoulder Y plus a fixed 0.02" allowance (keeps shoulder length within
+    # 0.02" of the shortest probed shoulder instead of skewing toward the longest)
     # Add plastic thickness to account for material on front edge
     if y_front_values and y_back_values:
         median_front_y = median(y_front_values)
-        p75_back_y = percentile(y_back_values, 75)
-        shoulder_length = abs(p75_back_y - median_front_y) + CONFIG['plastic_thickness']
+        back_y = min(y_back_values) + 0.02
+        shoulder_length = abs(back_y - median_front_y) + CONFIG['plastic_thickness']
     else:
         shoulder_length = 0
 

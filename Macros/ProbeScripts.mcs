@@ -3064,6 +3064,7 @@ function ProbeScripts.ProbeKeys(inst)
     local probeZ  -- uniform probe depth for X and -Y
     local keyValidation = {}  -- shoulder step data per key for placement validation
     local xOutlierAdjustments = {}  -- keys with auto-excluded chip/outlier X measurements
+    local shoulderYBackValues = {}  -- back/shoulder Y readings, for shoulder length consistency check
 
     -- Files - set after key section is determined
     local pianoFolder = nil
@@ -3144,6 +3145,18 @@ function ProbeScripts.ProbeKeys(inst)
         local n = #sorted
         if n % 2 == 1 then return sorted[math.ceil(n / 2)] end
         return (sorted[math.floor(n / 2)] + sorted[math.floor(n / 2) + 1]) / 2
+    end
+
+    local function calcPercentile(vals, p)
+        if #vals == 0 then return 0 end
+        local sorted = {}
+        for _, v in ipairs(vals) do table.insert(sorted, v) end
+        table.sort(sorted)
+        local n = #sorted
+        local k = (n - 1) * p / 100
+        local f = math.floor(k)
+        local c = (f + 2 <= n) and (f + 2) or (f + 1)
+        return sorted[f + 1] + (k - f) * (sorted[c] - sorted[f + 1])
     end
 
     local function filterOutliers(vals, threshold)
@@ -3742,6 +3755,7 @@ function ProbeScripts.ProbeKeys(inst)
             -- Single tap -Y with calibration
             local yBack = ProbeScripts.Probe(inst, 4, false, true, nil, SINGLE_TAP_FEEDRATE, true, nil)
             yBack = yBack - calibrationOffsets["-Y"]
+            table.insert(shoulderYBackValues, yBack)
 
             table.insert(shoulderData, {
                 enumKey = shoulder.enumKey,
@@ -3849,6 +3863,23 @@ function ProbeScripts.ProbeKeys(inst)
             table.insert(validationErrors, string.format(
                 "SHOULDER   Key %-3d  RIGHT shoulder unexpected (step=%.4f\")",
                 kv.pianoKey, kv.rightStep))
+        end
+    end
+
+    -- Shoulder length consistency check: Fusion computes ShoulderLength from
+    -- min(shoulder Y) + 0.02". If that floor value already exceeds the 40th
+    -- percentile of this run's shoulder Y readings, the spread is too tight/
+    -- inconsistent for the 0.02" allowance to mean much -- flag it.
+    if #shoulderYBackValues >= 3 then
+        local minBackY = shoulderYBackValues[1]
+        for _, v in ipairs(shoulderYBackValues) do
+            if v < minBackY then minBackY = v end
+        end
+        local p40BackY = calcPercentile(shoulderYBackValues, 40)
+        if (minBackY + 0.02) > p40BackY then
+            table.insert(validationErrors, string.format(
+                "SHOULDER LENGTH  min+0.02\"=%.4f\"  exceeds p40=%.4f\"  (shoulder Y spread too tight/inconsistent)",
+                minBackY + 0.02, p40BackY))
         end
     end
 
