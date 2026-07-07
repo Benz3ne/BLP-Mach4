@@ -3029,7 +3029,7 @@ function ProbeScripts.ProbeKeys(inst)
     local X_OUTLIER_THRESHOLD = 0.012 -- chip/outlier threshold for X edge validation
     local safeTraverseZ = 2.0  -- safe Z height in work coords
     local ID_HOLE_DEPTH_THRESHOLD = -0.05  -- halfway between 0 and -0.1
-    local SAMPLE_KEY_INTERVAL = 6  -- probe every 6th key (1, 7, 13, 19, 25)
+    local SAMPLE_KEY_INTERVAL = 2  -- probe every 2nd key (1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25)
     local NUM_KEYS = 26  -- total white keys per section
 
     -- Y positions for X edge probing
