@@ -162,13 +162,13 @@ def calculate_global_params(probe_data):
         if key_data['5']:
             z_values.extend([p['Z'] for p in key_data['5']])
 
-    # Shoulder length: difference between median front Y and the tightest observed
-    # back/shoulder Y plus a fixed 0.02" allowance (keeps shoulder length within
-    # 0.02" of the shortest probed shoulder instead of skewing toward the longest)
+    # Shoulder length: difference between median front Y and the 90th percentile
+    # back/shoulder Y. Using p90 anchors to the longer shoulders (ignores the
+    # bottom 10% worn/short outliers) without being pulled to the absolute max.
     # Add plastic thickness to account for material on front edge
     if y_front_values and y_back_values:
         median_front_y = median(y_front_values)
-        back_y = min(y_back_values) + 0.02
+        back_y = percentile(y_back_values, 90)
         shoulder_length = abs(back_y - median_front_y) + CONFIG['plastic_thickness']
     else:
         shoulder_length = 0
