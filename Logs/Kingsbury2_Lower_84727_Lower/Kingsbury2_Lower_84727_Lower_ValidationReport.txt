@@ -1,0 +1,14 @@
+===== Placement Validation Report =====
+Piano: Kingsbury2_Lower  S/N: 84727  Section: Lower
+Date:  2026-07-24 15:20:35
+
+Thresholds: Z +/-0.025"  Y+ +/-0.020"  Shoulder 0.075"-0.500"
+
+RESULT: 1 ERROR(S) DETECTED
+
+  !! SHOULDER LENGTH  min+0.02"=0.4891"  exceeds p40=0.4764"  (shoulder Y spread too tight/inconsistent)
+
+OUTLIER ADJUSTMENTS: 2 front X measurement(s) auto-excluded from validation
+Threshold: +/-0.012" from group median  (back groups not filtered -- key shape variation expected)
+  ** Key 23   -X: 3 front outlier(s) excluded
+  ** Key 30   +X: 2 front outlier(s) excluded

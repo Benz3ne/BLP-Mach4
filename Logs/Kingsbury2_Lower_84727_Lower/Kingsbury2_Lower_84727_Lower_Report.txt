@@ -1,0 +1,76 @@
+[2026-07-24 14:58:00] ===== ProbeKeys Lower - Kingsbury2_Lower S/N 84727 =====
+[2026-07-24 14:58:00] Fixture ID: 45
+[2026-07-24 14:58:00] Bore alignment angle: 0.0061 degrees
+[2026-07-24 14:58:00] Probe Drop Depth: 0.1500
+[2026-07-24 14:58:00] Linearity Threshold: 0.0100
+[2026-07-24 14:58:00] Single Tap Feedrate: 40.0 IPM
+[2026-07-24 14:58:00] CSV output file: C:\Mach4Hobby\Profiles\BLP\Logs\Kingsbury2_Lower_84727_Lower\Kingsbury2_Lower_84727_Lower.csv
+[2026-07-24 14:58:00] Single-tap calibration offsets:
+[2026-07-24 14:58:00]   -X: -0.026895
+[2026-07-24 14:58:00]   +X: 0.027338
+[2026-07-24 14:58:00]   +Y: 0.028642
+[2026-07-24 14:58:00]   -Z: -0.027677
+[2026-07-24 14:58:00]   -Y: -0.028002
+[2026-07-24 14:58:13] Sample key 1 (piano key 1): Z=0.3953
+[2026-07-24 14:58:16] Sample key 3 (piano key 4): Z=0.3936
+[2026-07-24 14:58:19] Sample key 5 (piano key 8): Z=0.3955
+[2026-07-24 14:58:22] Sample key 7 (piano key 11): Z=0.3938
+[2026-07-24 14:58:25] Sample key 9 (piano key 15): Z=0.3967
+[2026-07-24 14:58:28] Sample key 11 (piano key 18): Z=0.3980
+[2026-07-24 14:58:32] Sample key 13 (piano key 21): Z=0.3983
+[2026-07-24 14:58:35] Sample key 15 (piano key 25): Z=0.3981
+[2026-07-24 14:58:38] Sample key 17 (piano key 28): Z=0.3958
+[2026-07-24 14:58:41] Sample key 19 (piano key 32): Z=0.3922
+[2026-07-24 14:58:44] Sample key 21 (piano key 35): Z=0.3952
+[2026-07-24 14:58:47] Sample key 23 (piano key 39): Z=0.3948
+[2026-07-24 14:58:50] Sample key 25 (piano key 42): Z=0.3983
+[2026-07-24 14:58:50] Average Z height: 0.3958
+[2026-07-24 14:58:50] Traverse height: 0.8958
+[2026-07-24 14:58:50] Probe Z depth: 0.2458
+[2026-07-24 14:59:02] Sample key 1 Y front: -1.1842
+[2026-07-24 14:59:05] Sample key 3 Y front: -1.1832
+[2026-07-24 14:59:09] Sample key 5 Y front: -1.1821
+[2026-07-24 14:59:12] Sample key 7 Y front: -1.1831
+[2026-07-24 14:59:15] Sample key 9 Y front: -1.1815
+[2026-07-24 14:59:18] Sample key 11 Y front: -1.1827
+[2026-07-24 14:59:22] Sample key 13 Y front: -1.1819
+[2026-07-24 14:59:25] Sample key 15 Y front: -1.1817
+[2026-07-24 14:59:28] Sample key 17 Y front: -1.1812
+[2026-07-24 14:59:31] Sample key 19 Y front: -1.1819
+[2026-07-24 14:59:35] Sample key 21 Y front: -1.1811
+[2026-07-24 14:59:38] Sample key 23 Y front: -1.1805
+[2026-07-24 14:59:41] Sample key 25 Y front: -1.1801
+[2026-07-24 14:59:42] Probed 13 Y front edges
+[2026-07-24 15:00:42] Key 1: right side shoulder accessible (clearance: 0.1358)
+[2026-07-24 15:01:02] Key 3: left side shoulder accessible (clearance: 0.3540)
+[2026-07-24 15:02:02] Key 4: right side shoulder accessible (clearance: 0.3105)
+[2026-07-24 15:02:21] Key 6: left side shoulder accessible (clearance: 0.1863)
+[2026-07-24 15:02:42] Key 6: right side shoulder accessible (clearance: 0.1580)
+[2026-07-24 15:03:18] Key 8: left side shoulder accessible (clearance: 0.3725)
+[2026-07-24 15:04:17] Key 9: right side shoulder accessible (clearance: 0.3715)
+[2026-07-24 15:04:57] Key 11: right side shoulder accessible (clearance: 0.2484)
+[2026-07-24 15:05:17] Key 13: left side shoulder accessible (clearance: 0.2554)
+[2026-07-24 15:05:58] Key 15: left side shoulder accessible (clearance: 0.3759)
+[2026-07-24 15:06:58] Key 16: right side shoulder accessible (clearance: 0.3190)
+[2026-07-24 15:07:17] Key 18: left side shoulder accessible (clearance: 0.1668)
+[2026-07-24 15:07:37] Key 18: right side shoulder accessible (clearance: 0.1780)
+[2026-07-24 15:07:57] Key 20: left side shoulder accessible (clearance: 0.3688)
+[2026-07-24 15:08:57] Key 21: right side shoulder accessible (clearance: 0.3640)
+[2026-07-24 15:09:16] Key 23: left side shoulder accessible (clearance: 0.1425)
+[2026-07-24 15:09:51] Key 23: right side shoulder accessible (clearance: 0.1962)
+[2026-07-24 15:10:09] Key 25: left side shoulder accessible (clearance: 0.2643)
+[2026-07-24 15:10:50] Key 27: left side shoulder accessible (clearance: 0.3771)
+[2026-07-24 15:11:49] Key 28: right side shoulder accessible (clearance: 0.3802)
+[2026-07-24 15:12:42] Key 30: right side shoulder accessible (clearance: 0.1710)
+[2026-07-24 15:13:01] Key 32: left side shoulder accessible (clearance: 0.3469)
+[2026-07-24 15:14:01] Key 33: right side shoulder accessible (clearance: 0.3754)
+[2026-07-24 15:14:41] Key 35: right side shoulder accessible (clearance: 0.2494)
+[2026-07-24 15:15:01] Key 37: left side shoulder accessible (clearance: 0.2587)
+[2026-07-24 15:15:41] Key 39: left side shoulder accessible (clearance: 0.3323)
+[2026-07-24 15:16:41] Key 40: right side shoulder accessible (clearance: 0.3731)
+[2026-07-24 15:17:00] Key 42: left side shoulder accessible (clearance: 0.1420)
+[2026-07-24 15:17:21] Key 42: right side shoulder accessible (clearance: 0.1682)
+[2026-07-24 15:17:41] Key 44: left side shoulder accessible (clearance: 0.3237)
+[2026-07-24 15:20:28] Probed 30 accessible shoulders
+[2026-07-24 15:20:35] G68 rotation cleared
+[2026-07-24 15:20:35] ===== ProbeKeys Lower Half Completed Successfully =====
