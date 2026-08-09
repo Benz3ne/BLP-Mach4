@@ -3866,20 +3866,65 @@ function ProbeScripts.ProbeKeys(inst)
         end
     end
 
-    -- Shoulder length consistency check: Fusion computes ShoulderLength from
-    -- min(shoulder Y) + 0.02". If that floor value already exceeds the 40th
-    -- percentile of this run's shoulder Y readings, the spread is too tight/
-    -- inconsistent for the 0.02" allowance to mean much -- flag it.
-    if #shoulderYBackValues >= 3 then
-        local minBackY = shoulderYBackValues[1]
-        for _, v in ipairs(shoulderYBackValues) do
-            if v < minBackY then minBackY = v end
+    -- Estimate ShoulderLength using the same min_unless_outlier logic as the Fusion add-in.
+    -- Upper-half IQR fence removes worn/damaged keys without contaminating the spread estimate.
+    local shoulderLengthEst = nil
+    local shoulderEstLabel = "insufficient data"
+    local PLASTIC_THICKNESS = 0.09
+
+    if #shoulderYBackValues >= 4 and #yVals >= 1 then
+        local sBack = {}
+        for _, v in ipairs(shoulderYBackValues) do table.insert(sBack, v) end
+        table.sort(sBack)
+
+        local medBack = calcMedian(sBack)
+        local upperBack = {}
+        for _, v in ipairs(sBack) do
+            if v > medBack then table.insert(upperBack, v) end
         end
-        local p40BackY = calcPercentile(shoulderYBackValues, 40)
-        if (minBackY + 0.02) > p40BackY then
+
+        local cleanMinBack
+        local nOutliers = 0
+        if #upperBack >= 2 then
+            local q3 = upperBack[math.floor(#upperBack / 2) + 1]
+            local iqr = q3 - medBack
+            if iqr > 0 then
+                local fence = medBack - 1.5 * iqr
+                local clean = {}
+                for _, v in ipairs(sBack) do
+                    if v >= fence then table.insert(clean, v) end
+                end
+                nOutliers = #sBack - #clean
+                cleanMinBack = clean[1] or sBack[1]
+            else
+                cleanMinBack = sBack[1]
+            end
+        else
+            cleanMinBack = sBack[1]
+        end
+
+        shoulderLengthEst = math.abs(cleanMinBack - medianY) + PLASTIC_THICKNESS
+
+        if nOutliers > 0 then
+            shoulderEstLabel = string.format("%.4f\"  (%d of %d readings removed as outliers)",
+                shoulderLengthEst, nOutliers, #sBack)
+        else
+            shoulderEstLabel = string.format("%.4f\"", shoulderLengthEst)
+        end
+
+        local cleanSpread = sBack[#sBack] - cleanMinBack
+        if shoulderLengthEst < 1.40 or shoulderLengthEst > 2.00 then
             table.insert(validationErrors, string.format(
-                "SHOULDER LENGTH  min+0.02\"=%.4f\"  exceeds p40=%.4f\"  (shoulder Y spread too tight/inconsistent)",
-                minBackY + 0.02, p40BackY))
+                "SHOULDER LENGTH  %.4f\" outside expected range 1.40\"-2.00\"  -- verify probe Z calibration and fixture seating",
+                shoulderLengthEst))
+        elseif nOutliers > 0 and (nOutliers / #sBack) > 0.35 then
+            table.insert(validationErrors, string.format(
+                "SHOULDER LENGTH  %.4f\"  but %d/%d readings removed as outliers (%.0f%%)  -- check for worn or damaged keys",
+                shoulderLengthEst, nOutliers, #sBack, nOutliers / #sBack * 100))
+        elseif cleanSpread > 0.060 then
+            table.insert(validationErrors, string.format(
+                "SHOULDER LENGTH  %.4f\"  clean spread %.4f\" is large -- high variation in shoulder depth across section",
+                shoulderLengthEst, cleanSpread))
         end
     end
 
@@ -3932,7 +3977,10 @@ function ProbeScripts.ProbeKeys(inst)
         end
 
         if #validationErrors > 0 then
+            local shoulderHeader = shoulderLengthEst and
+                string.format("Shoulder Length estimate:  %s\n\n", shoulderEstLabel) or ""
             local msg = string.format(
+                shoulderHeader ..
                 "PLACEMENT VALIDATION -- %d ERROR(S) DETECTED\n" ..
                 string.rep("=", 52) .. "\n\n" ..
                 "%s\n",
@@ -3975,10 +4023,11 @@ function ProbeScripts.ProbeKeys(inst)
         if triggerFile then
             triggerFile:write(triggerData)
             triggerFile:close()
+            local slStr = shoulderLengthEst and string.format("  |  ShoulderLength=%s", shoulderEstLabel) or ""
             if #validationErrors > 0 then
-                mc.mcCntlSetLastError(inst, string.format("ProbeKeys complete - trigger sent (with %d validation warning(s))", #validationErrors))
+                mc.mcCntlSetLastError(inst, string.format("ProbeKeys complete - trigger sent (with %d warning(s))%s", #validationErrors, slStr))
             else
-                mc.mcCntlSetLastError(inst, "ProbeKeys complete - trigger sent to Fusion")
+                mc.mcCntlSetLastError(inst, string.format("ProbeKeys complete - trigger sent to Fusion%s", slStr))
             end
         else
             wx.wxMessageBox("Warning: Could not create trigger file for Fusion 360.\n\nManually trigger the add-in or re-run ProbeKeys.",
