@@ -85,25 +85,24 @@ def median(values):
     return (sorted_vals[n//2-1] + sorted_vals[n//2]) / 2.0
 
 
-def gap_cleaned_min(values, gap_ratio=3.0):
-    """Return minimum shoulder value after removing low outliers separated by a large gap.
-    Finds the largest gap below the median; if it exceeds gap_ratio x average spacing
-    in the lower half, everything below the gap is treated as worn/outlier."""
+def min_unless_outlier(values, fence_factor=1.5):
+    """Return minimum shoulder value, skipping low outliers.
+    Estimates spread from the upper half of values only so worn/outlier keys
+    in the lower tail don't contaminate the fence calculation."""
     s = sorted(values)
     if len(s) < 4:
         return s[0]
     med = median(s)
-    below = [v for v in s if v <= med]
-    if len(below) < 2:
+    upper = [v for v in s if v > med]
+    if not upper:
         return s[0]
-    avg_spacing = (below[-1] - below[0]) / (len(below) - 1) if len(below) > 1 else 0
-    if avg_spacing == 0:
+    q3 = upper[len(upper) // 2]
+    iqr = q3 - med
+    if iqr == 0:
         return s[0]
-    gaps = [(below[i+1] - below[i], i) for i in range(len(below) - 1)]
-    max_gap, max_idx = max(gaps)
-    if max_gap > gap_ratio * avg_spacing:
-        return below[max_idx + 1]
-    return s[0]
+    lower_fence = med - fence_factor * iqr
+    clean = [v for v in s if v >= lower_fence]
+    return clean[0] if clean else s[0]
 
 
 def rotate_point(point, angle_deg, center):
@@ -183,13 +182,12 @@ def calculate_global_params(probe_data):
         if key_data['5']:
             z_values.extend([p['Z'] for p in key_data['5']])
 
-    # Shoulder length: difference between median front Y and the gap-cleaned minimum
-    # back/shoulder Y. Removes low outliers (worn keys) separated by a large gap
-    # from the rest of the distribution, then uses the minimum of the clean set.
-    # Add plastic thickness to account for material on front edge
+    # Shoulder length: difference between median front Y and the minimum back/shoulder Y,
+    # skipping outliers (worn keys). Outlier fence derived from upper-half spread so
+    # damaged keys don't pull the estimate down.
     if y_front_values and y_back_values:
         median_front_y = median(y_front_values)
-        back_y = gap_cleaned_min(y_back_values)
+        back_y = min_unless_outlier(y_back_values)
         shoulder_length = abs(back_y - median_front_y) + CONFIG['plastic_thickness']
     else:
         shoulder_length = 0
