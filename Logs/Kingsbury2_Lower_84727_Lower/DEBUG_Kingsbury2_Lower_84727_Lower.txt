@@ -1,0 +1,82 @@
+13:32:13 - === STARTING PROCESSING: Kingsbury2_Lower_84727_Lower ===
+13:32:13 - [PROGRESS] Starting - Received trigger for Kingsbury2_Lower_84727_Lower
+13:32:13 - [PROGRESS] Parsing CSV - \\BLPCNC\Mach4Hobby\Profiles\BLP\Logs\Kingsbury2_Lower_84727_Lower\Kingsbury2_Lower_84727_Lower.csv
+13:32:13 - Parsing CSV: \\BLPCNC\Mach4Hobby\Profiles\BLP\Logs\Kingsbury2_Lower_84727_Lower\Kingsbury2_Lower_84727_Lower.csv
+13:32:13 - Found data for 26 keys
+13:32:14 - Calculated Lower section params: ShoulderLength=1.7550, KeyHeight=0.3955
+13:32:14 - Processing 26 white keys in Lower section
+13:32:14 - Calculated parameters for 26 keys
+13:32:14 - [PROGRESS] Switching to Design workspace
+13:32:14 - Switching to Design workspace...
+13:32:16 - Switched to Design workspace
+13:32:16 - [PROGRESS] Updating parameters - Building batch update for 26 keys
+13:32:16 - Using batch modifyParameters API for efficient updates
+13:32:16 - Built batch update with 0 parameters
+13:32:16 - [PROGRESS] Updating parameters - Applying 0 params + geometry rebuild
+13:32:17 - Batch modifyParameters result: True
+13:32:17 - [PROGRESS] Switching to Manufacturing workspace
+13:32:17 - Switching to Manufacturing workspace...
+13:32:19 - Switched to Manufacturing workspace
+13:32:19 - ERROR: No CAM setups found
+13:32:19 - === PROCESSING COMPLETE: FAILED ===
+14:06:18 - === STARTING PROCESSING: Kingsbury2_Lower_84727_Lower ===
+14:06:19 - [PROGRESS] Starting - Received trigger for Kingsbury2_Lower_84727_Lower
+14:06:19 - [PROGRESS] Parsing CSV - \\BLPCNC\Mach4Hobby\Profiles\BLP\Logs\Kingsbury2_Lower_84727_Lower\Kingsbury2_Lower_84727_Lower.csv
+14:06:19 - Parsing CSV: \\BLPCNC\Mach4Hobby\Profiles\BLP\Logs\Kingsbury2_Lower_84727_Lower\Kingsbury2_Lower_84727_Lower.csv
+14:06:20 - Found data for 26 keys
+14:06:20 - Calculated Lower section params: ShoulderLength=1.7550, KeyHeight=0.3955
+14:06:20 - Processing 26 white keys in Lower section
+14:06:20 - Calculated parameters for 26 keys
+14:06:20 - [PROGRESS] Switching to Design workspace
+14:06:20 - Switching to Design workspace...
+14:06:22 - Switched to Design workspace
+14:06:22 - [PROGRESS] Updating parameters - Building batch update for 26 keys
+14:06:22 - Using batch modifyParameters API for efficient updates
+14:06:22 - Style: EdgeChamfer = 0.0135 in
+14:06:22 - Style: LipFillet = 0.085 in
+14:06:22 - Built batch update with 118 parameters
+14:06:22 - [PROGRESS] Updating parameters - Applying 118 params + geometry rebuild
+14:06:38 - Batch modifyParameters result: True
+14:06:39 - [PROGRESS] Switching to Manufacturing workspace
+14:06:39 - Switching to Manufacturing workspace...
+14:08:11 - Switched to Manufacturing workspace
+14:08:11 - [PROGRESS] Generating toolpaths - 2 setups for Lower
+14:08:11 - Starting toolpath generation for 2 setups: ['Lower Shaping', 'Lower Shaping Roundover']
+14:08:24 - [PROGRESS] Generating toolpaths - 11s elapsed
+14:08:34 - [PROGRESS] Generating toolpaths - 21s elapsed
+14:08:44 - [PROGRESS] Generating toolpaths - 31s elapsed
+14:08:55 - [PROGRESS] Generating toolpaths - 41s elapsed
+14:09:05 - [PROGRESS] Generating toolpaths - 51s elapsed
+14:09:15 - [PROGRESS] Generating toolpaths - 62s elapsed
+14:09:25 - [PROGRESS] Generating toolpaths - 72s elapsed
+14:09:36 - [PROGRESS] Generating toolpaths - 82s elapsed
+14:09:44 - Still generating toolpaths... 91 seconds elapsed
+14:09:47 - [PROGRESS] Generating toolpaths - 93s elapsed
+14:09:57 - [PROGRESS] Generating toolpaths - 104s elapsed
+14:10:07 - [PROGRESS] Generating toolpaths - 114s elapsed
+14:10:14 - Still generating toolpaths... 120 seconds elapsed
+14:10:18 - [PROGRESS] Generating toolpaths - 124s elapsed
+14:10:28 - [PROGRESS] Generating toolpaths - 135s elapsed
+14:10:38 - [PROGRESS] Generating toolpaths - 145s elapsed
+14:10:49 - [PROGRESS] Generating toolpaths - 155s elapsed
+14:10:59 - [PROGRESS] Generating toolpaths - 165s elapsed
+14:11:09 - [PROGRESS] Generating toolpaths - 176s elapsed
+14:11:19 - [PROGRESS] Generating toolpaths - 186s elapsed
+14:11:29 - [PROGRESS] Generating toolpaths - 196s elapsed
+14:11:40 - [PROGRESS] Generating toolpaths - 206s elapsed
+14:11:44 - Still generating toolpaths... 210 seconds elapsed
+14:11:50 - [PROGRESS] Generating toolpaths - 217s elapsed
+14:12:00 - [PROGRESS] Generating toolpaths - 227s elapsed
+14:12:14 - [PROGRESS] Generating toolpaths - 237s elapsed
+14:12:16 - Toolpath generation complete
+14:12:16 - [PROGRESS] Exporting G-code
+14:12:16 - Starting G-code export...
+14:12:18 - Found 3 NC programs
+14:12:18 - Exporting NC program: 'Lower Shaping'
+14:12:19 -   Post process completed
+14:12:19 - Skipping roundover program 'Lower Shaping Roundover' (chamfer style selected)
+14:12:19 - Looking for exported file: C:\Users\BLP CNC\Downloads\Lower Shaping.tap
+14:12:19 - Moving to \\BLPCNC\Mach4Hobby\Profiles\BLP\Logs\Kingsbury2_Lower_84727_Lower\Kingsbury2_Lower_84727_Lower.tap
+14:12:20 - File moved successfully
+14:12:20 - === PROCESSING COMPLETE: SUCCESS ===
+14:12:20 - Output file: \\BLPCNC\Mach4Hobby\Profiles\BLP\Logs\Kingsbury2_Lower_84727_Lower\Kingsbury2_Lower_84727_Lower.tap

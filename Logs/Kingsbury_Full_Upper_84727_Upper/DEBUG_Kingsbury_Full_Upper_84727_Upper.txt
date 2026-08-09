@@ -1,0 +1,132 @@
+14:39:03 - === STARTING PROCESSING: Kingsbury_Full_Upper_84727_Upper ===
+14:39:03 - [PROGRESS] Starting - Received trigger for Kingsbury_Full_Upper_84727_Upper
+14:39:03 - [PROGRESS] Parsing CSV - \\BLPCNC\Mach4Hobby\Profiles\BLP\Logs\Kingsbury_Full_Upper_84727_Upper\Kingsbury_Full_Upper_84727_Upper.csv
+14:39:03 - Parsing CSV: \\BLPCNC\Mach4Hobby\Profiles\BLP\Logs\Kingsbury_Full_Upper_84727_Upper\Kingsbury_Full_Upper_84727_Upper.csv
+14:39:03 - Found data for 26 keys
+14:39:03 - Calculated Upper section params: ShoulderLength=1.6765, KeyHeight=0.4102
+14:39:03 - Processing 26 white keys in Upper section
+14:39:03 - Calculated parameters for 26 keys
+14:39:04 - [PROGRESS] Switching to Design workspace
+14:39:04 - Switching to Design workspace...
+14:39:05 - Switched to Design workspace
+14:39:05 - [PROGRESS] Updating parameters - Building batch update for 26 keys
+14:39:05 - Using batch modifyParameters API for efficient updates
+14:39:05 - Built batch update with 116 parameters
+14:39:05 - [PROGRESS] Updating parameters - Applying 116 params + geometry rebuild
+14:39:23 - Batch modifyParameters result: True
+14:39:24 - [PROGRESS] Switching to Manufacturing workspace
+14:39:24 - Switching to Manufacturing workspace...
+14:41:51 - Switched to Manufacturing workspace
+14:41:52 - [PROGRESS] Generating toolpaths - 1 setups for Upper
+14:41:52 - Starting toolpath generation for 1 setups: ['Upper Shaping']
+14:42:04 - [PROGRESS] Generating toolpaths - 10s elapsed
+14:42:15 - [PROGRESS] Generating toolpaths - 21s elapsed
+14:42:25 - [PROGRESS] Generating toolpaths - 31s elapsed
+14:42:25 - Still generating toolpaths... 31 seconds elapsed
+14:42:35 - [PROGRESS] Generating toolpaths - 41s elapsed
+14:42:46 - [PROGRESS] Generating toolpaths - 52s elapsed
+14:42:54 - Still generating toolpaths... 60 seconds elapsed
+14:42:56 - [PROGRESS] Generating toolpaths - 62s elapsed
+14:43:06 - [PROGRESS] Generating toolpaths - 72s elapsed
+14:43:16 - [PROGRESS] Generating toolpaths - 83s elapsed
+14:43:25 - Still generating toolpaths... 91 seconds elapsed
+14:43:27 - [PROGRESS] Generating toolpaths - 93s elapsed
+14:43:37 - [PROGRESS] Generating toolpaths - 103s elapsed
+14:43:47 - [PROGRESS] Generating toolpaths - 113s elapsed
+14:43:55 - Toolpath generation complete
+14:43:55 - [PROGRESS] Exporting G-code
+14:43:55 - Starting G-code export...
+14:43:56 - Found 3 NC programs
+14:43:56 - Exporting NC program: 'Upper Shaping'
+14:43:57 -   Post process completed
+14:43:57 - Looking for exported file: C:\Users\BLP CNC\Downloads\Upper Shaping.tap
+14:43:57 - Moving to \\BLPCNC\Mach4Hobby\Profiles\BLP\Logs\Kingsbury_Full_Upper_84727_Upper\Kingsbury_Full_Upper_84727_Upper.tap
+14:43:58 - File moved successfully
+14:43:58 - === PROCESSING COMPLETE: SUCCESS ===
+14:43:58 - Output file: \\BLPCNC\Mach4Hobby\Profiles\BLP\Logs\Kingsbury_Full_Upper_84727_Upper\Kingsbury_Full_Upper_84727_Upper.tap
+14:43:58 - [PROGRESS] Switching to Manufacturing workspace
+14:43:58 - Switching to Manufacturing workspace...
+14:43:59 - Switched to Manufacturing workspace
+14:43:59 - [PROGRESS] Generating toolpaths - 2 setups for Lower
+14:43:59 - Starting toolpath generation for 2 setups: ['Lower Shaping', 'Lower Shaping Roundover']
+14:44:11 - [PROGRESS] Generating toolpaths - 10s elapsed
+14:44:22 - [PROGRESS] Generating toolpaths - 21s elapsed
+14:44:32 - [PROGRESS] Generating toolpaths - 31s elapsed
+14:44:42 - [PROGRESS] Generating toolpaths - 42s elapsed
+14:44:53 - [PROGRESS] Generating toolpaths - 52s elapsed
+14:45:03 - [PROGRESS] Generating toolpaths - 62s elapsed
+14:45:13 - [PROGRESS] Generating toolpaths - 72s elapsed
+14:45:23 - [PROGRESS] Generating toolpaths - 82s elapsed
+14:45:31 - Still generating toolpaths... 90 seconds elapsed
+14:45:33 - [PROGRESS] Generating toolpaths - 93s elapsed
+14:45:43 - [PROGRESS] Generating toolpaths - 103s elapsed
+14:45:57 - [PROGRESS] Generating toolpaths - 113s elapsed
+14:46:01 - Still generating toolpaths... 120 seconds elapsed
+14:46:05 - [PROGRESS] Generating toolpaths - 125s elapsed
+14:46:15 - [PROGRESS] Generating toolpaths - 135s elapsed
+14:46:26 - [PROGRESS] Generating toolpaths - 145s elapsed
+14:46:31 - === STARTING PROCESSING: Kingsbury_Full_Upper_84727_Upper ===
+14:46:31 - [PROGRESS] Starting - Received trigger for Kingsbury_Full_Upper_84727_Upper
+14:46:31 - Removed old file: Kingsbury_Full_Upper_84727_Upper.tap
+14:46:31 - [PROGRESS] Parsing CSV - \\BLPCNC\Mach4Hobby\Profiles\BLP\Logs\Kingsbury_Full_Upper_84727_Upper\Kingsbury_Full_Upper_84727_Upper.csv
+14:46:31 - Parsing CSV: \\BLPCNC\Mach4Hobby\Profiles\BLP\Logs\Kingsbury_Full_Upper_84727_Upper\Kingsbury_Full_Upper_84727_Upper.csv
+14:46:32 - Found data for 26 keys
+14:46:32 - Calculated Upper section params: ShoulderLength=1.6765, KeyHeight=0.4102
+14:46:32 - Processing 26 white keys in Upper section
+14:46:32 - Calculated parameters for 26 keys
+14:46:32 - [PROGRESS] Switching to Design workspace
+14:46:32 - Switching to Design workspace...
+14:46:34 - Switched to Design workspace
+14:46:34 - [PROGRESS] Updating parameters - Building batch update for 26 keys
+14:46:34 - Using batch modifyParameters API for efficient updates
+14:46:34 - Built batch update with 116 parameters
+14:46:34 - [PROGRESS] Updating parameters - Applying 116 params + geometry rebuild
+14:46:41 - Batch modifyParameters result: True
+14:46:41 - [PROGRESS] Switching to Manufacturing workspace
+14:46:41 - Switching to Manufacturing workspace...
+14:46:43 - Switched to Manufacturing workspace
+14:46:43 - [PROGRESS] Generating toolpaths - 1 setups for Upper
+14:46:43 - Starting toolpath generation for 1 setups: ['Upper Shaping']
+14:46:56 - [PROGRESS] Generating toolpaths - 10s elapsed
+14:47:06 - [PROGRESS] Generating toolpaths - 21s elapsed
+14:47:17 - [PROGRESS] Generating toolpaths - 31s elapsed
+14:47:17 - Still generating toolpaths... 31 seconds elapsed
+14:47:27 - [PROGRESS] Generating toolpaths - 41s elapsed
+14:47:37 - [PROGRESS] Generating toolpaths - 51s elapsed
+14:47:47 - [PROGRESS] Generating toolpaths - 62s elapsed
+14:47:58 - [PROGRESS] Generating toolpaths - 72s elapsed
+14:48:08 - [PROGRESS] Generating toolpaths - 82s elapsed
+14:48:16 - Still generating toolpaths... 90 seconds elapsed
+14:48:18 - [PROGRESS] Generating toolpaths - 93s elapsed
+14:48:29 - [PROGRESS] Generating toolpaths - 103s elapsed
+14:48:39 - [PROGRESS] Generating toolpaths - 113s elapsed
+14:48:49 - [PROGRESS] Generating toolpaths - 124s elapsed
+14:49:01 - [PROGRESS] Generating toolpaths - 134s elapsed
+14:49:09 - Toolpath generation complete
+14:49:09 - [PROGRESS] Exporting G-code
+14:49:09 - Starting G-code export...
+14:49:10 - Found 3 NC programs
+14:49:10 - Exporting NC program: 'Upper Shaping'
+14:49:11 -   Post process completed
+14:49:11 - Looking for exported file: C:\Users\BLP CNC\Downloads\Upper Shaping.tap
+14:49:11 - Moving to \\BLPCNC\Mach4Hobby\Profiles\BLP\Logs\Kingsbury_Full_Upper_84727_Upper\Kingsbury_Full_Upper_84727_Upper.tap
+14:49:12 - File moved successfully
+14:49:12 - === PROCESSING COMPLETE: SUCCESS ===
+14:49:12 - Output file: \\BLPCNC\Mach4Hobby\Profiles\BLP\Logs\Kingsbury_Full_Upper_84727_Upper\Kingsbury_Full_Upper_84727_Upper.tap
+14:49:15 - [PROGRESS] Generating toolpaths - 314s elapsed
+14:49:25 - [PROGRESS] Generating toolpaths - 324s elapsed
+14:49:31 - Still generating toolpaths... 330 seconds elapsed
+14:49:35 - [PROGRESS] Generating toolpaths - 335s elapsed
+14:49:42 - Toolpath generation complete
+14:49:42 - [PROGRESS] Exporting G-code
+14:49:42 - Starting G-code export...
+14:49:42 - Found 3 NC programs
+14:49:42 - Exporting NC program: 'Lower Shaping'
+14:49:43 -   Post process completed
+14:49:43 - Exporting NC program: 'Lower Shaping Roundover'
+14:49:44 -   Post process completed
+14:49:44 - Looking for exported file: C:\Users\BLP CNC\Downloads\Lower Shaping.tap
+14:49:44 - Moving to \\BLPCNC\Mach4Hobby\Profiles\BLP\Logs\Kingsbury_Full_Lower_84727_Lower\Kingsbury_Full_Lower_84727_Lower.tap
+14:49:44 - File moved successfully
+14:49:45 - === PROCESSING COMPLETE: SUCCESS ===
+14:49:45 - Output file: \\BLPCNC\Mach4Hobby\Profiles\BLP\Logs\Kingsbury_Full_Lower_84727_Lower\Kingsbury_Full_Lower_84727_Lower.tap

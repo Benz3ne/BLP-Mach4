@@ -1,0 +1,35 @@
+===== Placement Validation Report =====
+Piano: Kingsbury_Full_Lower  S/N: 84727  Section: Lower
+Date:  2026-08-09 12:55:12
+
+Thresholds: Z +/-0.025"  Y+ +/-0.020"  Shoulder 0.075"-0.500"
+
+RESULT: 5 ERROR(S) DETECTED
+
+  !! SHOULDER   Key 28   LEFT shoulder unexpected (step=0.1759")
+  !! SHOULDER   Key 30   RIGHT expected but not found (step=0.0025")
+  !! SHOULDER   Key 32   LEFT expected but not found (step=-0.0052")
+  !! SHOULDER   Key 32   RIGHT shoulder unexpected (step=0.3921")
+  !! SHOULDER LENGTH  min+0.02"=0.4593"  exceeds p40=0.4583"  (shoulder Y spread too tight/inconsistent)
+
+OUTLIER ADJUSTMENTS: 19 front X measurement(s) auto-excluded from validation
+Threshold: +/-0.012" from group median  (back groups not filtered -- key shape variation expected)
+  ** Key 1    +X: 2 front outlier(s) excluded
+  ** Key 3    +X: 3 front outlier(s) excluded
+  ** Key 4    +X: 3 front outlier(s) excluded
+  ** Key 4    -X: 1 front outlier(s) excluded
+  ** Key 8    +X: 3 front outlier(s) excluded
+  ** Key 9    +X: 3 front outlier(s) excluded
+  ** Key 16   +X: 2 front outlier(s) excluded
+  ** Key 18   +X: 3 front outlier(s) excluded
+  ** Key 20   +X: 3 front outlier(s) excluded
+  ** Key 21   +X: 2 front outlier(s) excluded
+  ** Key 23   -X: 3 front outlier(s) excluded
+  ** Key 27   +X: 3 front outlier(s) excluded
+  ** Key 28   +X: 2 front outlier(s) excluded
+  ** Key 30   +X: 2 front outlier(s) excluded
+  ** Key 32   +X: 3 front outlier(s) excluded
+  ** Key 35   +X: 3 front outlier(s) excluded
+  ** Key 39   +X: 3 front outlier(s) excluded
+  ** Key 40   +X: 3 front outlier(s) excluded
+  ** Key 44   +X: 2 front outlier(s) excluded

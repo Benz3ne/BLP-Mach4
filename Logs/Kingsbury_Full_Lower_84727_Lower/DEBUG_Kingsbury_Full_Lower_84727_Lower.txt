@@ -1,0 +1,49 @@
+14:38:43 - === STARTING PROCESSING: Kingsbury_Full_Lower_84727_Lower ===
+14:38:43 - [PROGRESS] Starting - Received trigger for Kingsbury_Full_Lower_84727_Lower
+14:38:43 - [PROGRESS] Parsing CSV - \\BLPCNC\Mach4Hobby\Profiles\BLP\Logs\Kingsbury_Full_Lower_84727_Lower\Kingsbury_Full_Lower_84727_Lower.csv
+14:38:43 - Parsing CSV: \\BLPCNC\Mach4Hobby\Profiles\BLP\Logs\Kingsbury_Full_Lower_84727_Lower\Kingsbury_Full_Lower_84727_Lower.csv
+14:38:44 - Found data for 26 keys
+14:38:44 - Calculated Lower section params: ShoulderLength=1.7092, KeyHeight=0.3712
+14:38:44 - Processing 26 white keys in Lower section
+14:38:44 - Calculated parameters for 26 keys
+14:38:44 - [PROGRESS] Switching to Design workspace
+14:38:45 - Switching to Design workspace...
+14:38:46 - Switched to Design workspace
+14:38:46 - [PROGRESS] Updating parameters - Building batch update for 26 keys
+14:38:46 - Using batch modifyParameters API for efficient updates
+14:38:47 - Built batch update with 116 parameters
+14:38:47 - [PROGRESS] Updating parameters - Applying 116 params + geometry rebuild
+14:39:02 - Batch modifyParameters result: True
+14:49:54 - === STARTING PROCESSING: Kingsbury_Full_Lower_84727_Lower ===
+14:49:54 - [PROGRESS] Starting - Received trigger for Kingsbury_Full_Lower_84727_Lower
+14:49:55 - Removed old file: Kingsbury_Full_Lower_84727_Lower.tap
+14:49:55 - [PROGRESS] Parsing CSV - \\BLPCNC\Mach4Hobby\Profiles\BLP\Logs\Kingsbury_Full_Lower_84727_Lower\Kingsbury_Full_Lower_84727_Lower.csv
+14:49:55 - Parsing CSV: \\BLPCNC\Mach4Hobby\Profiles\BLP\Logs\Kingsbury_Full_Lower_84727_Lower\Kingsbury_Full_Lower_84727_Lower.csv
+14:49:55 - Found data for 26 keys
+14:49:55 - Calculated Lower section params: ShoulderLength=1.7092, KeyHeight=0.3712
+14:49:55 - Processing 26 white keys in Lower section
+14:49:56 - Calculated parameters for 26 keys
+14:49:56 - [PROGRESS] Switching to Design workspace
+14:49:56 - Switching to Design workspace...
+14:49:57 - Switched to Design workspace
+14:49:57 - [PROGRESS] Updating parameters - Building batch update for 26 keys
+14:49:57 - Using batch modifyParameters API for efficient updates
+14:49:58 - Built batch update with 116 parameters
+14:49:58 - [PROGRESS] Updating parameters - Applying 116 params + geometry rebuild
+14:50:13 - Batch modifyParameters result: True
+14:50:14 - [PROGRESS] Switching to Manufacturing workspace
+14:50:14 - Switching to Manufacturing workspace...
+14:50:16 - Switched to Manufacturing workspace
+14:50:16 - [PROGRESS] Generating toolpaths - 2 setups for Lower
+14:50:16 - Starting toolpath generation for 2 setups: ['Lower Shaping', 'Lower Shaping Roundover']
+14:50:30 - [PROGRESS] Generating toolpaths - 11s elapsed
+14:50:40 - [PROGRESS] Generating toolpaths - 21s elapsed
+14:50:50 - [PROGRESS] Generating toolpaths - 31s elapsed
+14:51:01 - [PROGRESS] Generating toolpaths - 41s elapsed
+14:51:11 - [PROGRESS] Generating toolpaths - 52s elapsed
+14:51:19 - Still generating toolpaths... 60 seconds elapsed
+14:51:22 - [PROGRESS] Generating toolpaths - 63s elapsed
+14:51:32 - [PROGRESS] Generating toolpaths - 73s elapsed
+14:51:42 - [PROGRESS] Generating toolpaths - 83s elapsed
+14:51:52 - [PROGRESS] Generating toolpaths - 93s elapsed
+14:52:02 - [PROGRESS] Generating toolpaths - 103s elapsed
