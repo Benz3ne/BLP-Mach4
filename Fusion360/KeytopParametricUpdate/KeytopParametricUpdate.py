@@ -29,7 +29,7 @@ CONFIG = {
     'plastic_thickness': 0.09,  # Added to shoulder length calculation
     'max_rotation': 2.0,
     'angle_step': 0.01,
-    'tail_weight': 3,
+    'front_weight': 5,
     'band_split_y': 0.75,
     'max_points_per_band': 6,
     'min_points_per_band': 3,
@@ -242,8 +242,8 @@ def optimize_angle(left_points, right_points, center):
             max((xr_outer - p[0] for p in rt_rot), default=0)
         )
 
-        # Weighted metric
-        metric = front_slack + CONFIG['tail_weight'] * tail_slack
+        # Weighted metric — front face anchors the angle, tail follows
+        metric = CONFIG['front_weight'] * front_slack + tail_slack
 
         if metric < best_metric:
             best_metric = metric
