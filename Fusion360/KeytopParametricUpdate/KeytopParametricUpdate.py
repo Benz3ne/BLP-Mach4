@@ -35,6 +35,7 @@ CONFIG = {
     'min_points_per_band': 3,
     'front_overhang': 0.005,
     'tail_overhang': 0.01,
+    'chip_outlier_threshold': 0.012,
 }
 
 # Network path to Mach4 Logs folder on CNC machine (BLPCN)
@@ -103,6 +104,31 @@ def min_unless_outlier(values, fence_factor=1.5):
     lower_fence = med - fence_factor * iqr
     clean = [v for v in s if v >= lower_fence]
     return clean[0] if clean else s[0]
+
+
+def filter_wall_outliers(points, direction):
+    """Remove chip-triggered outlier X readings from wall probe points.
+
+    A chip on the left face triggers the +X probe early, producing an X reading
+    below the true wall (more negative). On the right face, an early -X trigger
+    produces an X above the true wall (more positive). Either way, the outlier
+    ends up as the min() or max() and pulls center_x in the wrong direction.
+
+    direction: 'left'  — remove points below median - threshold
+               'right' — remove points above median + threshold
+
+    Falls back to the original list if fewer than 2 clean points remain.
+    """
+    if len(points) < 3:
+        return points
+    threshold = CONFIG['chip_outlier_threshold']
+    xs = [p[0] for p in points]
+    med = median(xs)
+    if direction == 'left':
+        clean = [p for p in points if p[0] >= med - threshold]
+    else:
+        clean = [p for p in points if p[0] <= med + threshold]
+    return clean if len(clean) >= 2 else points
 
 
 def rotate_point(point, angle_deg, center):
@@ -300,10 +326,18 @@ def calculate_key_params(left_points, right_points, front_points, center, angle,
 
 def process_key(key_num, key_data):
     """Process a single key: optimize angle and calculate parameters"""
-    # Get point sets
-    left_points = [[p['X'], p['Y']] for p in key_data.get('1', [])]
-    right_points = [[p['X'], p['Y']] for p in key_data.get('2', [])]
+    # Get point sets; filter chip-triggered outliers before any wall position computation.
+    # Chips on the left face produce early +X triggers (X too low = min() pulls left).
+    # Chips on the right face produce early -X triggers (X too high = max() pulls right).
+    raw_left = [[p['X'], p['Y']] for p in key_data.get('1', [])]
+    raw_right = [[p['X'], p['Y']] for p in key_data.get('2', [])]
     front_points = [[p['X'], p['Y']] for p in key_data.get('3', [])]
+    left_points = filter_wall_outliers(raw_left, 'left')
+    right_points = filter_wall_outliers(raw_right, 'right')
+    dropped_l = len(raw_left) - len(left_points)
+    dropped_r = len(raw_right) - len(right_points)
+    if dropped_l or dropped_r:
+        log(f"Key {key_num}: chip filter removed {dropped_l} left / {dropped_r} right wall points")
 
     if not (left_points and right_points):
         return None
