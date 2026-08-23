@@ -53,15 +53,15 @@ UsrField5=ProbeXOffset
 UsrFieldType5=Float(-1, 4)
 UsrFieldDesc5=Probe X Shift
 [Tool1]
-Length=4.795
+Length=6.0435
 LengthWear=0
 Diameter=0
 DiameterWear=0
 Desc=WP-500 Touch Probe
 Pocket=0.1234
-XOffset=0.0014
+XOffset=0.0022
 XOffsetWear=0
-YOffset=-0.0006
+YOffset=-0.001
 YOffsetWear=0
 XToolChange=4.78954
 YToolChange=4.07934
@@ -76,7 +76,7 @@ Material=Carbide
 LastMeasured=2025-01-15 14:30:00
 AutoProbe=0
 [Tool2]
-Length=4.08667
+Length=2.56364
 LengthWear=0
 Diameter=0
 DiameterWear=0
@@ -91,7 +91,7 @@ YToolChange=4.10441
 ZToolChange=-9.89641
 AutoProbe=1
 [Tool3]
-Length=5.47021
+Length=4.63415
 LengthWear=0
 Diameter=0
 DiameterWear=0
@@ -107,7 +107,7 @@ ZToolChange=-9.88602
 AutoProbe=1
 ProbeXOffset=0.0000
 [Tool4]
-Length=3.06427
+Length=2.32895
 LengthWear=0
 Diameter=0
 DiameterWear=0
@@ -152,7 +152,7 @@ YToolChange=4.11381
 ZToolChange=-9.88878
 AutoProbe=1
 [Tool7]
-Length=2.91903
+Length=2.916
 LengthWear=0
 Diameter=0
 DiameterWear=0

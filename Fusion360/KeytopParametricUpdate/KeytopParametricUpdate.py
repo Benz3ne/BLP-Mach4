@@ -26,15 +26,13 @@ _handlers = []
 
 # Configuration (from KeyParameterUpdate.py)
 CONFIG = {
-    'plastic_thickness': 0.09,  # Added to shoulder length calculation
+    'plastic_thickness': 0.027,  # Added to shoulder length calculation
     'max_rotation': 2.0,
     'angle_step': 0.01,
     'front_weight': 5,
-    'band_split_y': 0.75,
+    'band_split_y': 1.0,
     'max_points_per_band': 6,
     'min_points_per_band': 3,
-    'front_overhang': 0.005,
-    'tail_overhang': 0.01,
     'chip_outlier_threshold': 0.012,
 }
 
@@ -291,29 +289,27 @@ def calculate_key_params(left_points, right_points, front_points, center, angle,
     right_front = [p for p in right_rot if rotate_point(p, -angle, center)[1] <= CONFIG['band_split_y']]
     right_tail = [p for p in right_rot if rotate_point(p, -angle, center)[1] > CONFIG['band_split_y']]
 
-    # Calculate walls with overhangs applied to each region
-    # Left side: subtract overhang (move left/more negative)
-    # Right side: add overhang (move right/more positive)
-    xl_front = min((p[0] for p in left_front), default=0) - CONFIG['front_overhang']
-    xl_tail = min((p[0] for p in left_tail), default=0) - CONFIG['tail_overhang']
-    xr_front = max((p[0] for p in right_front), default=0) + CONFIG['front_overhang']
-    xr_tail = max((p[0] for p in right_tail), default=0) + CONFIG['tail_overhang']
+    # Raw band extremes — no overhang applied
+    xl_f = min((p[0] for p in left_front),  default=0)
+    xl_t = min((p[0] for p in left_tail),   default=0)
+    xr_f = max((p[0] for p in right_front), default=0)
+    xr_t = max((p[0] for p in right_tail),  default=0)
 
-    xl_outer = min(xl_front, xl_tail)
-    xl_inner = max(xl_front, xl_tail)
-    xr_outer = max(xr_front, xr_tail)
-    xr_inner = min(xr_front, xr_tail)
-
-    # Calculate center X
+    # Width and center: front band only.
+    # The caliper measures the front face, so width = xr_front - xl_front with no overhang.
+    # Tail band readings are narrower on shoulder keys and would inflate the computed width
+    # if included in the outer wall calculation.
     y_front = median([p[1] for p in front_rot])
-    front_left = rotate_point([xl_outer, y_front], -angle, center)
-    front_right = rotate_point([xr_outer, y_front], -angle, center)
+    front_left  = rotate_point([xl_f, y_front], -angle, center)
+    front_right = rotate_point([xr_f, y_front], -angle, center)
     center_x = (front_left[0] + front_right[0]) / 2.0
 
-    # Calculate width and steps
-    width = xr_outer - xl_outer
-    left_step = xl_inner - xl_outer if key_shoulders(key_num) in ['left', 'both'] else 0
-    right_step = xr_outer - xr_inner if key_shoulders(key_num) in ['right', 'both'] else 0
+    width = xr_f - xl_f
+
+    # Steps: how far each wall moves inward from front to tail
+    stype = key_shoulders(key_num)
+    left_step  = (xl_t - xl_f) if stype in ('left',  'both') else 0
+    right_step = (xr_f - xr_t) if stype in ('right', 'both') else 0
 
     return {
         'X': center_x,
@@ -332,9 +328,19 @@ def process_key(key_num, key_data):
     raw_left = [[p['X'], p['Y']] for p in key_data.get('1', [])]
     raw_right = [[p['X'], p['Y']] for p in key_data.get('2', [])]
     front_points = [[p['X'], p['Y']] for p in key_data.get('3', [])]
-    left_points = filter_wall_outliers(raw_left, 'left')
-    right_points = filter_wall_outliers(raw_right, 'right')
-    dropped_l = len(raw_left) - len(left_points)
+
+    # Filter chip outliers per band (front vs tail). Filtering all points together would
+    # produce a median between the two bands on shoulder keys, incorrectly dropping valid
+    # front-band readings. Per-band filtering keeps only each band's own outlier threshold.
+    band_y = CONFIG['band_split_y']
+    lf = filter_wall_outliers([p for p in raw_left  if p[1] <= band_y], 'left')
+    lt = filter_wall_outliers([p for p in raw_left  if p[1] >  band_y], 'left')
+    rf = filter_wall_outliers([p for p in raw_right if p[1] <= band_y], 'right')
+    rt = filter_wall_outliers([p for p in raw_right if p[1] >  band_y], 'right')
+    left_points  = lf + lt
+    right_points = rf + rt
+
+    dropped_l = len(raw_left)  - len(left_points)
     dropped_r = len(raw_right) - len(right_points)
     if dropped_l or dropped_r:
         log(f"Key {key_num}: chip filter removed {dropped_l} left / {dropped_r} right wall points")
