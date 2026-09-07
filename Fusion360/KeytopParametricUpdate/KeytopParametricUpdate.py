@@ -263,22 +263,31 @@ def calculate_key_params(left_points, right_points, front_points, center, angle,
     right_front = [p for p in right_rot if rotate_point(p, -angle, center)[1] <= CONFIG['band_split_y']]
     right_tail = [p for p in right_rot if rotate_point(p, -angle, center)[1] > CONFIG['band_split_y']]
 
-    # Raw band extremes — no overhang applied
-    xl_f = min((p[0] for p in left_front),  default=0)
-    xl_t = min((p[0] for p in left_tail),   default=0)
-    xr_f = max((p[0] for p in right_front), default=0)
-    xr_t = max((p[0] for p in right_tail),  default=0)
+    # Front width: exclude the overhang zone at the very front of the key (Y < -0.5").
+    # At those Y positions the probe touches the rounded lip/tip rather than the flat face,
+    # reading wider than what calipers measure. Fall back to the full front band only if
+    # all readings happen to be in the excluded zone (shouldn't happen in practice).
+    _flat_y = -0.5
+    left_front_flat  = [p for p in left_front  if p[1] >= _flat_y] or left_front
+    right_front_flat = [p for p in right_front if p[1] >= _flat_y] or right_front
 
-    # Width and center: front band only.
-    # The caliper measures the front face, so width = xr_front - xl_front with no overhang.
-    # Tail band readings are narrower on shoulder keys and would inflate the computed width
-    # if included in the outer wall calculation.
+    xl_f = min((p[0] for p in left_front_flat),  default=0)
+    xr_f = max((p[0] for p in right_front_flat), default=0)
+
+    # Width and center: front band only, flat face only.
+    # The caliper measures the front face, so width = xr_front - xl_front.
     y_front = median([p[1] for p in front_rot])
     front_left  = rotate_point([xl_f, y_front], -angle, center)
     front_right = rotate_point([xr_f, y_front], -angle, center)
     center_x = (front_left[0] + front_right[0]) / 2.0
 
     width = xr_f - xl_f
+
+    # Step calculation: use the tail reading at the FRONT of the tail band (smallest Y ≈ 1.10").
+    # Calipers measure tail width at the leading edge of the step, so using the frontmost
+    # tail point matches the measurement location and avoids taper from deeper in the tail.
+    xl_t = min(left_tail,  key=lambda p: p[1])[0] if left_tail  else 0
+    xr_t = min(right_tail, key=lambda p: p[1])[0] if right_tail else 0
 
     # Steps: how far each wall moves inward from front to tail
     stype = key_shoulders(key_num)
