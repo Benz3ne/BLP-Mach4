@@ -33,7 +33,6 @@ CONFIG = {
     'band_split_y': 1.0,
     'max_points_per_band': 6,
     'min_points_per_band': 3,
-    'chip_outlier_threshold': 0.012,
 }
 
 # Network path to Mach4 Logs folder on CNC machine (BLPCN)
@@ -102,31 +101,6 @@ def min_unless_outlier(values, fence_factor=1.5):
     lower_fence = med - fence_factor * iqr
     clean = [v for v in s if v >= lower_fence]
     return clean[0] if clean else s[0]
-
-
-def filter_wall_outliers(points, direction):
-    """Remove chip-triggered outlier X readings from wall probe points.
-
-    A chip on the left face triggers the +X probe early, producing an X reading
-    below the true wall (more negative). On the right face, an early -X trigger
-    produces an X above the true wall (more positive). Either way, the outlier
-    ends up as the min() or max() and pulls center_x in the wrong direction.
-
-    direction: 'left'  — remove points below median - threshold
-               'right' — remove points above median + threshold
-
-    Falls back to the original list if fewer than 2 clean points remain.
-    """
-    if len(points) < 3:
-        return points
-    threshold = CONFIG['chip_outlier_threshold']
-    xs = [p[0] for p in points]
-    med = median(xs)
-    if direction == 'left':
-        clean = [p for p in points if p[0] >= med - threshold]
-    else:
-        clean = [p for p in points if p[0] <= med + threshold]
-    return clean if len(clean) >= 2 else points
 
 
 def rotate_point(point, angle_deg, center):
@@ -322,28 +296,14 @@ def calculate_key_params(left_points, right_points, front_points, center, angle,
 
 def process_key(key_num, key_data):
     """Process a single key: optimize angle and calculate parameters"""
-    # Get point sets; filter chip-triggered outliers before any wall position computation.
-    # Chips on the left face produce early +X triggers (X too low = min() pulls left).
-    # Chips on the right face produce early -X triggers (X too high = max() pulls right).
-    raw_left = [[p['X'], p['Y']] for p in key_data.get('1', [])]
-    raw_right = [[p['X'], p['Y']] for p in key_data.get('2', [])]
+    # Get point sets. A chip removes material, so a chip-affected touch can only make
+    # the probe travel further before contact (a reading that recedes toward center) —
+    # it can never register an X beyond the true wall. The true wall is therefore always
+    # the most extreme raw reading (min for the left wall, max for the right), so no
+    # per-point filtering is applied here: min()/max() is already immune to chips.
+    left_points = [[p['X'], p['Y']] for p in key_data.get('1', [])]
+    right_points = [[p['X'], p['Y']] for p in key_data.get('2', [])]
     front_points = [[p['X'], p['Y']] for p in key_data.get('3', [])]
-
-    # Filter chip outliers per band (front vs tail). Filtering all points together would
-    # produce a median between the two bands on shoulder keys, incorrectly dropping valid
-    # front-band readings. Per-band filtering keeps only each band's own outlier threshold.
-    band_y = CONFIG['band_split_y']
-    lf = filter_wall_outliers([p for p in raw_left  if p[1] <= band_y], 'left')
-    lt = filter_wall_outliers([p for p in raw_left  if p[1] >  band_y], 'left')
-    rf = filter_wall_outliers([p for p in raw_right if p[1] <= band_y], 'right')
-    rt = filter_wall_outliers([p for p in raw_right if p[1] >  band_y], 'right')
-    left_points  = lf + lt
-    right_points = rf + rt
-
-    dropped_l = len(raw_left)  - len(left_points)
-    dropped_r = len(raw_right) - len(right_points)
-    if dropped_l or dropped_r:
-        log(f"Key {key_num}: chip filter removed {dropped_l} left / {dropped_r} right wall points")
 
     if not (left_points and right_points):
         return None
