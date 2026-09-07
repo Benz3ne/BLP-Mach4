@@ -10,6 +10,7 @@ Backups/
 
 # System/cache files
 *.dat
+.DS_Store
 
 # Fusion heartbeat (auto-written every 5s by add-in)
 Logs/FUSION_HEARTBEAT.txt

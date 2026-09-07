@@ -1,0 +1,31 @@
+===== Placement Validation Report =====
+Piano: Kingsbury_Probe_Check_2_Upper  S/N: 84727  Section: Upper
+Date:  2026-09-07 14:28:39
+
+Thresholds: Z +/-0.025"  Y+ +/-0.020"  Shoulder 0.075"-0.500"
+
+RESULT: 1 ERROR(S) DETECTED
+
+  !! SHOULDER   Key 83   LEFT expected but not found (step=0.0512")
+
+OUTLIER ADJUSTMENTS: 19 front X measurement(s) auto-excluded from validation
+Threshold: +/-0.012" from group median  (back groups not filtered -- key shape variation expected)
+  ** Key 45   +X: 2 front outlier(s) excluded
+  ** Key 49   +X: 3 front outlier(s) excluded
+  ** Key 54   +X: 4 front outlier(s) excluded
+  ** Key 54   -X: 1 front outlier(s) excluded
+  ** Key 56   +X: 4 front outlier(s) excluded
+  ** Key 57   +X: 3 front outlier(s) excluded
+  ** Key 59   +X: 3 front outlier(s) excluded
+  ** Key 63   +X: 1 front outlier(s) excluded
+  ** Key 64   -X: 1 front outlier(s) excluded
+  ** Key 66   +X: 1 front outlier(s) excluded
+  ** Key 68   +X: 3 front outlier(s) excluded
+  ** Key 69   +X: 3 front outlier(s) excluded
+  ** Key 71   +X: 3 front outlier(s) excluded
+  ** Key 71   -X: 1 front outlier(s) excluded
+  ** Key 73   +X: 3 front outlier(s) excluded
+  ** Key 76   +X: 3 front outlier(s) excluded
+  ** Key 85   +X: 4 front outlier(s) excluded
+  ** Key 87   +X: 5 front outlier(s) excluded
+  ** Key 88   +X: 3 front outlier(s) excluded

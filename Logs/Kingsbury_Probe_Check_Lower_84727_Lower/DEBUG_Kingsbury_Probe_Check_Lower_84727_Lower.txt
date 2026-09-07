@@ -1,0 +1,26 @@
+10:33:05 - === STARTING PROCESSING: Kingsbury_Probe_Check_Lower_84727_Lower ===
+10:33:05 - [PROGRESS] Starting - Received trigger for Kingsbury_Probe_Check_Lower_84727_Lower
+10:33:05 - [PROGRESS] Parsing CSV - \\BLPCNC\Mach4Hobby\Profiles\BLP\Logs\Kingsbury_Probe_Check_Lower_84727_Lower\Kingsbury_Probe_Check_Lower_84727_Lower.csv
+10:33:06 - Parsing CSV: \\BLPCNC\Mach4Hobby\Profiles\BLP\Logs\Kingsbury_Probe_Check_Lower_84727_Lower\Kingsbury_Probe_Check_Lower_84727_Lower.csv
+10:33:06 - Found data for 26 keys
+10:33:06 - Calculated Lower section params: ShoulderLength=1.7020, KeyHeight=0.3578
+10:33:06 - Processing 26 white keys in Lower section
+10:33:06 - Calculated parameters for 26 keys
+10:33:07 - [PROGRESS] Switching to Design workspace
+10:33:07 - Switching to Design workspace...
+10:33:08 - Switched to Design workspace
+10:33:08 - [PROGRESS] Updating parameters - Building batch update for 26 keys
+10:33:08 - Using batch modifyParameters API for efficient updates
+10:33:08 - Built batch update with 0 parameters
+10:33:08 - [PROGRESS] Updating parameters - Applying 0 params + geometry rebuild
+10:33:09 - Batch modifyParameters result: True
+10:33:09 - [PROGRESS] Switching to Manufacturing workspace
+10:33:09 - Switching to Manufacturing workspace...
+10:33:11 - Switched to Manufacturing workspace
+10:33:11 - ERROR: No CAM setups found
+10:33:11 - === PROCESSING COMPLETE: FAILED ===
+10:33:11 - [PROGRESS] Switching to Manufacturing workspace
+10:33:11 - Switching to Manufacturing workspace...
+10:33:13 - Switched to Manufacturing workspace
+10:33:13 - ERROR: No CAM setups found
+10:33:13 - === PROCESSING COMPLETE: FAILED ===

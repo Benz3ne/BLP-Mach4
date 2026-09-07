@@ -1,0 +1,78 @@
+[2026-08-23 13:29:17] ===== ProbeKeys Lower - Kingsbury_Probe_Check_2_Lower S/N 84727 =====
+[2026-08-23 13:29:17] Fixture ID: 45
+[2026-08-23 13:29:17] Bore alignment angle: -0.0051 degrees
+[2026-08-23 13:29:17] Probe Drop Depth: 0.1500
+[2026-08-23 13:29:17] Linearity Threshold: 0.0100
+[2026-08-23 13:29:17] Single Tap Feedrate: 40.0 IPM
+[2026-08-23 13:29:17] CSV output file: C:\Mach4Hobby\Profiles\BLP\Logs\Kingsbury_Probe_Check_2_Lower_84727_Lower\Kingsbury_Probe_Check_2_Lower_84727_Lower.csv
+[2026-08-23 13:29:17] Single-tap calibration offsets:
+[2026-08-23 13:29:17]   +X: 0.027534
+[2026-08-23 13:29:17]   +Y: 0.027953
+[2026-08-23 13:29:17]   -Z: -0.027493
+[2026-08-23 13:29:17]   -X: -0.027510
+[2026-08-23 13:29:17]   -Y: -0.027584
+[2026-08-23 13:29:31] Sample key 1 (piano key 1): Z=0.3515
+[2026-08-23 13:29:34] Sample key 3 (piano key 4): Z=0.3545
+[2026-08-23 13:29:37] Sample key 5 (piano key 8): Z=0.3604
+[2026-08-23 13:29:40] Sample key 7 (piano key 11): Z=0.3600
+[2026-08-23 13:29:43] Sample key 9 (piano key 15): Z=0.3564
+[2026-08-23 13:29:46] Sample key 11 (piano key 18): Z=0.3590
+[2026-08-23 13:29:49] Sample key 13 (piano key 21): Z=0.3552
+[2026-08-23 13:29:52] Sample key 15 (piano key 25): Z=0.3556
+[2026-08-23 13:29:56] Sample key 17 (piano key 28): Z=0.3614
+[2026-08-23 13:29:59] Sample key 19 (piano key 32): Z=0.3606
+[2026-08-23 13:30:02] Sample key 21 (piano key 35): Z=0.3623
+[2026-08-23 13:30:05] Sample key 23 (piano key 39): Z=0.3578
+[2026-08-23 13:30:08] Sample key 25 (piano key 42): Z=0.3594
+[2026-08-23 13:30:08] Average Z height: 0.3580
+[2026-08-23 13:30:08] Traverse height: 0.8580
+[2026-08-23 13:30:08] Probe Z depth: 0.2080
+[2026-08-23 13:30:20] Sample key 1 Y front: -1.1876
+[2026-08-23 13:30:23] Sample key 3 Y front: -1.1866
+[2026-08-23 13:30:26] Sample key 5 Y front: -1.1842
+[2026-08-23 13:30:29] Sample key 7 Y front: -1.1994
+[2026-08-23 13:30:32] Sample key 9 Y front: -1.1853
+[2026-08-23 13:30:36] Sample key 11 Y front: -1.1863
+[2026-08-23 13:30:39] Sample key 13 Y front: -1.1888
+[2026-08-23 13:30:42] Sample key 15 Y front: -1.1867
+[2026-08-23 13:30:45] Sample key 17 Y front: -1.1886
+[2026-08-23 13:30:48] Sample key 19 Y front: -1.1881
+[2026-08-23 13:30:51] Sample key 21 Y front: -1.1898
+[2026-08-23 13:30:54] Sample key 23 Y front: -1.1895
+[2026-08-23 13:30:57] Sample key 25 Y front: -1.2000
+[2026-08-23 13:30:58] Probed 13 Y front edges
+[2026-08-23 13:36:11] Key 9: right side shoulder accessible (clearance: 0.3717)
+[2026-08-23 13:39:44] Key 15: left side shoulder accessible (clearance: 0.3595)
+[2026-08-23 13:43:24] Key 21: right side shoulder accessible (clearance: 0.3752)
+[2026-08-23 13:47:00] Key 28: right side shoulder accessible (clearance: 0.3706)
+[2026-08-23 13:49:32] Key 33: right side shoulder accessible (clearance: 0.3751)
+[2026-08-23 13:52:44] Key 40: right side shoulder accessible (clearance: 0.3679)
+[2026-08-23 13:55:05] Probed 6 accessible shoulders
+[2026-08-23 13:55:11] G68 rotation cleared
+[2026-08-23 13:55:11] ===== ProbeKeys Lower Half Completed Successfully =====
+[2026-09-07 15:02:31] ===== Final Keytop Shaping Started =====
+[2026-09-07 15:03:03] Single-tap calibration offset:
+[2026-09-07 15:03:03]   -Z: -0.027165
+[2026-09-07 15:03:03] Left bore center: X0.0092 Y0.0023
+[2026-09-07 15:03:09] Surface Z datum set at: 0.0000
+[2026-09-07 15:03:12] ID hole 1: Z=-0.0837 (calibrated), bit=1
+[2026-09-07 15:03:15] ID hole 2: Z=0.0015 (calibrated), bit=0
+[2026-09-07 15:03:18] ID hole 3: Z=-0.0835 (calibrated), bit=1
+[2026-09-07 15:03:21] ID hole 4: Z=-0.0833 (calibrated), bit=1
+[2026-09-07 15:03:23] ID hole 5: Z=0.0022 (calibrated), bit=0
+[2026-09-07 15:03:26] ID hole 6: Z=-0.0824 (calibrated), bit=1
+[2026-09-07 15:03:29] ID hole 7: Z=0.0041 (calibrated), bit=0
+[2026-09-07 15:03:32] ID hole 8: Z=0.0049 (calibrated), bit=0
+[2026-09-07 15:03:34] ID hole 9: Z=0.0064 (calibrated), bit=0
+[2026-09-07 15:03:37] ID hole 10: Z=-0.0785 (calibrated), bit=1
+[2026-09-07 15:03:37] Fixture ID detected: 45 (binary: 00101101)
+[2026-09-07 15:04:06] Right bore center (in datum coords): X46.0120 Y0.0012
+[2026-09-07 15:04:06] Right bore position relative to left: X46.0120 Y0.0012
+[2026-09-07 15:04:06] Bore alignment angle: 0.0015 degrees
+[2026-09-07 15:04:06] G68 rotation applied: 0.0015 degrees centered at 0,0
+[2026-09-07 15:04:06] User selected file: C:\Mach4Hobby\Profiles\BLP\Logs\Kingsbury_Probe_Check_2_Lower_84727_Lower\Kingsbury_Probe_Check_2_Lower_84727_Lower.tap
+[2026-09-07 15:04:08] ===== Final Shaping Started =====
+[2026-09-07 15:04:08] Fixture ID: 45
+[2026-09-07 15:04:08] Section: Lower
+[2026-09-07 15:04:08] G-code file: C:\Mach4Hobby\Profiles\BLP\Logs\Kingsbury_Probe_Check_2_Lower_84727_Lower\Kingsbury_Probe_Check_2_Lower_84727_Lower.tap
+[2026-09-07 15:04:08] Deferred load marker created: C:\Mach4Hobby\Profiles\BLP\Temp\DeferredGCode.txt

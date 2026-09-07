@@ -1,0 +1,32 @@
+===== Placement Validation Report =====
+Piano: Kingsbury_Probe_Check_2_Lower  S/N: 84727  Section: Lower
+Date:  2026-08-23 13:55:11
+
+Thresholds: Z +/-0.025"  Y+ +/-0.020"  Shoulder 0.075"-0.500"
+
+RESULT: PASS -- No placement errors detected.
+
+OUTLIER ADJUSTMENTS: 22 front X measurement(s) auto-excluded from validation
+Threshold: +/-0.012" from group median  (back groups not filtered -- key shape variation expected)
+  ** Key 1    +X: 3 front outlier(s) excluded
+  ** Key 3    +X: 3 front outlier(s) excluded
+  ** Key 4    +X: 3 front outlier(s) excluded
+  ** Key 8    +X: 3 front outlier(s) excluded
+  ** Key 9    +X: 3 front outlier(s) excluded
+  ** Key 11   +X: 3 front outlier(s) excluded
+  ** Key 13   +X: 3 front outlier(s) excluded
+  ** Key 15   +X: 3 front outlier(s) excluded
+  ** Key 16   +X: 3 front outlier(s) excluded
+  ** Key 18   +X: 3 front outlier(s) excluded
+  ** Key 20   +X: 3 front outlier(s) excluded
+  ** Key 21   +X: 3 front outlier(s) excluded
+  ** Key 23   -X: 3 front outlier(s) excluded
+  ** Key 27   +X: 3 front outlier(s) excluded
+  ** Key 28   +X: 3 front outlier(s) excluded
+  ** Key 30   +X: 2 front outlier(s) excluded
+  ** Key 32   +X: 3 front outlier(s) excluded
+  ** Key 33   +X: 3 front outlier(s) excluded
+  ** Key 35   +X: 3 front outlier(s) excluded
+  ** Key 39   +X: 3 front outlier(s) excluded
+  ** Key 40   +X: 3 front outlier(s) excluded
+  ** Key 44   +X: 3 front outlier(s) excluded

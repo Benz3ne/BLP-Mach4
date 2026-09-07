@@ -1,0 +1,28 @@
+13:59:32 - === STARTING PROCESSING: Kingsbury_Probe_Check_1_Upper_84727_Upper ===
+13:59:32 - [PROGRESS] Starting - Received trigger for Kingsbury_Probe_Check_1_Upper_84727_Upper
+13:59:32 - [PROGRESS] Parsing CSV - \\BLPCNC\Mach4Hobby\Profiles\BLP\Logs\Kingsbury_Probe_Check_1_Upper_84727_Upper\Kingsbury_Probe_Check_1_Upper_84727_Upper.csv
+13:59:32 - Parsing CSV: \\BLPCNC\Mach4Hobby\Profiles\BLP\Logs\Kingsbury_Probe_Check_1_Upper_84727_Upper\Kingsbury_Probe_Check_1_Upper_84727_Upper.csv
+13:59:32 - Found data for 26 keys
+13:59:32 - Calculated Upper section params: ShoulderLength=1.6591, KeyHeight=0.4163
+13:59:32 - Processing 26 white keys in Upper section
+13:59:33 - Calculated parameters for 26 keys
+13:59:33 - [PROGRESS] Switching to Design workspace
+13:59:33 - Switching to Design workspace...
+13:59:34 - Switched to Design workspace
+13:59:34 - [PROGRESS] Updating parameters - Building batch update for 26 keys
+13:59:34 - Using batch modifyParameters API for efficient updates
+13:59:35 - Built batch update with 0 parameters
+13:59:35 - [PROGRESS] Updating parameters - Applying 0 params + geometry rebuild
+13:59:35 - Batch modifyParameters result: True
+13:59:35 - [PROGRESS] Switching to Manufacturing workspace
+13:59:35 - Switching to Manufacturing workspace...
+13:59:36 - Switched to Manufacturing workspace
+13:59:36 - [PROGRESS] Generating toolpaths - 0 setups for Upper
+13:59:36 - Starting toolpath generation for 0 setups: []
+13:59:36 - ERROR generating toolpaths: 3 : The operations are not CAM objects.
+13:59:36 - [PROGRESS] Exporting G-code
+13:59:37 - Starting G-code export...
+13:59:37 - Found 9 NC programs
+13:59:37 - Looking for exported file: C:\Users\BLP CNC\Downloads\Upper Shaping.tap
+13:59:37 - ERROR: Exported file not found: C:\Users\BLP CNC\Downloads\Upper Shaping.tap
+13:59:37 - === PROCESSING COMPLETE: FAILED ===

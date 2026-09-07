@@ -1,0 +1,52 @@
+[2026-09-07 13:36:12] ===== ProbeKeys Upper - Kingsbury_Probe_Check_1_Upper S/N 84727 =====
+[2026-09-07 13:36:12] Fixture ID: 42
+[2026-09-07 13:36:12] Bore alignment angle: -0.0058 degrees
+[2026-09-07 13:36:12] Probe Drop Depth: 0.1500
+[2026-09-07 13:36:12] Linearity Threshold: 0.0100
+[2026-09-07 13:36:12] Single Tap Feedrate: 40.0 IPM
+[2026-09-07 13:36:12] CSV output file: C:\Mach4Hobby\Profiles\BLP\Logs\Kingsbury_Probe_Check_1_Upper_84727_Upper\Kingsbury_Probe_Check_1_Upper_84727_Upper.csv
+[2026-09-07 13:36:12] Single-tap calibration offsets:
+[2026-09-07 13:36:12]   -Y: -0.027633
+[2026-09-07 13:36:12]   -Z: -0.026850
+[2026-09-07 13:36:12]   +Y: 0.027928
+[2026-09-07 13:36:12]   -X: -0.027633
+[2026-09-07 13:36:12]   +X: 0.027411
+[2026-09-07 13:36:25] Sample key 1 (piano key 45): Z=0.4180
+[2026-09-07 13:36:28] Sample key 3 (piano key 49): Z=0.4179
+[2026-09-07 13:36:31] Sample key 5 (piano key 52): Z=0.4197
+[2026-09-07 13:36:35] Sample key 7 (piano key 56): Z=0.4191
+[2026-09-07 13:36:38] Sample key 9 (piano key 59): Z=0.4163
+[2026-09-07 13:36:41] Sample key 11 (piano key 63): Z=0.4148
+[2026-09-07 13:36:44] Sample key 13 (piano key 66): Z=0.4198
+[2026-09-07 13:36:47] Sample key 15 (piano key 69): Z=0.4218
+[2026-09-07 13:36:50] Sample key 17 (piano key 73): Z=0.4130
+[2026-09-07 13:36:53] Sample key 19 (piano key 76): Z=0.4160
+[2026-09-07 13:36:56] Sample key 21 (piano key 80): Z=0.4132
+[2026-09-07 13:36:59] Sample key 23 (piano key 83): Z=0.4137
+[2026-09-07 13:37:02] Sample key 25 (piano key 87): Z=0.4148
+[2026-09-07 13:37:02] Average Z height: 0.4168
+[2026-09-07 13:37:02] Traverse height: 0.9168
+[2026-09-07 13:37:02] Probe Z depth: 0.2668
+[2026-09-07 13:37:14] Sample key 1 Y front: -1.1863
+[2026-09-07 13:37:17] Sample key 3 Y front: -1.1880
+[2026-09-07 13:37:21] Sample key 5 Y front: -1.1872
+[2026-09-07 13:37:24] Sample key 7 Y front: -1.1871
+[2026-09-07 13:37:27] Sample key 9 Y front: -1.1924
+[2026-09-07 13:37:30] Sample key 11 Y front: -1.1886
+[2026-09-07 13:37:33] Sample key 13 Y front: -1.1883
+[2026-09-07 13:37:36] Sample key 15 Y front: -1.1888
+[2026-09-07 13:37:39] Sample key 17 Y front: -1.1906
+[2026-09-07 13:37:43] Sample key 19 Y front: -1.1896
+[2026-09-07 13:37:46] Sample key 21 Y front: -1.1914
+[2026-09-07 13:37:49] Sample key 23 Y front: -1.1891
+[2026-09-07 13:37:52] Sample key 25 Y front: -1.1902
+[2026-09-07 13:37:53] Probed 13 Y front edges
+[2026-09-07 13:38:51] Key 45: right side shoulder accessible (clearance: 0.3639)
+[2026-09-07 13:40:55] Key 51: left side shoulder accessible (clearance: 0.3833)
+[2026-09-07 13:44:38] Key 57: right side shoulder accessible (clearance: 0.3598)
+[2026-09-07 13:49:46] Key 69: right side shoulder accessible (clearance: 0.3777)
+[2026-09-07 13:51:49] Key 75: left side shoulder accessible (clearance: 0.3404)
+[2026-09-07 13:55:07] Key 81: right side shoulder accessible (clearance: 0.3751)
+[2026-09-07 13:59:13] Probed 6 accessible shoulders
+[2026-09-07 13:59:18] G68 rotation cleared
+[2026-09-07 13:59:18] ===== ProbeKeys Upper Half Completed Successfully =====

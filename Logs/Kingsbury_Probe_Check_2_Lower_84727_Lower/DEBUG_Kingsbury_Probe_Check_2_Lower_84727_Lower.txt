@@ -1,0 +1,82 @@
+10:33:01 - === STARTING PROCESSING: Kingsbury_Probe_Check_2_Lower_84727_Lower ===
+10:33:01 - [PROGRESS] Starting - Received trigger for Kingsbury_Probe_Check_2_Lower_84727_Lower
+10:33:01 - [PROGRESS] Parsing CSV - \\BLPCNC\Mach4Hobby\Profiles\BLP\Logs\Kingsbury_Probe_Check_2_Lower_84727_Lower\Kingsbury_Probe_Check_2_Lower_84727_Lower.csv
+10:33:01 - Parsing CSV: \\BLPCNC\Mach4Hobby\Profiles\BLP\Logs\Kingsbury_Probe_Check_2_Lower_84727_Lower\Kingsbury_Probe_Check_2_Lower_84727_Lower.csv
+10:33:01 - Found data for 26 keys
+10:33:01 - Calculated Lower section params: ShoulderLength=1.7017, KeyHeight=0.3590
+10:33:01 - Processing 26 white keys in Lower section
+10:33:02 - Calculated parameters for 26 keys
+10:33:02 - [PROGRESS] Switching to Design workspace
+10:33:02 - Switching to Design workspace...
+10:33:04 - Switched to Design workspace
+10:33:04 - [PROGRESS] Updating parameters - Building batch update for 26 keys
+10:33:04 - Using batch modifyParameters API for efficient updates
+10:33:04 - Built batch update with 0 parameters
+10:33:04 - [PROGRESS] Updating parameters - Applying 0 params + geometry rebuild
+10:33:05 - Batch modifyParameters result: True
+14:53:33 - === STARTING PROCESSING: Kingsbury_Probe_Check_2_Lower_84727_Lower ===
+14:53:33 - [PROGRESS] Starting - Received trigger for Kingsbury_Probe_Check_2_Lower_84727_Lower
+14:53:33 - [PROGRESS] Parsing CSV - \\BLPCNC\Mach4Hobby\Profiles\BLP\Logs\Kingsbury_Probe_Check_2_Lower_84727_Lower\Kingsbury_Probe_Check_2_Lower_84727_Lower.csv
+14:53:33 - Parsing CSV: \\BLPCNC\Mach4Hobby\Profiles\BLP\Logs\Kingsbury_Probe_Check_2_Lower_84727_Lower\Kingsbury_Probe_Check_2_Lower_84727_Lower.csv
+14:53:33 - Found data for 26 keys
+14:53:33 - Calculated Lower section params: ShoulderLength=1.7017, KeyHeight=0.3590
+14:53:33 - Processing 26 white keys in Lower section
+14:53:33 - Calculated parameters for 26 keys
+14:53:33 - [PROGRESS] Switching to Design workspace
+14:53:34 - Switching to Design workspace...
+14:53:35 - Switched to Design workspace
+14:53:35 - [PROGRESS] Updating parameters - Building batch update for 26 keys
+14:53:35 - Using batch modifyParameters API for efficient updates
+14:53:35 - Built batch update with 115 parameters
+14:53:35 - [PROGRESS] Updating parameters - Applying 115 params + geometry rebuild
+14:53:51 - Batch modifyParameters result: True
+14:53:52 - [PROGRESS] Switching to Manufacturing workspace
+14:53:52 - Switching to Manufacturing workspace...
+14:55:25 - Switched to Manufacturing workspace
+14:55:25 - [PROGRESS] Generating toolpaths - 1 setups for Lower
+14:55:25 - Starting toolpath generation for 1 setups: ['Lower Shaping']
+14:55:38 - [PROGRESS] Generating toolpaths - 10s elapsed
+14:55:48 - [PROGRESS] Generating toolpaths - 21s elapsed
+14:55:58 - [PROGRESS] Generating toolpaths - 31s elapsed
+14:55:58 - Still generating toolpaths... 31 seconds elapsed
+14:56:08 - [PROGRESS] Generating toolpaths - 41s elapsed
+14:56:19 - [PROGRESS] Generating toolpaths - 51s elapsed
+14:56:29 - [PROGRESS] Generating toolpaths - 61s elapsed
+14:56:39 - [PROGRESS] Generating toolpaths - 71s elapsed
+14:56:49 - [PROGRESS] Generating toolpaths - 82s elapsed
+14:56:59 - [PROGRESS] Generating toolpaths - 92s elapsed
+14:57:09 - [PROGRESS] Generating toolpaths - 102s elapsed
+14:57:19 - [PROGRESS] Generating toolpaths - 112s elapsed
+14:57:27 - Still generating toolpaths... 120 seconds elapsed
+14:57:30 - [PROGRESS] Generating toolpaths - 122s elapsed
+14:57:40 - [PROGRESS] Generating toolpaths - 132s elapsed
+14:57:50 - [PROGRESS] Generating toolpaths - 142s elapsed
+14:57:58 - Still generating toolpaths... 151 seconds elapsed
+14:58:00 - [PROGRESS] Generating toolpaths - 153s elapsed
+14:58:10 - [PROGRESS] Generating toolpaths - 163s elapsed
+14:58:20 - [PROGRESS] Generating toolpaths - 173s elapsed
+14:58:28 - Still generating toolpaths... 181 seconds elapsed
+14:58:30 - [PROGRESS] Generating toolpaths - 183s elapsed
+14:58:41 - [PROGRESS] Generating toolpaths - 193s elapsed
+14:58:51 - [PROGRESS] Generating toolpaths - 203s elapsed
+14:59:01 - [PROGRESS] Generating toolpaths - 213s elapsed
+14:59:11 - [PROGRESS] Generating toolpaths - 224s elapsed
+14:59:21 - [PROGRESS] Generating toolpaths - 234s elapsed
+14:59:31 - [PROGRESS] Generating toolpaths - 244s elapsed
+14:59:41 - [PROGRESS] Generating toolpaths - 254s elapsed
+14:59:52 - [PROGRESS] Generating toolpaths - 264s elapsed
+14:59:58 - Still generating toolpaths... 270 seconds elapsed
+15:00:02 - [PROGRESS] Generating toolpaths - 274s elapsed
+15:00:12 - [PROGRESS] Generating toolpaths - 285s elapsed
+15:00:22 - [PROGRESS] Generating toolpaths - 295s elapsed
+15:00:26 - Toolpath generation complete
+15:00:26 - [PROGRESS] Exporting G-code
+15:00:27 - Starting G-code export...
+15:00:27 - Found 2 NC programs
+15:00:27 - Exporting NC program: 'Lower Shaping'
+15:00:28 -   Post process completed
+15:00:28 - Looking for exported file: C:\Users\BLP CNC\Downloads\Lower Shaping.tap
+15:00:28 - Moving to \\BLPCNC\Mach4Hobby\Profiles\BLP\Logs\Kingsbury_Probe_Check_2_Lower_84727_Lower\Kingsbury_Probe_Check_2_Lower_84727_Lower.tap
+15:00:28 - File moved successfully
+15:00:28 - === PROCESSING COMPLETE: SUCCESS ===
+15:00:29 - Output file: \\BLPCNC\Mach4Hobby\Profiles\BLP\Logs\Kingsbury_Probe_Check_2_Lower_84727_Lower\Kingsbury_Probe_Check_2_Lower_84727_Lower.tap
