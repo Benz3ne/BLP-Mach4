@@ -4044,6 +4044,46 @@ end
 
 
 
+-- Appends the standard air blow-off nozzle pass after the top trim toolpath.
+-- Kept here (not in the .tap file) because "Initial Trim Top.tap" gets
+-- regenerated wholesale from Fusion, which silently drops anything hand-added
+-- to the file.
+local function BuildTopTrimWithBlowOff(topTrimFilePath)
+    local topFile = io.open(topTrimFilePath, "r")
+    if not topFile then
+        wx.wxMessageBox("Failed to open top trim file:\n" .. topTrimFilePath, "Error", wx.wxOK + wx.wxICON_ERROR)
+        return nil
+    end
+    local topContent = topFile:read("*a")
+    topFile:close()
+
+    -- Strip the file's own M30/M2 so the blow-off pass can be appended after it
+    topContent = topContent:gsub("[Mm]30[^\n]*\n?", "\n")
+    topContent = topContent:gsub("[Mm]2[^\n]*\n?", "\n")
+
+    local blowOffGcode =
+        "\n(AIR BLOW-OFF - DROP T10 AND POSITION)\n" ..
+        "T0 M6\n" ..
+        "G90 G55\n" ..
+        "G0 X45. Y0.\n" ..
+        "(DEPLOY NOZZLE - PASS 1 IN -X DIRECTION)\n" ..
+        "T90 M6\n" ..
+        "G90 G55\n" ..
+        "G0 X45. Y0.\n" ..
+        "G0 Z3.\n" ..
+        "G1 X0. F400.\n" ..
+        "(MOVE +Y 3\" WITH NOZZLE ON - PASS 2 IN +X DIRECTION)\n" ..
+        "G0 Y3.\n" ..
+        "G1 X45. F400.\n" ..
+        "(END - RETRACT NOZZLE)\n" ..
+        "G53 G0 Z0.\n" ..
+        "T0 M6\n" ..
+        "M30\n"
+
+    return topContent .. blowOffGcode
+end
+
+
 function ProbeScripts.InitialKeytopTrim(inst)
     -- Check probe deployment first
     if not ProbeScripts.CheckProbeDeployed(inst) then return end
@@ -4142,17 +4182,23 @@ function ProbeScripts.InitialKeytopTrim(inst)
         local gcodeDir   = "C:\\Mach4Hobby\\Profiles\\BLP\\Scripts\\GCode"
         local topTrimFile = gcodeDir .. "\\Initial Trim Top.tap"
 
-        local testFile = io.open(topTrimFile, "r")
-        if not testFile then
-            wx.wxMessageBox("Top trim file not found:\n" .. topTrimFile, "Error", wx.wxOK + wx.wxICON_ERROR)
+        local topContent = BuildTopTrimWithBlowOff(topTrimFile)
+        if not topContent then return false end
+
+        local tempDir = "C:\\Mach4Hobby\\Profiles\\BLP\\Temp"
+        local gcodeFilePath = tempDir .. "\\InitialTrimTopWithBlowOff.tap"
+        local tempFile = io.open(gcodeFilePath, "w")
+        if not tempFile then
+            wx.wxMessageBox("Failed to create top trim G-code file.", "Error", wx.wxOK + wx.wxICON_ERROR)
             return false
         end
-        testFile:close()
+        tempFile:write(topContent)
+        tempFile:close()
 
         local markerPath = "C:\\Mach4Hobby\\Profiles\\BLP\\Temp\\DeferredGCode.txt"
         local markerFile = io.open(markerPath, "w")
         if markerFile then
-            markerFile:write(topTrimFile)
+            markerFile:write(gcodeFilePath)
             markerFile:close()
         else
             wx.wxMessageBox("Failed to queue G-code file for execution.", "Error", wx.wxOK + wx.wxICON_ERROR)
@@ -4361,6 +4407,13 @@ function ProbeScripts.InitialKeytopTrim(inst)
     local gcodeFilePath
     local trimOps = {"Top and Front", "Top Only"}
 
+    -- Top trim content always gets the air blow-off pass appended (see
+    -- BuildTopTrimWithBlowOff), regardless of whether Front is also run.
+    local topContent = BuildTopTrimWithBlowOff(topTrimFile)
+    if not topContent then return false end
+
+    local tempDir = "C:\\Mach4Hobby\\Profiles\\BLP\\Temp"
+
     if params.trimOperation == 0 then
         -- Top and Front: need to combine files
         -- Read front trim, strip M30/M2, append top trim
@@ -4372,21 +4425,12 @@ function ProbeScripts.InitialKeytopTrim(inst)
         local frontContent = frontFile:read("*a")
         frontFile:close()
 
-        local topFile = io.open(topTrimFile, "r")
-        if not topFile then
-            wx.wxMessageBox("Failed to open top trim file:\n" .. topTrimFile, "Error", wx.wxOK + wx.wxICON_ERROR)
-            return false
-        end
-        local topContent = topFile:read("*a")
-        topFile:close()
-
         -- Strip M30/M2 from front content
         frontContent = frontContent:gsub("[Mm]30[^\n]*\n?", "\n")
         frontContent = frontContent:gsub("[Mm]2[^\n]*\n?", "\n")
         frontContent = frontContent .. "\n(End of front trim, continuing to top trim)\n\n"
 
         -- Combine and write to temp file
-        local tempDir = "C:\\Mach4Hobby\\Profiles\\BLP\\Temp"
         gcodeFilePath = tempDir .. "\\InitialTrimCombined.tap"
 
         local tempFile = io.open(gcodeFilePath, "w")
@@ -4399,8 +4443,16 @@ function ProbeScripts.InitialKeytopTrim(inst)
         tempFile:close()
 
     else
-        -- Top Only: use top trim file directly
-        gcodeFilePath = topTrimFile
+        -- Top Only: write top trim content (with blow-off appended) to temp file
+        gcodeFilePath = tempDir .. "\\InitialTrimTopWithBlowOff.tap"
+
+        local tempFile = io.open(gcodeFilePath, "w")
+        if not tempFile then
+            wx.wxMessageBox("Failed to create top trim G-code file.", "Error", wx.wxOK + wx.wxICON_ERROR)
+            return false
+        end
+        tempFile:write(topContent)
+        tempFile:close()
     end
 
     -- Verify file exists
