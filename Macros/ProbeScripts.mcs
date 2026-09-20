@@ -2859,15 +2859,7 @@ function ProbeScripts.ProbeKeys(inst)
     local HEARTBEAT_FILE = "C:\\Mach4Hobby\\Profiles\\BLP\\Logs\\FUSION_HEARTBEAT.txt"
     local HEARTBEAT_MAX_AGE = 30  -- seconds - allow some slack for network latency
 
-    local fusionCheckResult = wx.wxMessageBox(
-        "Do you want to verify Fusion 360 is running before probing?\n\nSelect 'Yes' to check, 'No' to skip and collect data only.",
-        "Fusion Check", wx.wxYES_NO + wx.wxICON_QUESTION)
-    local fusionCheckEnabled = (fusionCheckResult == wx.wxYES)
-
     local function checkHeartbeat()
-        if not fusionCheckEnabled then
-            return true, "READY", "Check disabled"
-        end
         local heartbeatFile = io.open(HEARTBEAT_FILE, "r")
         if not heartbeatFile then
             return false, "NO_FILE", "Heartbeat file not found"
@@ -2905,8 +2897,19 @@ function ProbeScripts.ProbeKeys(inst)
         return true, "READY", "Fusion is ready"
     end
 
-    -- First heartbeat check (silent - don't show error yet)
+    -- First heartbeat check - determines whether Fusion is live at the start.
+    -- If it's not, let the user know up front that this run will just be for
+    -- data collection (still fully useful -- style can be applied later via
+    -- ProbeScripts.ApplyStyle once Fusion is running).
     local firstHeartbeatOk, firstStatus, firstDetails = checkHeartbeat()
+
+    if not firstHeartbeatOk then
+        wx.wxMessageBox(
+            "Fusion 360 was not detected running.\n\n" ..
+            "This run will be for data collection only. The probe data can be used " ..
+            "later with the Apply Style macro once Fusion 360 is running.",
+            "Data Collection Only", wx.wxOK + wx.wxICON_INFORMATION)
+    end
 
     -- Check probe deployment
     if not ProbeScripts.CheckProbeDeployed(inst) then return end
@@ -2975,45 +2978,12 @@ function ProbeScripts.ProbeKeys(inst)
     local params = ProbeScripts.ShowDialog(inst, "Piano Key Probing", fields, "ProbeKeys")
     if not params then return end
 
-    -- Second heartbeat check - only show error if both checks failed
-    local secondHeartbeatOk, secondStatus, secondDetails = checkHeartbeat()
-    if not firstHeartbeatOk and not secondHeartbeatOk then
-        -- Build error message based on status
-        local errorMsg = "Fusion 360 is not ready.\n\n"
-        local status = secondStatus or firstStatus or "UNKNOWN"
-        local details = secondDetails or firstDetails or ""
-
-        if status == "NO_FILE" or status == "EMPTY" then
-            errorMsg = errorMsg .. "The Fusion add-in is not running.\n\nPlease start Fusion 360, open 'Parametrized Keytop Toolpath', and enable the Keytop Parametric Update add-in."
-        elseif status == "BLOCKED" or status == "READ_ONLY" then
-            errorMsg = errorMsg .. "Fusion 360 session is blocked or suspended.\n\nThis usually means another computer is using your Fusion account.\n\nPlease check Fusion 360 and dismiss any 'Session Suspended' dialogs."
-            if details ~= "" then
-                errorMsg = errorMsg .. "\n\nDetails: " .. details
-            end
-        elseif status == "WRONG_DOC" then
-            errorMsg = errorMsg .. "Wrong document is open in Fusion 360.\n\nPlease open 'Parametrized Keytop Toolpath'."
-            if details ~= "" then
-                errorMsg = errorMsg .. "\n\nCurrently open: " .. details
-            end
-        elseif status == "OFFLINE" then
-            errorMsg = errorMsg .. "Fusion 360 is in offline mode.\n\nPlease connect to the internet and restart Fusion."
-        elseif status == "STARTING" then
-            errorMsg = errorMsg .. "Fusion 360 is still starting up.\n\nPlease wait for Fusion to fully load."
-        elseif status == "STALE" then
-            errorMsg = errorMsg .. "Fusion 360 heartbeat is stale.\n\nThe add-in may have stopped responding."
-            if details ~= "" then
-                errorMsg = errorMsg .. "\n\nDetails: " .. details
-            end
-        else
-            errorMsg = errorMsg .. "Status: " .. status
-            if details ~= "" then
-                errorMsg = errorMsg .. "\nDetails: " .. details
-            end
-        end
-
-        wx.wxMessageBox(errorMsg, "Fusion Not Ready", wx.wxOK + wx.wxICON_ERROR)
-        return
-    end
+    -- Second heartbeat check - re-confirm right before probing begins (Fusion
+    -- may have been started while the piano info dialog was open). Fusion
+    -- still not being ready no longer aborts the run: probing always proceeds
+    -- so probe data is collected either way, per fusionReady below.
+    local secondHeartbeatOk = checkHeartbeat()
+    local fusionReady = firstHeartbeatOk or secondHeartbeatOk
 
     -- Cancel any existing G68 rotation
     mc.mcCntlGcodeExecuteWait(inst, "G69")
@@ -4024,7 +3994,9 @@ function ProbeScripts.ProbeKeys(inst)
             triggerFile:write(triggerData)
             triggerFile:close()
             local slStr = shoulderLengthEst and string.format("  |  ShoulderLength=%s", shoulderEstLabel) or ""
-            if #validationErrors > 0 then
+            if not fusionReady then
+                mc.mcCntlSetLastError(inst, string.format("ProbeKeys complete - data collected (Fusion not running, use Apply Style later)%s", slStr))
+            elseif #validationErrors > 0 then
                 mc.mcCntlSetLastError(inst, string.format("ProbeKeys complete - trigger sent (with %d warning(s))%s", #validationErrors, slStr))
             else
                 mc.mcCntlSetLastError(inst, string.format("ProbeKeys complete - trigger sent to Fusion%s", slStr))
