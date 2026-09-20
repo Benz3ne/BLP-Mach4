@@ -1,0 +1,47 @@
+20:26:26 - === STARTING PROCESSING: Kingsbury_Complete2_Upper_84727_Upper ===
+20:26:26 - [PROGRESS] Starting - Received trigger for Kingsbury_Complete2_Upper_84727_Upper
+20:26:26 - [PROGRESS] Parsing CSV - \\BLPCNC\Mach4Hobby\Profiles\BLP\Logs\Kingsbury_Complete2_Upper_84727_Upper\Kingsbury_Complete2_Upper_84727_Upper.csv
+20:26:26 - Parsing CSV: \\BLPCNC\Mach4Hobby\Profiles\BLP\Logs\Kingsbury_Complete2_Upper_84727_Upper\Kingsbury_Complete2_Upper_84727_Upper.csv
+20:26:26 - Found data for 26 keys
+20:26:26 - Calculated Upper section params: ShoulderLength=1.6101, KeyHeight=0.4238
+20:26:26 - Processing 26 white keys in Upper section
+20:26:27 - Calculated parameters for 26 keys
+20:26:27 - [PROGRESS] Switching to Design workspace
+20:26:27 - Switching to Design workspace...
+20:26:28 - Switched to Design workspace
+20:26:28 - [PROGRESS] Updating parameters - Building batch update for 26 keys
+20:26:28 - Using batch modifyParameters API for efficient updates
+20:26:28 - Built batch update with 116 parameters
+20:26:28 - [PROGRESS] Updating parameters - Applying 116 params + geometry rebuild
+20:26:46 - Batch modifyParameters result: True
+20:26:47 - [PROGRESS] Switching to Manufacturing workspace
+20:26:47 - Switching to Manufacturing workspace...
+20:26:51 - Switched to Manufacturing workspace
+20:26:51 - [PROGRESS] Generating toolpaths - 1 setups for Upper
+20:26:51 - Starting toolpath generation for 1 setups: ['Upper Shaping']
+20:27:04 - [PROGRESS] Generating toolpaths - 10s elapsed
+20:27:14 - [PROGRESS] Generating toolpaths - 21s elapsed
+20:27:25 - [PROGRESS] Generating toolpaths - 31s elapsed
+20:27:25 - Still generating toolpaths... 31 seconds elapsed
+20:27:35 - [PROGRESS] Generating toolpaths - 41s elapsed
+20:27:45 - [PROGRESS] Generating toolpaths - 51s elapsed
+20:27:55 - [PROGRESS] Generating toolpaths - 62s elapsed
+20:28:06 - [PROGRESS] Generating toolpaths - 72s elapsed
+20:28:16 - [PROGRESS] Generating toolpaths - 82s elapsed
+20:28:24 - Still generating toolpaths... 90 seconds elapsed
+20:28:26 - [PROGRESS] Generating toolpaths - 92s elapsed
+20:28:36 - [PROGRESS] Generating toolpaths - 102s elapsed
+20:28:46 - [PROGRESS] Generating toolpaths - 113s elapsed
+20:28:54 - Still generating toolpaths... 121 seconds elapsed
+20:28:57 - [PROGRESS] Generating toolpaths - 123s elapsed
+20:28:59 - Toolpath generation complete
+20:28:59 - [PROGRESS] Exporting G-code
+20:28:59 - Starting G-code export...
+20:28:59 - Found 2 NC programs
+20:28:59 - Exporting NC program: 'Upper Shaping'
+20:29:00 -   Post process completed
+20:29:00 - Looking for exported file: C:\Users\BLP CNC\Downloads\Upper Shaping.tap
+20:29:00 - Moving to \\BLPCNC\Mach4Hobby\Profiles\BLP\Logs\Kingsbury_Complete2_Upper_84727_Upper\Kingsbury_Complete2_Upper_84727_Upper.tap
+20:29:01 - File moved successfully
+20:29:01 - === PROCESSING COMPLETE: SUCCESS ===
+20:29:01 - Output file: \\BLPCNC\Mach4Hobby\Profiles\BLP\Logs\Kingsbury_Complete2_Upper_84727_Upper\Kingsbury_Complete2_Upper_84727_Upper.tap
