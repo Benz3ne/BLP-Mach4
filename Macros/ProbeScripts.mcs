@@ -2999,7 +2999,7 @@ function ProbeScripts.ProbeKeys(inst)
     local X_OUTLIER_THRESHOLD = 0.012 -- chip/outlier threshold for X edge validation
     local safeTraverseZ = 2.0  -- safe Z height in work coords
     local ID_HOLE_DEPTH_THRESHOLD = -0.05  -- halfway between 0 and -0.1
-    local SAMPLE_KEY_INTERVAL = 2  -- probe every 2nd key (1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25)
+    local SAMPLE_KEY_INTERVAL = 3  -- probe every 3rd key (1, 4, 7, ... 25) for Z height and Y front sampling
     local NUM_KEYS = 26  -- total white keys per section
 
     -- Y positions for X edge probing
@@ -4020,20 +4020,12 @@ end
 -- Kept here (not in the .tap file) because "Initial Trim Top.tap" gets
 -- regenerated wholesale from Fusion, which silently drops anything hand-added
 -- to the file.
-local function BuildTopTrimWithBlowOff(topTrimFilePath)
-    local topFile = io.open(topTrimFilePath, "r")
-    if not topFile then
-        wx.wxMessageBox("Failed to open top trim file:\n" .. topTrimFilePath, "Error", wx.wxOK + wx.wxICON_ERROR)
-        return nil
-    end
-    local topContent = topFile:read("*a")
-    topFile:close()
-
-    -- Strip the file's own M30/M2 so the blow-off pass can be appended after it
-    topContent = topContent:gsub("[Mm]30[^\n]*\n?", "\n")
-    topContent = topContent:gsub("[Mm]2[^\n]*\n?", "\n")
-
-    local blowOffGcode =
+-- Shared block appended after a program's cutting is done: air blow-off
+-- nozzle pass, then a direct park move (Y+48", X all the way to the -X
+-- limit) -- no M213 call, so it just parks there with no dialog -- then
+-- program end.
+local function BuildBlowOffAndParkGcode()
+    return
         "\n(AIR BLOW-OFF - DROP T10 AND POSITION)\n" ..
         "T0 M6\n" ..
         "G90 G55\n" ..
@@ -4050,9 +4042,33 @@ local function BuildTopTrimWithBlowOff(topTrimFilePath)
         "(END - RETRACT NOZZLE)\n" ..
         "G53 G0 Z0.\n" ..
         "T0 M6\n" ..
+        "(PARK - Y+48\" THEN X ALL THE WAY -X)\n" ..
+        "G91 G0 Y48.\n" ..
+        "G90 G53 G0 X0.1\n" ..
         "M30\n"
+end
 
-    return topContent .. blowOffGcode
+-- Reads a G-code file, strips its own M30/M2 end marker, and appends the
+-- shared blow-off + park block. Used for files that get wholesale-regenerated
+-- by Fusion (Initial Trim Top, Final Shaping), so nothing is hand-added to disk.
+local function AppendBlowOffAndPark(filePath, errorContext)
+    local file = io.open(filePath, "r")
+    if not file then
+        wx.wxMessageBox("Failed to open " .. errorContext .. " file:\n" .. filePath, "Error", wx.wxOK + wx.wxICON_ERROR)
+        return nil
+    end
+    local content = file:read("*a")
+    file:close()
+
+    -- Strip the file's own M30/M2 so the blow-off pass can be appended after it
+    content = content:gsub("[Mm]30[^\n]*\n?", "\n")
+    content = content:gsub("[Mm]2[^\n]*\n?", "\n")
+
+    return content .. BuildBlowOffAndParkGcode()
+end
+
+local function BuildTopTrimWithBlowOff(topTrimFilePath)
+    return AppendBlowOffAndPark(topTrimFilePath, "top trim")
 end
 
 
@@ -4108,27 +4124,30 @@ function ProbeScripts.InitialKeytopTrim(inst)
     -- Show dialog to get trim parameters
     local fields = {
         {type = "instructions",
-         text = "Initial keytop trim operation.\n" ..
-                "  Top and Front / Top Only: enter Removal Depth.\n" ..
-                "  Additional Top Only: re-runs top toolpath with no probing,\n" ..
-                "    shifting Z datum by Additional Removal amount."},
-        {type = "number", key = "removalDepth", label = "Removal Depth (inches)",
-         default = 0.08, persist = false, min = 0.001, max = 0.25,
-         validateMsg = "Must be between 0.001-0.25"},
-        {type = "number", key = "additionalRemoval", label = "Additional Removal (inches)",
-         default = 0.010, persist = true, min = 0.001, max = 0.100,
-         validateMsg = "Must be between 0.001-0.100"},
-        {type = "separator"},
-        {type = "radio", key = "trimOperation", label = "Trim Operation",
-         options = {"Top and Front", "Top Only", "Additional Top Only"},
-         columns = 1, default = 0}
+         text = "Initial keytop trim operation.\nSelect one operation below."},
+        {type = "section", label = "Top and Front / Top Only", children = {
+            {type = "radio", key = "topTrimMode", label = "",
+             options = {"Top and Front", "Top Only"},
+             columns = 1, default = 0},
+            {type = "number", key = "removalDepth", label = "Removal Depth (inches)",
+             default = 0.08, persist = false, min = 0.001, max = 0.25,
+             validateMsg = "Must be between 0.001-0.25"}
+        }},
+        {type = "section", label = "Additional Top Only", children = {
+            {type = "checkbox", key = "additionalTopOnly", label = "Run Additional Top Only",
+             default = 0, persist = false,
+             tooltip = "Re-runs the top toolpath with no probing, shifting the Z datum down by the Additional Removal amount below."},
+            {type = "number", key = "additionalRemoval", label = "Additional Removal (inches)",
+             default = 0.010, persist = true, min = 0.001, max = 0.100,
+             validateMsg = "Must be between 0.001-0.100"}
+        }}
     }
 
     local params = ProbeScripts.ShowDialog(inst, "Initial Trim", fields, "InitialTrim", {width = 360})
     if not params then return end
 
     -- ========== ADDITIONAL TOP ONLY (no probing) ==========
-    if params.trimOperation == 2 then
+    if params.additionalTopOnly then
         local extra = params.additionalRemoval or 0.010
 
         local result = wx.wxMessageBox(
@@ -4136,8 +4155,9 @@ function ProbeScripts.InitialKeytopTrim(inst)
                 "Additional Top Removal: %.4f\"\n\n" ..
                 "The current Z datum will be shifted down %.4f\" and the\n" ..
                 "top surfacing toolpath will run again — no probing is done.\n\n" ..
-                "The Z datum from the previous trim run must still be valid\n" ..
-                "(machine not homed or coordinates not reset since last trim).\n\n" ..
+                "The machine Z datum from the previous trim run must still be valid\n" ..
+                "(key holding fixture unmoved and still under vacuum since the\n" ..
+                "last trim).\n\n" ..
                 "Continue?", extra, extra),
             "Additional Top Removal", wx.wxYES_NO + wx.wxICON_QUESTION)
         if result ~= wx.wxYES then return end
@@ -4386,7 +4406,7 @@ function ProbeScripts.InitialKeytopTrim(inst)
 
     local tempDir = "C:\\Mach4Hobby\\Profiles\\BLP\\Temp"
 
-    if params.trimOperation == 0 then
+    if params.topTrimMode == 0 then
         -- Top and Front: need to combine files
         -- Read front trim, strip M30/M2, append top trim
         local frontFile = io.open(frontTrimFile, "r")
@@ -4451,7 +4471,7 @@ function ProbeScripts.InitialKeytopTrim(inst)
     end
 
     mc.mcCntlSetLastError(inst, string.format("Trim ready - %s (removal: %.3f, height: %.3f)",
-        trimOps[params.trimOperation + 1], params.removalDepth, machiningHeight))
+        trimOps[params.topTrimMode + 1], params.removalDepth, machiningHeight))
     return true
 end
 
@@ -4875,12 +4895,33 @@ function ProbeScripts.FinalKeytopShaping(inst)
     -- Close any currently loaded G-code file
     mc.mcCntlCloseGCodeFile(inst)
 
+    -- Append the air blow-off pass + park move to the shaping file (not saved
+    -- to disk -- the shaping .tap gets wholesale-regenerated by Fusion, so
+    -- anything hand-added to it would be silently dropped on the next run)
+    local shapingContent = AppendBlowOffAndPark(shapingFilePath, "shaping")
+    if not shapingContent then
+        if reportFile then reportFile:close() end
+        mc.mcCntlGcodeExecuteWait(inst, "G69")
+        return false
+    end
+
+    local tempDir = "C:\\Mach4Hobby\\Profiles\\BLP\\Temp"
+    local queuedFilePath = tempDir .. "\\FinalShapingWithBlowOff.tap"
+    local tempFile = io.open(queuedFilePath, "w")
+    if not tempFile then
+        wx.wxMessageBox("Failed to create shaping G-code file with blow-off.", "Error", wx.wxOK + wx.wxICON_ERROR)
+        if reportFile then reportFile:close() end
+        return false
+    end
+    tempFile:write(shapingContent)
+    tempFile:close()
+
     -- ========== DEFERRED FILE LOAD ==========
 
     local markerPath = "C:\\Mach4Hobby\\Profiles\\BLP\\Temp\\DeferredGCode.txt"
     local markerFile = io.open(markerPath, "w")
     if markerFile then
-        markerFile:write(shapingFilePath)
+        markerFile:write(queuedFilePath)
         markerFile:close()
     else
         wx.wxMessageBox("Failed to queue G-code file for execution.", "Error", wx.wxOK + wx.wxICON_ERROR)
@@ -4893,6 +4934,7 @@ function ProbeScripts.FinalKeytopShaping(inst)
     writeReport(string.format("Fixture ID: %d", fixtureID))
     writeReport(string.format("Section: %s", keySection or "Unknown"))
     writeReport(string.format("G-code file: %s", shapingFilePath))
+    writeReport(string.format("Queued (with blow-off + park): %s", queuedFilePath))
     writeReport("Deferred load marker created: " .. markerPath)
 
     if reportFile then
@@ -4951,8 +4993,10 @@ function ProbeScripts.ApplyStyle(inst)
          tooltip = "Select which probed piano data to apply styles to"},
         {type = "separator"},
         {type = "radio", key = "edgeType", label = "Edge Type",
-         options = {"Chamfer", "Roundover"},
-         columns = 2, default = 0},
+         options = {"Chamfer", "Roundover (Coming Soon)"},
+         columns = 2, default = 0,
+         disabledOptions = {1},
+         tooltip = "Roundover is not yet available"},
         {type = "separator"},
         {type = "radio", key = "finishStyle", label = "Finish Style",
          options = {

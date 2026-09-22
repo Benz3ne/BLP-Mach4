@@ -3671,9 +3671,14 @@ function ShowDialogScreen(inst)
                                           wx.wxRA_SPECIFY_COLS)
             radioBox:SetSelection(field.default or 0)
             if field.tooltip then radioBox:SetToolTip(field.tooltip) end
+            if field.disabledOptions then
+                for _, idx in ipairs(field.disabledOptions) do
+                    radioBox:Enable(idx, false)
+                end
+            end
             controls[field.key] = radioBox
             sizer:Add(radioBox, 0, wx.wxEXPAND + wx.wxALL, 5)
-            
+
             connectAndTrack(radioBox, wx.wxID_ANY, wx.wxEVT_COMMAND_RADIOBOX_SELECTED,
                 function(event)
                     if field.onChange then
@@ -3879,9 +3884,40 @@ function ShowDialogScreen(inst)
                         end)
                     
                     innerSizer:Add(row, 0, wx.wxEXPAND)
+
+                elseif child.type == "radio" then
+                    local radioBox = wx.wxRadioBox(inner, wx.wxID_ANY, child.label or "",
+                                                  wx.wxDefaultPosition, wx.wxDefaultSize,
+                                                  child.options, child.columns or 2,
+                                                  wx.wxRA_SPECIFY_COLS)
+                    radioBox:SetSelection(child.default or 0)
+                    if child.tooltip then radioBox:SetToolTip(child.tooltip) end
+                    controls[child.key] = radioBox
+                    innerSizer:Add(radioBox, 0, wx.wxEXPAND + wx.wxALL, 5)
+
+                    connectAndTrack(radioBox, wx.wxID_ANY, wx.wxEVT_COMMAND_RADIOBOX_SELECTED,
+                        function(event)
+                            if child.onChange then
+                                triggerUpdates()
+                            end
+                        end)
+
+                elseif child.type == "checkbox" then
+                    local checkbox = wx.wxCheckBox(inner, wx.wxID_ANY, child.label)
+                    checkbox:SetValue(child.default == 1)
+                    if child.tooltip then checkbox:SetToolTip(child.tooltip) end
+                    controls[child.key] = checkbox
+                    innerSizer:Add(checkbox, 0, wx.wxALL, 5)
+
+                    connectAndTrack(checkbox, wx.wxID_ANY, wx.wxEVT_COMMAND_CHECKBOX_CLICKED,
+                        function(event)
+                            if child.onChange then
+                                triggerUpdates()
+                            end
+                        end)
                 end
             end
-            
+
             inner:SetSizer(innerSizer)
             boxSizer:Add(inner, 0, wx.wxEXPAND)
             sizer:Add(boxSizer, 0, wx.wxEXPAND + wx.wxALL, 5)
@@ -3946,8 +3982,14 @@ function ShowDialogScreen(inst)
             -- Collect section children
             if field.type == "section" and field.children then
                 for _, child in ipairs(field.children) do
-                    if controls[child.key] and child.type == "number" then
-                        result[child.key] = tonumber(controls[child.key]:GetValue())
+                    if controls[child.key] then
+                        if child.type == "number" then
+                            result[child.key] = tonumber(controls[child.key]:GetValue())
+                        elseif child.type == "radio" then
+                            result[child.key] = controls[child.key]:GetSelection()
+                        elseif child.type == "checkbox" then
+                            result[child.key] = controls[child.key]:GetValue()
+                        end
                     end
                 end
             end
