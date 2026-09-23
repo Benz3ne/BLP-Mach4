@@ -4731,6 +4731,101 @@ function ProbeScripts.FinalKeytopShaping(inst)
         tostring(fixtureIDBits[4]), tostring(fixtureIDBits[3]),
         tostring(fixtureIDBits[2]), tostring(fixtureIDBits[1])))
 
+    -- ========== KEYTOP MATERIAL Z VALIDATION ==========
+    -- The fixture surface datum (probed above) is a fixed physical reference and reads the
+    -- same regardless of which keyset is loaded. The new keytop material is always 0.07" thick,
+    -- but the underlying wood key bed height (KeyHeightZ) is different for every keyset. Look up
+    -- this keyset's KeyHeightZ from its own probe log (matched by the fixture ID we just read) and
+    -- confirm the glued keytop material actually sits at KeyHeightZ + 0.07" before committing to
+    -- the cut -- this is what would have caught a keytop that came out ~0.013" high and left the
+    -- chamfer trace not cutting.
+    local KEYTOP_MATERIAL_THICKNESS = 0.07  -- new keytop material thickness; not expected to change
+    local Z_VALIDATION_TOLERANCE = 0.005
+    -- NOTE: verify KEY_PROBE_Y and keyProbeXPositions actually land on keytop material (not a gap,
+    -- bore, or fixture hardware) on the physical fixture before relying on this in production.
+    local KEY_PROBE_Y = 2.0
+    local keyProbeXPositions = {5, 15, 23, 31, 41}  -- spread across the 46" bore span, clear of the bores themselves
+
+    local function findKeyHeightForFixture(searchFixtureID)
+        for folderName in folders:gmatch("[^\r\n]+") do
+            local reportPath = logsDir .. "\\" .. folderName .. "\\" .. folderName .. "_Report.txt"
+            local file = io.open(reportPath, "r")
+            if file then
+                local content = file:read("*a")
+                file:close()
+                local foundID = content:match("Fixture ID: (%d+)")
+                if foundID and tonumber(foundID) == searchFixtureID then
+                    local keyHeightStr = content:match("Average Z height: ([%-%d%.]+)")
+                    if keyHeightStr then
+                        return tonumber(keyHeightStr), folderName
+                    end
+                end
+            end
+        end
+        return nil, nil
+    end
+
+    local keyHeightZ, heightSourceFolder = findKeyHeightForFixture(fixtureID)
+
+    if not keyHeightZ then
+        writeReport(string.format("WARNING: Could not find KeyHeightZ for fixture ID %d -- skipping Z validation", fixtureID))
+    else
+        local expectedZ = keyHeightZ + KEYTOP_MATERIAL_THICKNESS
+        writeReport(string.format("Validating keytop material Z against %s: KeyHeightZ=%.4f + %.2f material = expected %.4f (tolerance +/-%.3f)",
+            heightSourceFolder, keyHeightZ, KEYTOP_MATERIAL_THICKNESS, expectedZ, Z_VALIDATION_TOLERANCE))
+
+        local worstDiff = 0
+        local worstZ = nil
+        local numMeasured = 0
+
+        for i, xPos in ipairs(keyProbeXPositions) do
+            if not ProbeScripts.ProtectedMove(inst, "work", xPos, KEY_PROBE_Y, nil, 300) then
+                writeReport(string.format("WARNING: Could not move to Z-validation point %d (X%.2f Y%.2f) -- skipping", i, xPos, KEY_PROBE_Y))
+            else
+                local measuredZ, probeOk = ProbeScripts.Probe(inst, 5, false, true, nil, SINGLE_TAP_FEEDRATE, true, nil)
+                if probeOk then
+                    local diff = measuredZ - expectedZ
+                    numMeasured = numMeasured + 1
+                    writeReport(string.format("  Point %d (X%.2f Y%.2f): measured Z=%.4f  diff=%+.4f", i, xPos, KEY_PROBE_Y, measuredZ, diff))
+                    if math.abs(diff) > math.abs(worstDiff) then
+                        worstDiff = diff
+                        worstZ = measuredZ
+                    end
+                else
+                    writeReport(string.format("WARNING: Probe failed at Z-validation point %d (X%.2f Y%.2f)", i, xPos, KEY_PROBE_Y))
+                end
+            end
+        end
+
+        if numMeasured == 0 then
+            writeReport("WARNING: No successful Z-validation probes -- proceeding without validation")
+        elseif math.abs(worstDiff) > Z_VALIDATION_TOLERANCE then
+            writeReport(string.format("Z VALIDATION OUT OF TOLERANCE: worst measured Z=%.4f expected=%.4f diff=%+.4f (tolerance +/-%.3f)",
+                worstZ, expectedZ, worstDiff, Z_VALIDATION_TOLERANCE))
+
+            local msg = string.format(
+                "Keytop material Z is out of tolerance.\n\n" ..
+                "Expected (KeyHeightZ %.4f + %.2f material): %.4f\"\n" ..
+                "Measured: %.4f\"\n" ..
+                "Difference: %+.4f\" (tolerance is +/-%.3f\")\n\n" ..
+                "Shift the datum to match the measured height before continuing?",
+                keyHeightZ, KEYTOP_MATERIAL_THICKNESS, expectedZ, worstZ, worstDiff, Z_VALIDATION_TOLERANCE)
+
+            local result = wx.wxMessageBox(msg, "Z Height Out of Tolerance", wx.wxYES_NO + wx.wxICON_WARNING)
+            if result == wx.wxYES then
+                -- Shift the whole Z work offset by worstDiff so a surface that currently reads as
+                -- worstZ will read as expectedZ, without needing to be physically at that point.
+                local currentZ = mc.mcAxisGetPos(inst, mc.Z_AXIS)
+                mc.mcAxisSetPos(inst, mc.Z_AXIS, currentZ - worstDiff)
+                writeReport(string.format("Datum shifted by %+.4f\" per user confirmation", -worstDiff))
+            else
+                writeReport("User declined datum shift -- continuing with original datum")
+            end
+        else
+            writeReport(string.format("Z validation OK (worst diff %+.4f, tolerance +/-%.3f)", worstDiff, Z_VALIDATION_TOLERANCE))
+        end
+    end
+
     -- ========== RIGHT BORE PROBING ==========
 
     mc.mcCntlGcodeExecuteWait(inst, string.format("G90 G0 Z%.4f", safeTraverseZ))
