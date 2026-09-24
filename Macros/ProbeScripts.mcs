@@ -3898,6 +3898,114 @@ function ProbeScripts.ProbeKeys(inst)
         end
     end
 
+    -- Persist the shoulder estimate so a later run on the other half of this
+    -- same piano (separate fixture, same make/serial) can compare against it.
+    if shoulderLengthEst then
+        writeReport(string.format("Shoulder Length estimate: %.4f", shoulderLengthEst))
+    end
+
+    -- ========== CROSS-HALF SHOULDER LENGTH CHECK ==========
+    -- Upper and Lower sit in separate fixtures and are probed independently,
+    -- so their shoulder lengths can drift apart. Find the most recent run of
+    -- the OTHER half for this same make/serial and keep them within
+    -- SHOULDER_LENGTH_LIMIT of each other.
+    local SHOULDER_LENGTH_LIMIT = 0.015
+    local shoulderOverride = nil
+
+    if shoulderLengthEst then
+        local shoulderLogsDir = "C:\\Mach4Hobby\\Profiles\\BLP\\Logs"
+        local otherSection = (keyHalfName == "Upper") and "Lower" or "Upper"
+        local handle = io.popen('dir "' .. shoulderLogsDir .. '" /b /ad /o-d 2>nul')
+        local siblingFolders = handle:read("*a")
+        handle:close()
+
+        local siblingValue, siblingShaped, siblingFolder = nil, false, nil
+
+        for folderName in siblingFolders:gmatch("[^\r\n]+") do
+            local reportPath = shoulderLogsDir .. "\\" .. folderName .. "\\" .. folderName .. "_Report.txt"
+            local file = io.open(reportPath, "r")
+            if file then
+                local content = file:read("*a")
+                file:close()
+
+                local foundSection, foundMake, foundSerial = content:match("===== ProbeKeys (%a+) %- (.-) S/N (%d+) =====")
+                if foundSection == otherSection and foundMake == params.make and foundSerial == tostring(params.serial) then
+                    siblingValue = tonumber(content:match("Shoulder Length estimate: ([%d%.]+)"))
+                    siblingShaped = content:find("===== Final Shaping Started =====") ~= nil
+                    siblingFolder = folderName
+                    break  -- folders listed newest-first (/o-d), so the first match is the most recent
+                end
+            end
+        end
+
+        if siblingValue then
+            local diff = shoulderLengthEst - siblingValue
+
+            if siblingShaped then
+                -- The sibling is already cut and can't change. Out of tolerance,
+                -- ask the operator what to cut this half to -- suggest the
+                -- sibling's value but allow anything within the limit of it.
+                if math.abs(diff) > SHOULDER_LENGTH_LIMIT then
+                    local dialogFields = {
+                        {type = "instructions", text = string.format(
+                            "This half's shoulder measures %.4f\".\n" ..
+                            "%s (already cut) measured %.4f\" -- a difference of %.4f\",\n" ..
+                            "over the %.4f\" limit.\n\n" ..
+                            "Enter the shoulder length to cut for this half.\n" ..
+                            "It must stay within %.4f\" of the already-cut half.",
+                            shoulderLengthEst, siblingFolder, siblingValue, math.abs(diff),
+                            SHOULDER_LENGTH_LIMIT, SHOULDER_LENGTH_LIMIT)},
+                        {type = "number", key = "shoulderValue", label = "Shoulder Length to use (inches)",
+                         default = siblingValue, persist = false,
+                         min = siblingValue - SHOULDER_LENGTH_LIMIT,
+                         max = siblingValue + SHOULDER_LENGTH_LIMIT,
+                         validateMsg = string.format("Must be within %.4f\" of %.4f\"", SHOULDER_LENGTH_LIMIT, siblingValue)}
+                    }
+                    local dialogResult = ProbeScripts.ShowDialog(inst, "Shoulder Length Correction", dialogFields)
+                    if dialogResult and dialogResult.shoulderValue then
+                        shoulderOverride = dialogResult.shoulderValue
+                        writeReport(string.format(
+                            "Shoulder correction: using %.4f\" (this half measured %.4f\", %s measured %.4f\")",
+                            shoulderOverride, shoulderLengthEst, siblingFolder, siblingValue))
+                    else
+                        writeReport(string.format(
+                            "Shoulder correction dialog cancelled -- proceeding with measured value %.4f\" (%s measured %.4f\", diff %.4f\" exceeds limit)",
+                            shoulderLengthEst, siblingFolder, siblingValue, math.abs(diff)))
+                    end
+                else
+                    writeReport(string.format(
+                        "Shoulder length within limit of %s (this half %.4f\", other half %.4f\", diff %.4f\")",
+                        siblingFolder, shoulderLengthEst, siblingValue, math.abs(diff)))
+                end
+            else
+                -- Neither half has been cut yet -- always settle on a shared
+                -- value so the two halves match exactly, even if they already
+                -- happen to be within the limit. Only THIS half's trigger gets
+                -- it automatically: Fusion's add-in updates whatever document
+                -- is currently active with no way to target a specific piano
+                -- section, so re-posting the sibling's G-code unattended risks
+                -- applying this data to the wrong open document. The sibling
+                -- needs its Fusion document opened and re-triggered by hand.
+                shoulderOverride = (shoulderLengthEst + siblingValue) / 2
+                writeReport(string.format(
+                    "Shoulder compromise: using %.4f\" (this half measured %.4f\", %s measured %.4f\")",
+                    shoulderOverride, shoulderLengthEst, siblingFolder, siblingValue))
+                writeReport(string.format(
+                    "ACTION NEEDED: open %s's Fusion document and re-run its probe trigger with shoulder_override=%.4f so both halves match",
+                    siblingFolder, shoulderOverride))
+                wx.wxMessageBox(
+                    string.format(
+                        "Shoulder length compromise applied to this half: %.4f\"\n\n" ..
+                        "This half measured %.4f\", %s measured %.4f\".\n\n" ..
+                        "%s has NOT been updated -- its Fusion document must be opened\n" ..
+                        "and re-triggered with this same value before it's cut, or the\n" ..
+                        "two halves will end up mismatched again.",
+                        shoulderOverride, shoulderLengthEst, siblingFolder, siblingValue, siblingFolder),
+                    "Shoulder Compromise -- Sibling Needs Manual Update", wx.wxOK + wx.wxICON_WARNING)
+            end
+        end
+    end
+
     -- Save validation report file
     local validationReportPath = string.format("%s\\%s_ValidationReport.txt", pianoFolder, pianoName)
     local valFile = io.open(validationReportPath, "w")
@@ -3929,10 +4037,19 @@ function ProbeScripts.ProbeKeys(inst)
 
     local triggerPath = "C:\\Mach4Hobby\\Profiles\\BLP\\Logs\\PROBE_COMPLETE_" .. pianoName .. ".txt"
     local csvPathNetwork = csvPath:gsub("C:\\Mach4Hobby", "\\\\BLPCNC\\Mach4Hobby")
-    local triggerData = string.format('{"csv_path": "%s", "piano_id": "%s", "avg_z": %.6f}',
-        csvPathNetwork:gsub("\\", "\\\\"),
-        pianoName,
-        avgZ)
+    local triggerData
+    if shoulderOverride then
+        triggerData = string.format('{"csv_path": "%s", "piano_id": "%s", "avg_z": %.6f, "shoulder_override": %.6f}',
+            csvPathNetwork:gsub("\\", "\\\\"),
+            pianoName,
+            avgZ,
+            shoulderOverride)
+    else
+        triggerData = string.format('{"csv_path": "%s", "piano_id": "%s", "avg_z": %.6f}',
+            csvPathNetwork:gsub("\\", "\\\\"),
+            pianoName,
+            avgZ)
+    end
 
     local sendTrigger = true
 
@@ -3993,6 +4110,7 @@ function ProbeScripts.ProbeKeys(inst)
         if triggerFile then
             triggerFile:write(triggerData)
             triggerFile:close()
+
             local slStr = shoulderLengthEst and string.format("  |  ShoulderLength=%s", shoulderEstLabel) or ""
             if not fusionReady then
                 mc.mcCntlSetLastError(inst, string.format("ProbeKeys complete - data collected (Fusion not running, use Apply Style later)%s", slStr))

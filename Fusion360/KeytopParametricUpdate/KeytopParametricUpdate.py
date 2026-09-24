@@ -364,6 +364,7 @@ class ProbeDataHandler(adsk.core.CustomEventHandler):
                     chamfer_style = input_data.get('chamfer_style', None)
                     edge_chamfer  = input_data.get('edge_chamfer', None)
                     lip_fillet    = input_data.get('lip_fillet',   None)
+                    shoulder_override = input_data.get('shoulder_override', None)
 
                     # Determine section from piano_id
                     if piano_id.endswith('_Upper'):
@@ -425,6 +426,13 @@ class ProbeDataHandler(adsk.core.CustomEventHandler):
                         # Each section is treated independently - calculate params from this section's data only
                         shoulder_length, key_height = calculate_global_params(probe_data)
                         log(f"Calculated {section} section params: ShoulderLength={shoulder_length:.4f}, KeyHeight={key_height:.4f}")
+
+                        # Mach4 can override the measured shoulder length to keep the Upper
+                        # and Lower halves (probed in separate fixtures) within tolerance of
+                        # each other -- see the cross-half shoulder check in ProbeKeys.
+                        if shoulder_override is not None:
+                            log(f"Shoulder override applied: {shoulder_override:.4f} (measured {shoulder_length:.4f})")
+                            shoulder_length = shoulder_override
 
                         # Process each white key in this section
                         # Upper section: keys 1-26, Lower section: keys 27-52
