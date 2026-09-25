@@ -343,322 +343,344 @@ def process_key(key_num, key_data):
     return params
 
 
+def process_section(design, doc, section, csv_path, piano_id, shoulder_override, chamfer_style, edge_chamfer, lip_fillet):
+    """Process one section's probe CSV against the shared document: compute
+    params, update Fusion, regenerate and export that section's Shaping NC
+    program. Returns (success, dest_file)."""
+    piano_folder = get_piano_folder(piano_id)
+    os.makedirs(piano_folder, exist_ok=True)
+
+    # Remove old shaping files for this section (files ending in _Upper.tap or _Lower.tap)
+    if os.path.exists(piano_folder):
+        for file in os.listdir(piano_folder):
+            file_lower = file.lower()
+            if (section == 'Upper' and file_lower.endswith('_upper.tap')) or \
+               (section == 'Lower' and file_lower.endswith('_lower.tap')):
+                os.remove(os.path.join(piano_folder, file))
+                log(f"Removed old file: {file}")
+
+    if not (csv_path and os.path.exists(csv_path)):
+        log(f"ERROR: CSV file not found: {csv_path}")
+        return False, None
+
+    update_progress("Parsing CSV", csv_path)
+    log(f"Parsing CSV: {csv_path}")
+    probe_data = parse_csv(csv_path)
+    log(f"Found data for {len(probe_data)} keys")
+
+    # Each section is treated independently - calculate params from this section's data only
+    shoulder_length, key_height = calculate_global_params(probe_data)
+    log(f"Calculated {section} section params: ShoulderLength={shoulder_length:.4f}, KeyHeight={key_height:.4f}")
+
+    # Mach4 can override the measured shoulder length to keep the Upper
+    # and Lower halves (probed in separate fixtures) within tolerance of
+    # each other -- see the cross-half shoulder check in ProbeKeys / ApplyStyle.
+    if shoulder_override is not None:
+        log(f"Shoulder override applied: {shoulder_override:.4f} (measured {shoulder_length:.4f})")
+        shoulder_length = shoulder_override
+
+    # Process each white key in this section
+    # Upper section: keys 1-26, Lower section: keys 27-52
+    white_keys = [k for k in sorted(probe_data.keys()) if is_white_key(k)]
+    log(f"Processing {len(white_keys)} white keys in {section} section")
+    key_params = {}
+
+    for key_num in white_keys:
+        params = process_key(key_num, probe_data[key_num])
+        if params:
+            key_params[key_num] = params
+    log(f"Calculated parameters for {len(key_params)} keys")
+
+    # Switch to Design workspace for parameter updates
+    update_progress("Switching to Design workspace")
+    log("Switching to Design workspace...")
+    design_ws = ui.workspaces.itemById('FusionSolidEnvironment')
+    if design_ws:
+        design_ws.activate()
+        adsk.doEvents()
+        time.sleep(1)  # Let workspace fully load
+        log("Switched to Design workspace")
+    else:
+        log("Warning: Could not find Design workspace")
+
+    # Update Fusion parameters using batch modifyParameters API
+    # This is ~50-70x faster than individual param.expression updates
+    user_params = design.userParameters
+    update_progress("Updating parameters", f"Building batch update for {len(key_params)} keys")
+    log("Using batch modifyParameters API for efficient updates")
+
+    # Build lists for batch update
+    params_list = []
+    values_list = []
+
+    # Add global parameters
+    param = user_params.itemByName('ShoulderLength')
+    if param:
+        params_list.append(param)
+        values_list.append(adsk.core.ValueInput.createByString(f"{shoulder_length} in"))
+
+    param = user_params.itemByName('KeyHeight')
+    if param:
+        params_list.append(param)
+        values_list.append(adsk.core.ValueInput.createByString(f"{key_height} in"))
+
+    # Add style parameters (only when explicitly provided in trigger)
+    if edge_chamfer is not None:
+        param = user_params.itemByName('EdgeChamfer')
+        if param:
+            params_list.append(param)
+            values_list.append(adsk.core.ValueInput.createByString(f"{edge_chamfer} in"))
+            log(f"Style: EdgeChamfer = {edge_chamfer} in")
+        else:
+            log("Warning: EdgeChamfer parameter not found in Fusion document")
+
+    if lip_fillet is not None:
+        param = user_params.itemByName('LipFillet')
+        if param:
+            params_list.append(param)
+            values_list.append(adsk.core.ValueInput.createByString(f"{lip_fillet} in"))
+            log(f"Style: LipFillet = {lip_fillet} in")
+        else:
+            log("Warning: LipFillet parameter not found in Fusion document")
+
+    # Add key parameters
+    for key_num, params in key_params.items():
+        prefix = f'Key{key_num}'
+        for suffix, value in params.items():
+            if value:  # Skip if value is None/0
+                param_name = f'{prefix}{suffix}'
+                param = user_params.itemByName(param_name)
+                if param:
+                    if suffix == 'Angle':
+                        values_list.append(adsk.core.ValueInput.createByString(f"{value} deg"))
+                    else:
+                        values_list.append(adsk.core.ValueInput.createByString(f"{value} in"))
+                    params_list.append(param)
+
+    log(f"Built batch update with {len(params_list)} parameters")
+    update_progress("Updating parameters", f"Applying {len(params_list)} params + geometry rebuild")
+
+    # Execute batch update - single geometry rebuild for all params
+    batch_result = design.modifyParameters(params_list, values_list)
+    log(f"Batch modifyParameters result: {batch_result}")
+    adsk.doEvents()
+
+    # Switch to Manufacturing workspace for CAM operations
+    update_progress("Switching to Manufacturing workspace")
+    log("Switching to Manufacturing workspace...")
+    manufacture_ws = ui.workspaces.itemById('CAMEnvironment')
+    if not manufacture_ws:
+        # Try alternate ID
+        manufacture_ws = ui.workspaces.itemById('FusionManufactureEnvironment')
+
+    if manufacture_ws:
+        manufacture_ws.activate()
+        adsk.doEvents()
+        time.sleep(1)  # Let workspace fully load
+        log("Switched to Manufacturing workspace")
+    else:
+        log("Warning: Could not find Manufacturing workspace")
+
+    # Regenerate only relevant toolpaths (Shaping programs only, no Initial Trim)
+    cam = adsk.cam.CAM.cast(doc.products.itemByProductType('CAMProductType'))
+    if not (cam and cam.setups.count > 0):
+        log("ERROR: No CAM setups found")
+        return False, None
+
+    # Determine which toolpaths to regenerate based on section
+    # Only include Shaping setups - Initial Trim is handled by Mach4 directly
+    # Must use ObjectCollection, not Python list (API requirement)
+    relevant_setups = adsk.core.ObjectCollection.create()
+    setup_names = []
+    for i in range(cam.setups.count):
+        setup = cam.setups.item(i)
+        setup_name = setup.name.lower()
+
+        # Only include Shaping setups for this section
+        if 'shaping' in setup_name:
+            if section == 'Upper' and 'upper' in setup_name:
+                relevant_setups.add(setup)
+                setup_names.append(setup.name)
+            elif section == 'Lower' and 'lower' in setup_name:
+                relevant_setups.add(setup)
+                setup_names.append(setup.name)
+
+    update_progress("Generating toolpaths", f"{relevant_setups.count} setups for {section}")
+    log(f"Starting toolpath generation for {relevant_setups.count} setups: {setup_names}")
+
+    try:
+        # Generate only the relevant setups (not all toolpaths)
+        future = cam.generateToolpath(relevant_setups)
+
+        # Wait for completion
+        timeout = 1800  # 30 minutes
+        start = time.time()
+        last_log = 0
+        while not future.isGenerationCompleted:
+            adsk.doEvents()
+            time.sleep(2)
+            elapsed = time.time() - start
+            # Update progress every 10 seconds
+            if elapsed - last_log >= 10:
+                update_progress("Generating toolpaths", f"{elapsed:.0f}s elapsed")
+                last_log = elapsed
+            if int(elapsed) % 30 == 0:
+                log(f"Still generating toolpaths... {elapsed:.0f} seconds elapsed")
+            if elapsed > timeout:
+                log(f"ERROR: Timeout after {elapsed:.0f} seconds")
+                break
+        else:
+            log("Toolpath generation complete")
+
+    except Exception as e:
+        log(f"ERROR generating toolpaths: {e}")
+
+    # Export G-code for this section's Shaping program
+    update_progress("Exporting G-code")
+    log(f"Starting G-code export...")
+    downloads_dir = os.path.join(os.environ['USERPROFILE'], 'Downloads')
+
+    if hasattr(cam, 'ncPrograms'):
+        log(f"Found {cam.ncPrograms.count} NC programs")
+
+        for i in range(cam.ncPrograms.count):
+            prog = cam.ncPrograms.item(i)
+            prog_name_lower = prog.name.lower()
+
+            # Only export Shaping program for this section
+            if 'shaping' not in prog_name_lower:
+                continue
+            if section == 'Upper' and 'upper' not in prog_name_lower:
+                continue
+            if section == 'Lower' and 'lower' not in prog_name_lower:
+                continue
+            # Skip roundover programs when chamfer style is selected
+            if chamfer_style == 'chamfer' and 'roundover' in prog_name_lower:
+                log(f"Skipping roundover program '{prog.name}' (chamfer style selected)")
+                continue
+            # Skip non-roundover programs when roundover style is selected
+            if chamfer_style == 'roundover' and 'roundover' not in prog_name_lower:
+                log(f"Skipping non-roundover program '{prog.name}' (roundover style selected)")
+                continue
+
+            log(f"Exporting NC program: '{prog.name}'")
+            try:
+                opts = adsk.cam.NCProgramPostProcessOptions.create()
+                post_success = prog.postProcess(opts)
+                if post_success:
+                    log(f"  Post process completed")
+                else:
+                    log(f"  WARNING: postProcess returned False")
+            except Exception as e:
+                log(f"  Export error: {e}")
+                log(f"  Traceback: {traceback.format_exc()}")
+
+    # Find and move the exported file from Downloads to piano folder
+    if chamfer_style == 'roundover':
+        expected_filename = f"{section} Shaping Roundover.tap"
+    else:
+        expected_filename = f"{section} Shaping.tap"
+    source_file = os.path.join(downloads_dir, expected_filename)
+    dest_name = f"{piano_id}.tap"
+    dest_file = os.path.join(piano_folder, dest_name)
+
+    log(f"Looking for exported file: {source_file}")
+
+    if os.path.exists(source_file):
+        log(f"Moving to {dest_file}")
+        if os.path.exists(dest_file):
+            os.remove(dest_file)
+        shutil.move(source_file, dest_file)
+        log(f"File moved successfully")
+        return True, dest_file
+    else:
+        log(f"ERROR: Exported file not found: {source_file}")
+        return False, None
+
+
 class ProbeDataHandler(adsk.core.CustomEventHandler):
     def __init__(self):
         super().__init__()
 
     def notify(self, args):
-        piano_id = 'Unknown'
-        section = 'Unknown'  # Upper or Lower
-        success = False
         error_msg = None
 
         try:
-            # Parse input data
+            # Parse input data. Normally one section per trigger, but a
+            # dual_section trigger (from the cross-half shoulder length check
+            # in ProbeKeys/ApplyStyle) carries both Upper and Lower so they
+            # can be processed together against this one shared document.
             input_data = {}
+            section_jobs = []
+            chamfer_style = None
+            edge_chamfer = None
+            lip_fillet = None
+            shoulder_override = None
+
             if args.additionalInfo:
                 try:
                     input_data = json.loads(args.additionalInfo)
-                    csv_path = input_data.get('csv_path', '')
-                    piano_id = input_data.get('piano_id', 'Unknown')
                     chamfer_style = input_data.get('chamfer_style', None)
                     edge_chamfer  = input_data.get('edge_chamfer', None)
                     lip_fillet    = input_data.get('lip_fillet',   None)
                     shoulder_override = input_data.get('shoulder_override', None)
 
-                    # Determine section from piano_id
-                    if piano_id.endswith('_Upper'):
-                        section = 'Upper'
-                    elif piano_id.endswith('_Lower'):
-                        section = 'Lower'
-                    elif '_Upper' in csv_path:
-                        section = 'Upper'
-                    elif '_Lower' in csv_path:
-                        section = 'Lower'
+                    def section_for(p_id, p_csv):
+                        if p_id.endswith('_Upper') or '_Upper' in p_csv:
+                            return 'Upper'
+                        if p_id.endswith('_Lower') or '_Lower' in p_csv:
+                            return 'Lower'
+                        return 'Unknown'
 
-                    # Set global piano ID and section for logging
-                    global current_piano_id, current_section
-                    current_piano_id = piano_id
-                    current_section = section
-
-                    log(f"=== STARTING PROCESSING: {piano_id} ===")
-                    update_progress("Starting", f"Received trigger for {piano_id}")
+                    if input_data.get('dual_section'):
+                        for entry in input_data.get('sections', []):
+                            p_id = entry.get('piano_id', 'Unknown')
+                            p_csv = entry.get('csv_path', '')
+                            section_jobs.append({'section': section_for(p_id, p_csv), 'csv_path': p_csv, 'piano_id': p_id})
+                    else:
+                        p_csv = input_data.get('csv_path', '')
+                        p_id = input_data.get('piano_id', 'Unknown')
+                        section_jobs.append({'section': section_for(p_id, p_csv), 'csv_path': p_csv, 'piano_id': p_id})
                 except:
                     log("ERROR: No valid input data in trigger")
-                    csv_path = ''
             else:
                 log("ERROR: No input data provided")
-                csv_path = ''
 
             doc = app.activeDocument
+            design = None
             if not doc:
                 log("ERROR: No active document")
             else:
                 # Get design from document's products
-                design = None
                 for product in doc.products:
                     if product.objectType == 'adsk::fusion::Design':
                         design = adsk.fusion.Design.cast(product)
                         break
-
                 if not design:
                     log("ERROR: No design found in document")
-                else:
-                    piano_folder = get_piano_folder(piano_id)
-                    os.makedirs(piano_folder, exist_ok=True)
 
-                    # Remove old shaping files for this section (files ending in _Upper.tap or _Lower.tap)
-                    if os.path.exists(piano_folder):
-                        for file in os.listdir(piano_folder):
-                            file_lower = file.lower()
-                            if (section == 'Upper' and file_lower.endswith('_upper.tap')) or \
-                               (section == 'Lower' and file_lower.endswith('_lower.tap')):
-                                os.remove(os.path.join(piano_folder, file))
-                                log(f"Removed old file: {file}")
+            global current_piano_id, current_section
 
-                    # Parse CSV and calculate parameters
-                    if csv_path and os.path.exists(csv_path):
-                        update_progress("Parsing CSV", csv_path)
-                        log(f"Parsing CSV: {csv_path}")
-                        probe_data = parse_csv(csv_path)
-                        log(f"Found data for {len(probe_data)} keys")
+            if not section_jobs:
+                log("ERROR: No section data in trigger")
+            elif doc and design:
+                for job in section_jobs:
+                    current_piano_id = job['piano_id']
+                    current_section = job['section']
 
-                        # Each section is treated independently - calculate params from this section's data only
-                        shoulder_length, key_height = calculate_global_params(probe_data)
-                        log(f"Calculated {section} section params: ShoulderLength={shoulder_length:.4f}, KeyHeight={key_height:.4f}")
+                    log(f"=== STARTING PROCESSING: {job['piano_id']} ===")
+                    update_progress("Starting", f"Received trigger for {job['piano_id']}")
 
-                        # Mach4 can override the measured shoulder length to keep the Upper
-                        # and Lower halves (probed in separate fixtures) within tolerance of
-                        # each other -- see the cross-half shoulder check in ProbeKeys.
-                        if shoulder_override is not None:
-                            log(f"Shoulder override applied: {shoulder_override:.4f} (measured {shoulder_length:.4f})")
-                            shoulder_length = shoulder_override
+                    ok, dest_file = process_section(
+                        design, doc, job['section'], job['csv_path'], job['piano_id'],
+                        shoulder_override, chamfer_style, edge_chamfer, lip_fillet)
 
-                        # Process each white key in this section
-                        # Upper section: keys 1-26, Lower section: keys 27-52
-                        white_keys = [k for k in sorted(probe_data.keys()) if is_white_key(k)]
-                        log(f"Processing {len(white_keys)} white keys in {section} section")
-                        key_params = {}
-
-                        for key_num in white_keys:
-                            params = process_key(key_num, probe_data[key_num])
-                            if params:
-                                key_params[key_num] = params
-                        log(f"Calculated parameters for {len(key_params)} keys")
-
-                        # Switch to Design workspace for parameter updates
-                        update_progress("Switching to Design workspace")
-                        log("Switching to Design workspace...")
-                        design_ws = ui.workspaces.itemById('FusionSolidEnvironment')
-                        if design_ws:
-                            design_ws.activate()
-                            adsk.doEvents()
-                            time.sleep(1)  # Let workspace fully load
-                            log("Switched to Design workspace")
-                        else:
-                            log("Warning: Could not find Design workspace")
-
-                        # Update Fusion parameters using batch modifyParameters API
-                        # This is ~50-70x faster than individual param.expression updates
-                        user_params = design.userParameters
-                        update_progress("Updating parameters", f"Building batch update for {len(key_params)} keys")
-                        log("Using batch modifyParameters API for efficient updates")
-
-                        # Build lists for batch update
-                        params_list = []
-                        values_list = []
-
-                        # Add global parameters
-                        param = user_params.itemByName('ShoulderLength')
-                        if param:
-                            params_list.append(param)
-                            values_list.append(adsk.core.ValueInput.createByString(f"{shoulder_length} in"))
-
-                        param = user_params.itemByName('KeyHeight')
-                        if param:
-                            params_list.append(param)
-                            values_list.append(adsk.core.ValueInput.createByString(f"{key_height} in"))
-
-                        # Add style parameters (only when explicitly provided in trigger)
-                        if edge_chamfer is not None:
-                            param = user_params.itemByName('EdgeChamfer')
-                            if param:
-                                params_list.append(param)
-                                values_list.append(adsk.core.ValueInput.createByString(f"{edge_chamfer} in"))
-                                log(f"Style: EdgeChamfer = {edge_chamfer} in")
-                            else:
-                                log("Warning: EdgeChamfer parameter not found in Fusion document")
-
-                        if lip_fillet is not None:
-                            param = user_params.itemByName('LipFillet')
-                            if param:
-                                params_list.append(param)
-                                values_list.append(adsk.core.ValueInput.createByString(f"{lip_fillet} in"))
-                                log(f"Style: LipFillet = {lip_fillet} in")
-                            else:
-                                log("Warning: LipFillet parameter not found in Fusion document")
-
-                        # Add key parameters
-                        for key_num, params in key_params.items():
-                            prefix = f'Key{key_num}'
-                            for suffix, value in params.items():
-                                if value:  # Skip if value is None/0
-                                    param_name = f'{prefix}{suffix}'
-                                    param = user_params.itemByName(param_name)
-                                    if param:
-                                        if suffix == 'Angle':
-                                            values_list.append(adsk.core.ValueInput.createByString(f"{value} deg"))
-                                        else:
-                                            values_list.append(adsk.core.ValueInput.createByString(f"{value} in"))
-                                        params_list.append(param)
-
-                        log(f"Built batch update with {len(params_list)} parameters")
-                        update_progress("Updating parameters", f"Applying {len(params_list)} params + geometry rebuild")
-
-                        # Execute batch update - single geometry rebuild for all params
-                        batch_result = design.modifyParameters(params_list, values_list)
-                        log(f"Batch modifyParameters result: {batch_result}")
-                        adsk.doEvents()
-
-                        # Switch to Manufacturing workspace for CAM operations
-                        update_progress("Switching to Manufacturing workspace")
-                        log("Switching to Manufacturing workspace...")
-                        manufacture_ws = ui.workspaces.itemById('CAMEnvironment')
-                        if not manufacture_ws:
-                            # Try alternate ID
-                            manufacture_ws = ui.workspaces.itemById('FusionManufactureEnvironment')
-
-                        if manufacture_ws:
-                            manufacture_ws.activate()
-                            adsk.doEvents()
-                            time.sleep(1)  # Let workspace fully load
-                            log("Switched to Manufacturing workspace")
-                        else:
-                            log("Warning: Could not find Manufacturing workspace")
-
-                        # Regenerate only relevant toolpaths (Shaping programs only, no Initial Trim)
-                        cam = adsk.cam.CAM.cast(doc.products.itemByProductType('CAMProductType'))
-                        if cam and cam.setups.count > 0:
-                            # Determine which toolpaths to regenerate based on section
-                            # Only include Shaping setups - Initial Trim is handled by Mach4 directly
-                            # Must use ObjectCollection, not Python list (API requirement)
-                            relevant_setups = adsk.core.ObjectCollection.create()
-                            setup_names = []
-                            for i in range(cam.setups.count):
-                                setup = cam.setups.item(i)
-                                setup_name = setup.name.lower()
-
-                                # Only include Shaping setups for this section
-                                if 'shaping' in setup_name:
-                                    if section == 'Upper' and 'upper' in setup_name:
-                                        relevant_setups.add(setup)
-                                        setup_names.append(setup.name)
-                                    elif section == 'Lower' and 'lower' in setup_name:
-                                        relevant_setups.add(setup)
-                                        setup_names.append(setup.name)
-
-                            update_progress("Generating toolpaths", f"{relevant_setups.count} setups for {section}")
-                            log(f"Starting toolpath generation for {relevant_setups.count} setups: {setup_names}")
-
-                            try:
-                                # Generate only the relevant setups (not all toolpaths)
-                                future = cam.generateToolpath(relevant_setups)
-
-                                # Wait for completion
-                                timeout = 1800  # 30 minutes
-                                start = time.time()
-                                last_log = 0
-                                while not future.isGenerationCompleted:
-                                    adsk.doEvents()
-                                    time.sleep(2)
-                                    elapsed = time.time() - start
-                                    # Update progress every 10 seconds
-                                    if elapsed - last_log >= 10:
-                                        update_progress("Generating toolpaths", f"{elapsed:.0f}s elapsed")
-                                        last_log = elapsed
-                                    if int(elapsed) % 30 == 0:
-                                        log(f"Still generating toolpaths... {elapsed:.0f} seconds elapsed")
-                                    if elapsed > timeout:
-                                        log(f"ERROR: Timeout after {elapsed:.0f} seconds")
-                                        break
-                                else:
-                                    log("Toolpath generation complete")
-
-                            except Exception as e:
-                                log(f"ERROR generating toolpaths: {e}")
-
-                            # Export G-code for this section's Shaping program
-                            update_progress("Exporting G-code")
-                            log(f"Starting G-code export...")
-                            downloads_dir = os.path.join(os.environ['USERPROFILE'], 'Downloads')
-
-                            if hasattr(cam, 'ncPrograms'):
-                                log(f"Found {cam.ncPrograms.count} NC programs")
-
-                                for i in range(cam.ncPrograms.count):
-                                    prog = cam.ncPrograms.item(i)
-                                    prog_name_lower = prog.name.lower()
-
-                                    # Only export Shaping program for this section
-                                    if 'shaping' not in prog_name_lower:
-                                        continue
-                                    if section == 'Upper' and 'upper' not in prog_name_lower:
-                                        continue
-                                    if section == 'Lower' and 'lower' not in prog_name_lower:
-                                        continue
-                                    # Skip roundover programs when chamfer style is selected
-                                    if chamfer_style == 'chamfer' and 'roundover' in prog_name_lower:
-                                        log(f"Skipping roundover program '{prog.name}' (chamfer style selected)")
-                                        continue
-                                    # Skip non-roundover programs when roundover style is selected
-                                    if chamfer_style == 'roundover' and 'roundover' not in prog_name_lower:
-                                        log(f"Skipping non-roundover program '{prog.name}' (roundover style selected)")
-                                        continue
-
-                                    log(f"Exporting NC program: '{prog.name}'")
-                                    try:
-                                        opts = adsk.cam.NCProgramPostProcessOptions.create()
-                                        post_success = prog.postProcess(opts)
-                                        if post_success:
-                                            log(f"  Post process completed")
-                                        else:
-                                            log(f"  WARNING: postProcess returned False")
-                                    except Exception as e:
-                                        log(f"  Export error: {e}")
-                                        log(f"  Traceback: {traceback.format_exc()}")
-
-                            # Find and move the exported file from Downloads to piano folder
-                            if chamfer_style == 'roundover':
-                                expected_filename = f"{section} Shaping Roundover.tap"
-                            else:
-                                expected_filename = f"{section} Shaping.tap"
-                            source_file = os.path.join(downloads_dir, expected_filename)
-                            dest_name = f"{piano_id}.tap"
-                            dest_file = os.path.join(piano_folder, dest_name)
-
-                            log(f"Looking for exported file: {source_file}")
-
-                            if os.path.exists(source_file):
-                                log(f"Moving to {dest_file}")
-                                if os.path.exists(dest_file):
-                                    os.remove(dest_file)
-                                shutil.move(source_file, dest_file)
-                                log(f"File moved successfully")
-                                success = True
-                            else:
-                                log(f"ERROR: Exported file not found: {source_file}")
-                        else:
-                            log("ERROR: No CAM setups found")
+                    # Log final status with clear marker for FinalKeytopShaping to parse
+                    if ok:
+                        log(f"=== PROCESSING COMPLETE: SUCCESS ===")
+                        log(f"Output file: {dest_file}")
                     else:
-                        log(f"ERROR: CSV file not found: {csv_path}")
-
-            # Log final status with clear marker for FinalKeytopShaping to parse
-            if piano_id != 'Unknown':
-                if success:
-                    log(f"=== PROCESSING COMPLETE: SUCCESS ===")
-                    log(f"Output file: {dest_file if success else 'N/A'}")
-                else:
-                    log(f"=== PROCESSING COMPLETE: FAILED ===")
+                        log(f"=== PROCESSING COMPLETE: FAILED ===")
 
         except:
             error_msg = traceback.format_exc()

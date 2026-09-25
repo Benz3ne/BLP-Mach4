@@ -2854,6 +2854,163 @@ end
 
 
 
+-- ========== SHARED CROSS-HALF SHOULDER LENGTH HELPERS ==========
+-- Used by both ProbeKeys (automatic check right after probing the second
+-- half) and ApplyStyle (manual check/correction for any already-probed
+-- piano). Upper and Lower are probed in separate fixtures, so their
+-- shoulder lengths are measured independently and can drift apart even
+-- though both halves' toolpaths live in one shared Fusion document.
+
+local SHOULDER_LOGS_DIR = "C:\\Mach4Hobby\\Profiles\\BLP\\Logs"
+
+-- Reads a piano folder's own report for its make/serial/section, persisted
+-- shoulder length estimate, CSV path, and whether it has already been cut.
+function ProbeScripts.ReadShoulderInfo(folderName)
+    local reportPath = SHOULDER_LOGS_DIR .. "\\" .. folderName .. "\\" .. folderName .. "_Report.txt"
+    local file = io.open(reportPath, "r")
+    if not file then return nil end
+    local content = file:read("*a")
+    file:close()
+
+    local section, make, serial = content:match("===== ProbeKeys (%a+) %- (.-) S/N (%d+) =====")
+    if not section then return nil end
+
+    return {
+        folder = folderName,
+        section = section,
+        make = make,
+        serial = serial,
+        value = tonumber(content:match("Shoulder Length estimate: ([%d%.]+)")),
+        csvPath = content:match("CSV output file: (.-)\r?\n"),
+        shaped = content:find("===== Final Shaping Started =====") ~= nil,
+    }
+end
+
+-- Finds the most recent run of the OTHER section for the same make/serial.
+function ProbeScripts.FindShoulderSibling(make, serial, mySection)
+    local otherSection = (mySection == "Upper") and "Lower" or "Upper"
+    local handle = io.popen('dir "' .. SHOULDER_LOGS_DIR .. '" /b /ad /o-d 2>nul')
+    local folders = handle:read("*a")
+    handle:close()
+
+    for folderName in folders:gmatch("[^\r\n]+") do
+        local info = ProbeScripts.ReadShoulderInfo(folderName)
+        if info and info.section == otherSection and info.make == make and info.serial == tostring(serial) then
+            return info  -- folders listed newest-first (/o-d), so the first match is the most recent
+        end
+    end
+    return nil
+end
+
+-- Decides whether a shoulder length correction is needed between two halves
+-- and, if so, prompts the operator for the value to use. myInfo/siblingInfo
+-- are tables shaped like ReadShoulderInfo's result (folder, value, shaped,
+-- label). Returns {value=, applyToMe=, applyToSibling=} or nil if no
+-- correction should be sent.
+function ProbeScripts.ResolveShoulderCorrection(inst, myInfo, siblingInfo, limit)
+    local diff = myInfo.value - siblingInfo.value
+
+    if not myInfo.shaped and not siblingInfo.shaped then
+        -- Neither half is cut yet -- always settle on a shared value so they
+        -- match exactly, even if they already happen to be within the limit.
+        local lo, hi = math.min(myInfo.value, siblingInfo.value), math.max(myInfo.value, siblingInfo.value)
+        local suggested = (myInfo.value + siblingInfo.value) / 2
+        local dialogFields = {
+            {type = "instructions", text = string.format(
+                "Neither half has been cut yet.\n\n" ..
+                "%s measured %.4f\"\n%s measured %.4f\"\n\n" ..
+                "Both halves will be set to the same shoulder length so they match.\n" ..
+                "Suggested (average): %.4f\"",
+                myInfo.label, myInfo.value, siblingInfo.label, siblingInfo.value, suggested)},
+            {type = "number", key = "shoulderValue", label = "Shared shoulder length to use (inches)",
+             default = suggested, persist = false, min = lo, max = hi,
+             validateMsg = string.format("Must be between %.4f\" and %.4f\"", lo, hi)}
+        }
+        local result = ProbeScripts.ShowDialog(inst, "Shoulder Length Compromise", dialogFields)
+        if result and result.shoulderValue then
+            return {value = result.shoulderValue, applyToMe = true, applyToSibling = true}
+        end
+        return nil
+    end
+
+    if math.abs(diff) <= limit then
+        return nil  -- within limit and at least one side is already fixed -- nothing to do
+    end
+
+    -- One side is already cut and can't change -- correct whichever side can.
+    local fixed, movable
+    if siblingInfo.shaped and not myInfo.shaped then
+        fixed, movable = siblingInfo, myInfo
+    elseif myInfo.shaped and not siblingInfo.shaped then
+        fixed, movable = myInfo, siblingInfo
+    else
+        return nil  -- both already cut -- nothing left to correct
+    end
+
+    local dialogFields = {
+        {type = "instructions", text = string.format(
+            "%s measures %.4f\".\n" ..
+            "%s (already cut) measured %.4f\" -- a difference of %.4f\",\n" ..
+            "over the %.4f\" limit.\n\n" ..
+            "Enter the shoulder length to cut for %s.\n" ..
+            "It must stay within %.4f\" of the already-cut half.",
+            movable.label, movable.value, fixed.label, fixed.value, math.abs(diff),
+            limit, movable.label, limit)},
+        {type = "number", key = "shoulderValue", label = "Shoulder Length to use (inches)",
+         default = fixed.value, persist = false,
+         min = fixed.value - limit, max = fixed.value + limit,
+         validateMsg = string.format("Must be within %.4f\" of %.4f\"", limit, fixed.value)}
+    }
+    local result = ProbeScripts.ShowDialog(inst, "Shoulder Length Correction", dialogFields)
+    if result and result.shoulderValue then
+        return {
+            value = result.shoulderValue,
+            applyToMe = (movable == myInfo),
+            applyToSibling = (movable == siblingInfo),
+        }
+    end
+    return nil
+end
+
+-- Sends whatever trigger(s) a correction from ResolveShoulderCorrection
+-- needs when it touches the sibling half (dual-section, or sibling-only).
+-- Both halves' NC programs live in the same Fusion document, so a
+-- dual-section trigger processes them together in one pass -- no separate
+-- document to activate. Returns "dual", "sibling-only", or nil (nothing to
+-- send here; a me-only correction is handled by the caller's own trigger).
+function ProbeScripts.SendShoulderCorrectionTrigger(correction, myInfo, siblingInfo, styleFields)
+    local function toNetwork(p)
+        return p:gsub("C:\\Mach4Hobby", "\\\\BLPCNC\\Mach4Hobby"):gsub("\\", "\\\\")
+    end
+
+    local styleJson = ""
+    if styleFields then
+        styleJson = string.format(', "chamfer_style": "%s", "edge_chamfer": %.6f, "lip_fillet": %.6f',
+            styleFields.chamfer_style, styleFields.edge_chamfer, styleFields.lip_fillet)
+    end
+
+    if correction.applyToMe and correction.applyToSibling then
+        local triggerPath = SHOULDER_LOGS_DIR .. "\\PROBE_COMPLETE_" .. myInfo.folder .. ".txt"
+        local triggerData = string.format(
+            '{"dual_section": true, "shoulder_override": %.6f%s, "sections": [{"csv_path": "%s", "piano_id": "%s"}, {"csv_path": "%s", "piano_id": "%s"}]}',
+            correction.value, styleJson,
+            toNetwork(myInfo.csvPath), myInfo.folder,
+            toNetwork(siblingInfo.csvPath), siblingInfo.folder)
+        local f = io.open(triggerPath, "w")
+        if f then f:write(triggerData); f:close() end
+        return "dual"
+    elseif correction.applyToSibling then
+        local triggerPath = SHOULDER_LOGS_DIR .. "\\PROBE_COMPLETE_" .. siblingInfo.folder .. ".txt"
+        local triggerData = string.format('{"csv_path": "%s", "piano_id": "%s", "avg_z": 0, "shoulder_override": %.6f%s}',
+            toNetwork(siblingInfo.csvPath), siblingInfo.folder, correction.value, styleJson)
+        local f = io.open(triggerPath, "w")
+        if f then f:write(triggerData); f:close() end
+        return "sibling-only"
+    end
+    return nil
+end
+
+
 function ProbeScripts.ProbeKeys(inst)
     -- Heartbeat check helper (returns true if valid, false otherwise)
     local HEARTBEAT_FILE = "C:\\Mach4Hobby\\Profiles\\BLP\\Logs\\FUSION_HEARTBEAT.txt"
@@ -3906,102 +4063,43 @@ function ProbeScripts.ProbeKeys(inst)
 
     -- ========== CROSS-HALF SHOULDER LENGTH CHECK ==========
     -- Upper and Lower sit in separate fixtures and are probed independently,
-    -- so their shoulder lengths can drift apart. Find the most recent run of
-    -- the OTHER half for this same make/serial and keep them within
+    -- so their shoulder lengths can drift apart even though both halves'
+    -- toolpaths live in one shared Fusion document. Find the most recent run
+    -- of the OTHER half for this same make/serial and keep them within
     -- SHOULDER_LENGTH_LIMIT of each other.
     local SHOULDER_LENGTH_LIMIT = 0.015
     local shoulderOverride = nil
+    local skipNormalTrigger = false
 
     if shoulderLengthEst then
-        local shoulderLogsDir = "C:\\Mach4Hobby\\Profiles\\BLP\\Logs"
-        local otherSection = (keyHalfName == "Upper") and "Lower" or "Upper"
-        local handle = io.popen('dir "' .. shoulderLogsDir .. '" /b /ad /o-d 2>nul')
-        local siblingFolders = handle:read("*a")
-        handle:close()
+        local siblingInfo = ProbeScripts.FindShoulderSibling(params.make, params.serial, keyHalfName)
+        if siblingInfo and siblingInfo.value then
+            siblingInfo.label = siblingInfo.folder
+            local myInfo = {
+                folder = pianoName, label = pianoName, value = shoulderLengthEst,
+                csvPath = csvPath, shaped = false,  -- this report is being written fresh right now
+            }
 
-        local siblingValue, siblingShaped, siblingFolder = nil, false, nil
-
-        for folderName in siblingFolders:gmatch("[^\r\n]+") do
-            local reportPath = shoulderLogsDir .. "\\" .. folderName .. "\\" .. folderName .. "_Report.txt"
-            local file = io.open(reportPath, "r")
-            if file then
-                local content = file:read("*a")
-                file:close()
-
-                local foundSection, foundMake, foundSerial = content:match("===== ProbeKeys (%a+) %- (.-) S/N (%d+) =====")
-                if foundSection == otherSection and foundMake == params.make and foundSerial == tostring(params.serial) then
-                    siblingValue = tonumber(content:match("Shoulder Length estimate: ([%d%.]+)"))
-                    siblingShaped = content:find("===== Final Shaping Started =====") ~= nil
-                    siblingFolder = folderName
-                    break  -- folders listed newest-first (/o-d), so the first match is the most recent
-                end
-            end
-        end
-
-        if siblingValue then
-            local diff = shoulderLengthEst - siblingValue
-
-            if siblingShaped then
-                -- The sibling is already cut and can't change. Out of tolerance,
-                -- ask the operator what to cut this half to -- suggest the
-                -- sibling's value but allow anything within the limit of it.
-                if math.abs(diff) > SHOULDER_LENGTH_LIMIT then
-                    local dialogFields = {
-                        {type = "instructions", text = string.format(
-                            "This half's shoulder measures %.4f\".\n" ..
-                            "%s (already cut) measured %.4f\" -- a difference of %.4f\",\n" ..
-                            "over the %.4f\" limit.\n\n" ..
-                            "Enter the shoulder length to cut for this half.\n" ..
-                            "It must stay within %.4f\" of the already-cut half.",
-                            shoulderLengthEst, siblingFolder, siblingValue, math.abs(diff),
-                            SHOULDER_LENGTH_LIMIT, SHOULDER_LENGTH_LIMIT)},
-                        {type = "number", key = "shoulderValue", label = "Shoulder Length to use (inches)",
-                         default = siblingValue, persist = false,
-                         min = siblingValue - SHOULDER_LENGTH_LIMIT,
-                         max = siblingValue + SHOULDER_LENGTH_LIMIT,
-                         validateMsg = string.format("Must be within %.4f\" of %.4f\"", SHOULDER_LENGTH_LIMIT, siblingValue)}
-                    }
-                    local dialogResult = ProbeScripts.ShowDialog(inst, "Shoulder Length Correction", dialogFields)
-                    if dialogResult and dialogResult.shoulderValue then
-                        shoulderOverride = dialogResult.shoulderValue
-                        writeReport(string.format(
-                            "Shoulder correction: using %.4f\" (this half measured %.4f\", %s measured %.4f\")",
-                            shoulderOverride, shoulderLengthEst, siblingFolder, siblingValue))
-                    else
-                        writeReport(string.format(
-                            "Shoulder correction dialog cancelled -- proceeding with measured value %.4f\" (%s measured %.4f\", diff %.4f\" exceeds limit)",
-                            shoulderLengthEst, siblingFolder, siblingValue, math.abs(diff)))
-                    end
-                else
-                    writeReport(string.format(
-                        "Shoulder length within limit of %s (this half %.4f\", other half %.4f\", diff %.4f\")",
-                        siblingFolder, shoulderLengthEst, siblingValue, math.abs(diff)))
-                end
+            local correction = ProbeScripts.ResolveShoulderCorrection(inst, myInfo, siblingInfo, SHOULDER_LENGTH_LIMIT)
+            if correction and correction.applyToMe and correction.applyToSibling then
+                -- Dual case: one trigger updates both halves in this shared
+                -- document, so skip sending this half's own normal trigger.
+                ProbeScripts.SendShoulderCorrectionTrigger(correction, myInfo, siblingInfo, nil)
+                skipNormalTrigger = true
+                shoulderOverride = correction.value
+                writeReport(string.format("Shoulder compromise: using %.4f\" for both halves (this half measured %.4f\", %s measured %.4f\")",
+                    correction.value, shoulderLengthEst, siblingInfo.folder, siblingInfo.value))
+            elseif correction and correction.applyToMe then
+                shoulderOverride = correction.value
+                writeReport(string.format("Shoulder correction: using %.4f\" (this half measured %.4f\", %s measured %.4f\")",
+                    correction.value, shoulderLengthEst, siblingInfo.folder, siblingInfo.value))
+            elseif correction and correction.applyToSibling then
+                ProbeScripts.SendShoulderCorrectionTrigger(correction, myInfo, siblingInfo, nil)
+                writeReport(string.format("Shoulder correction sent to Fusion for %s: using %.4f\" (this half already cut at %.4f\")",
+                    siblingInfo.folder, correction.value, shoulderLengthEst))
             else
-                -- Neither half has been cut yet -- always settle on a shared
-                -- value so the two halves match exactly, even if they already
-                -- happen to be within the limit. Only THIS half's trigger gets
-                -- it automatically: Fusion's add-in updates whatever document
-                -- is currently active with no way to target a specific piano
-                -- section, so re-posting the sibling's G-code unattended risks
-                -- applying this data to the wrong open document. The sibling
-                -- needs its Fusion document opened and re-triggered by hand.
-                shoulderOverride = (shoulderLengthEst + siblingValue) / 2
-                writeReport(string.format(
-                    "Shoulder compromise: using %.4f\" (this half measured %.4f\", %s measured %.4f\")",
-                    shoulderOverride, shoulderLengthEst, siblingFolder, siblingValue))
-                writeReport(string.format(
-                    "ACTION NEEDED: open %s's Fusion document and re-run its probe trigger with shoulder_override=%.4f so both halves match",
-                    siblingFolder, shoulderOverride))
-                wx.wxMessageBox(
-                    string.format(
-                        "Shoulder length compromise applied to this half: %.4f\"\n\n" ..
-                        "This half measured %.4f\", %s measured %.4f\".\n\n" ..
-                        "%s has NOT been updated -- its Fusion document must be opened\n" ..
-                        "and re-triggered with this same value before it's cut, or the\n" ..
-                        "two halves will end up mismatched again.",
-                        shoulderOverride, shoulderLengthEst, siblingFolder, siblingValue, siblingFolder),
-                    "Shoulder Compromise -- Sibling Needs Manual Update", wx.wxOK + wx.wxICON_WARNING)
+                writeReport(string.format("Shoulder length vs %s: this half %.4f\", other half %.4f\", diff %.4f\"",
+                    siblingInfo.folder, shoulderLengthEst, siblingInfo.value, math.abs(shoulderLengthEst - siblingInfo.value)))
             end
         end
     end
@@ -4051,7 +4149,7 @@ function ProbeScripts.ProbeKeys(inst)
             avgZ)
     end
 
-    local sendTrigger = true
+    local sendTrigger = not skipNormalTrigger
 
     if #validationErrors > 0 or #xOutlierAdjustments > 0 then
         local errorLines = ""
@@ -4123,6 +4221,8 @@ function ProbeScripts.ProbeKeys(inst)
             wx.wxMessageBox("Warning: Could not create trigger file for Fusion 360.\n\nManually trigger the add-in or re-run ProbeKeys.",
                 "Trigger Warning", wx.wxOK + wx.wxICON_WARNING)
         end
+    elseif skipNormalTrigger then
+        mc.mcCntlSetLastError(inst, string.format("ProbeKeys complete - shoulder compromise sent to Fusion for both halves (%.4f\")", shoulderOverride or 0))
     end
 
     return true
@@ -5264,16 +5364,73 @@ function ProbeScripts.ApplyStyle(inst)
     local pianoName    = pianoOptions[selectedIdx]
     local preset       = PRESETS[params.finishStyle or 1]
 
+    local edgeTypeNames = {"chamfer", "roundover"}
+    local chamferStyle  = edgeTypeNames[(params.edgeType or 0) + 1] or "chamfer"
+    local styleLabels   = {"Light", "Medium", "Heavy"}
+    local styleLabel    = styleLabels[(params.finishStyle or 1) + 1] or "Medium"
+    local styleFields   = {chamfer_style = chamferStyle, edge_chamfer = preset.edge_chamfer, lip_fillet = preset.lip_fillet}
+
+    -- ========== CROSS-HALF SHOULDER LENGTH CHECK ==========
+    -- Same check ProbeKeys runs automatically after probing the second half,
+    -- available here too so a mismatch can be corrected manually at any
+    -- time -- e.g. if a probe run predates this feature, or the operator
+    -- just wants to re-check/re-apply a correction on demand.
+    local SHOULDER_LENGTH_LIMIT = 0.015
+    local shoulderOverride = nil
+    local skipNormalTrigger = false
+
+    local myInfo = ProbeScripts.ReadShoulderInfo(pianoName)
+    if myInfo and myInfo.value then
+        myInfo.label = pianoName
+        local siblingInfo = ProbeScripts.FindShoulderSibling(myInfo.make, myInfo.serial, myInfo.section)
+        if siblingInfo and siblingInfo.value then
+            siblingInfo.label = siblingInfo.folder
+            local correction = ProbeScripts.ResolveShoulderCorrection(inst, myInfo, siblingInfo, SHOULDER_LENGTH_LIMIT)
+            if correction and correction.applyToMe and correction.applyToSibling then
+                -- Both halves still uncut -- one dual trigger regenerates both
+                -- together in this shared document with the shared value and
+                -- the style just selected; this half's own trigger is skipped.
+                ProbeScripts.SendShoulderCorrectionTrigger(correction, myInfo, siblingInfo, styleFields)
+                skipNormalTrigger = true
+                shoulderOverride = correction.value
+            elseif correction and correction.applyToMe then
+                shoulderOverride = correction.value
+            elseif correction and correction.applyToSibling then
+                -- This half is already cut and can't change -- only the
+                -- sibling needs correcting, so send it separately and still
+                -- continue on to send this half's own normal trigger below.
+                ProbeScripts.SendShoulderCorrectionTrigger(correction, myInfo, siblingInfo, styleFields)
+                wx.wxMessageBox(
+                    string.format("%s (not yet cut) is also being corrected to %.4f\" to match this half.",
+                        siblingInfo.folder, correction.value),
+                    "Sibling Also Corrected", wx.wxOK + wx.wxICON_INFORMATION)
+            end
+        end
+    end
+
+    if skipNormalTrigger then
+        wx.wxMessageBox(
+            string.format(
+                "Shoulder length compromise sent for both halves: %.4f\"\n\n" ..
+                "%s and its sibling are being regenerated together with this\n" ..
+                "shared shoulder length and the %s %s style you selected.",
+                shoulderOverride, pianoName, styleLabel, chamferStyle),
+            "Style + Shoulder Compromise Applied", wx.wxOK + wx.wxICON_INFORMATION)
+        return
+    end
+
     local csvPathNetwork = csvPathLocal:gsub("C:\\Mach4Hobby", "\\\\BLPCNC\\Mach4Hobby")
     local triggerPath    = logsDir .. "\\PROBE_COMPLETE_" .. pianoName .. ".txt"
-    local edgeTypeNames  = {"chamfer", "roundover"}
-    local chamferStyle   = edgeTypeNames[(params.edgeType or 0) + 1] or "chamfer"
-    local triggerData    = string.format(
-        '{"csv_path": "%s", "piano_id": "%s", "avg_z": 0, "chamfer_style": "%s", "edge_chamfer": %.6f, "lip_fillet": %.6f}',
-        csvPathNetwork:gsub("\\", "\\\\"), pianoName, chamferStyle, preset.edge_chamfer, preset.lip_fillet)
-
-    local styleLabels = {"Light", "Medium", "Heavy"}
-    local styleLabel  = styleLabels[(params.finishStyle or 1) + 1] or "Medium"
+    local triggerData
+    if shoulderOverride then
+        triggerData = string.format(
+            '{"csv_path": "%s", "piano_id": "%s", "avg_z": 0, "chamfer_style": "%s", "edge_chamfer": %.6f, "lip_fillet": %.6f, "shoulder_override": %.6f}',
+            csvPathNetwork:gsub("\\", "\\\\"), pianoName, chamferStyle, preset.edge_chamfer, preset.lip_fillet, shoulderOverride)
+    else
+        triggerData = string.format(
+            '{"csv_path": "%s", "piano_id": "%s", "avg_z": 0, "chamfer_style": "%s", "edge_chamfer": %.6f, "lip_fillet": %.6f}',
+            csvPathNetwork:gsub("\\", "\\\\"), pianoName, chamferStyle, preset.edge_chamfer, preset.lip_fillet)
+    end
 
     local tFile = io.open(triggerPath, "w")
     if tFile then
