@@ -50,3 +50,31 @@
 [2026-09-13 19:33:48] Probed 6 accessible shoulders
 [2026-09-13 19:33:54] G68 rotation cleared
 [2026-09-13 19:33:54] ===== ProbeKeys Lower Half Completed Successfully =====
+[2026-09-21 17:51:10] ===== Final Keytop Shaping Started =====
+[2026-09-21 17:51:42] Single-tap calibration offset:
+[2026-09-21 17:51:42]   -Z: -0.027480
+[2026-09-21 17:51:42] Left bore center: X0.0097 Y0.0075
+[2026-09-21 17:51:48] Surface Z datum set at: 0.0000
+[2026-09-21 17:51:51] ID hole 1: Z=-0.0832 (calibrated), bit=1
+[2026-09-21 17:51:54] ID hole 2: Z=0.0017 (calibrated), bit=0
+[2026-09-21 17:51:57] ID hole 3: Z=-0.0834 (calibrated), bit=1
+[2026-09-21 17:52:00] ID hole 4: Z=-0.0832 (calibrated), bit=1
+[2026-09-21 17:52:03] ID hole 5: Z=0.0025 (calibrated), bit=0
+[2026-09-21 17:52:05] ID hole 6: Z=-0.0820 (calibrated), bit=1
+[2026-09-21 17:52:08] ID hole 7: Z=0.0048 (calibrated), bit=0
+[2026-09-21 17:52:11] ID hole 8: Z=0.0058 (calibrated), bit=0
+[2026-09-21 17:52:14] ID hole 9: Z=0.0075 (calibrated), bit=0
+[2026-09-21 17:52:16] ID hole 10: Z=-0.0772 (calibrated), bit=1
+[2026-09-21 17:52:16] Fixture ID detected: 45 (binary: 00101101)
+[2026-09-21 17:52:45] Right bore center (in datum coords): X46.0153 Y0.0056
+[2026-09-21 17:52:45] Right bore position relative to left: X46.0153 Y0.0056
+[2026-09-21 17:52:45] Bore alignment angle: 0.0070 degrees
+[2026-09-21 17:52:45] G68 rotation applied: 0.0070 degrees centered at 0,0
+[2026-09-21 17:52:45] Found matching fixture ID 45 in folder: Kingsbury_Complete_Lower_84727_Lower
+[2026-09-21 17:52:45] Piano: Kingsbury_Complete_Lower S/N 84727, Section: Lower
+[2026-09-21 17:52:45] Found shaping file: C:\Mach4Hobby\Profiles\BLP\Logs\Kingsbury_Complete_Lower_84727_Lower\Kingsbury_Complete_Lower_84727_Lower.tap
+[2026-09-21 17:52:47] ===== Final Shaping Started =====
+[2026-09-21 17:52:47] Fixture ID: 45
+[2026-09-21 17:52:47] Section: Lower
+[2026-09-21 17:52:47] G-code file: C:\Mach4Hobby\Profiles\BLP\Logs\Kingsbury_Complete_Lower_84727_Lower\Kingsbury_Complete_Lower_84727_Lower.tap
+[2026-09-21 17:52:47] Deferred load marker created: C:\Mach4Hobby\Profiles\BLP\Temp\DeferredGCode.txt

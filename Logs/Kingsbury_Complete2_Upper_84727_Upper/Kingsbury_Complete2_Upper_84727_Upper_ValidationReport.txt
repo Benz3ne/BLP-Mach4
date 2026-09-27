@@ -1,17 +1,19 @@
 ===== Placement Validation Report =====
 Piano: Kingsbury_Complete2_Upper  S/N: 84727  Section: Upper
-Date:  2026-09-13 20:25:31
+Date:  2026-09-21 17:35:16
 
 Thresholds: Z +/-0.025"  Y+ +/-0.020"  Shoulder 0.075"-0.500"
 
-RESULT: 2 ERROR(S) DETECTED
+RESULT: 4 ERROR(S) DETECTED
 
-  !! Z SEATING  Key 45   measured=0.3953"  avg=0.4217"  deviation=0.0264" (limit +/-0.025")
-  !! SHOULDER   Key 83   LEFT expected but not found (step=0.0522")
+  !! Z SEATING  Key 45   measured=0.3958"  avg=0.4212"  deviation=0.0253" (limit +/-0.025")
+  !! SHOULDER   Key 78   RIGHT expected but not found (step=0.0729")
+  !! SHOULDER   Key 83   LEFT expected but not found (step=0.0482")
+  !! SHOULDER LENGTH  1.6928"  but 2/5 readings removed as outliers (40%)  -- check for worn or damaged keys
 
 OUTLIER ADJUSTMENTS: 22 front X measurement(s) auto-excluded from validation
 Threshold: +/-0.012" from group median  (back groups not filtered -- key shape variation expected)
-  ** Key 45   +X: 2 front outlier(s) excluded
+  ** Key 45   +X: 1 front outlier(s) excluded
   ** Key 47   +X: 1 front outlier(s) excluded
   ** Key 47   -X: 1 front outlier(s) excluded
   ** Key 49   +X: 3 front outlier(s) excluded
@@ -30,6 +32,6 @@ Threshold: +/-0.012" from group median  (back groups not filtered -- key shape v
   ** Key 71   -X: 1 front outlier(s) excluded
   ** Key 73   +X: 3 front outlier(s) excluded
   ** Key 76   +X: 2 front outlier(s) excluded
+  ** Key 78   -X: 3 front outlier(s) excluded
   ** Key 85   +X: 4 front outlier(s) excluded
-  ** Key 87   +X: 5 front outlier(s) excluded
   ** Key 88   +X: 3 front outlier(s) excluded
