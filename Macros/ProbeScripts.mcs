@@ -472,6 +472,9 @@ function ProbeScripts.ShowDialog(inst, title, fields, profileSection, options)
         if options.buttonLabels then
             requestFile:write(string.format("okLabel=%s\n", options.buttonLabels.ok or "OK"))
             requestFile:write(string.format("cancelLabel=%s\n", options.buttonLabels.cancel or "Cancel"))
+            if options.buttonLabels.alt then
+                requestFile:write(string.format("altLabel=%s\n", options.buttonLabels.alt))
+            end
         end
 
         requestFile:close()
@@ -2876,6 +2879,13 @@ local function siblingFolderName(folderName)
     return base .. "_" .. otherSection
 end
 
+-- Returns "Upper" or "Lower" if the folder name ends with that suffix, else nil.
+local function sectionOf(folderName)
+    if folderName:match("_Upper$") then return "Upper" end
+    if folderName:match("_Lower$") then return "Lower" end
+    return nil
+end
+
 -- Reads a piano folder's own report for its make/serial/section, persisted
 -- shoulder length estimate, CSV path, and whether it has already been cut.
 function ProbeScripts.ReadShoulderInfo(folderName)
@@ -2917,151 +2927,125 @@ end
 -- parameters against each other. ProbeKeys only ever points here with an
 -- informational suggestion -- it doesn't send any correction itself.
 --
--- Presents a Lower/Upper pair (suggested by matching same-named _Upper/_Lower
--- folders), a resolution mode (average, skew one to the other, or a custom
--- value), and an action (regenerate Lower, regenerate Upper, or Done). Loops
--- back after each regenerate so the operator can do the other half too,
--- entirely at their own pace, until they pick Done.
+-- Presents the piano's Lower and Upper halves side by side (auto-paired by
+-- matching same-named _Upper/_Lower folders -- no manual pair picking), a
+-- resolution mode (average, match the already-cut half within tolerance, or a
+-- custom value), and a dedicated regenerate button for each half plus a Done
+-- button. Loops back after each regenerate so the operator can do the other
+-- half too, entirely at their own pace, until they pick Done.
 --
--- contextPianoName (optional): the piano folder just used in Apply Style --
--- when given, it and its same-named sibling are pre-selected in preference to
--- the newest-run fallback.
-function ProbeScripts.ShoulderLengthTool(inst, contextPianoName)
+-- contextPianoName: the piano folder just used in Apply Style -- required;
+-- its same-named sibling is looked up directly, no fallback/generic mode.
+-- styleOverride (optional): {chamfer_style, edge_chamfer, lip_fillet} chosen
+-- for contextPianoName in Apply Style -- merged into contextPianoName's own
+-- regenerate trigger only (never the sibling's), so a single Fusion
+-- regeneration picks up both the style and the shoulder correction.
+function ProbeScripts.ShoulderLengthTool(inst, contextPianoName, styleOverride)
     local SHOULDER_LENGTH_LIMIT = 0.015
 
-    local function scanShoulderFolders()
-        local handle = io.popen('dir "' .. SHOULDER_LOGS_DIR .. '" /b /ad /o-d 2>nul')
-        local folderList = handle:read("*a")
-        handle:close()
-
-        local lowerEntries, upperEntries = {}, {}
-        for folderName in folderList:gmatch("[^\r\n]+") do
-            local info = ProbeScripts.ReadShoulderInfo(folderName)
-            if info and info.value then
-                if info.section == "Lower" then table.insert(lowerEntries, info)
-                elseif info.section == "Upper" then table.insert(upperEntries, info) end
-            end
-        end
-        return lowerEntries, upperEntries  -- newest-first, since dir /o-d already sorts that way
+    local mySection = contextPianoName and sectionOf(contextPianoName)
+    local siblingName = mySection and siblingFolderName(contextPianoName)
+    if not siblingName then
+        wx.wxMessageBox(
+            "Could not determine an Upper/Lower sibling for \"" .. tostring(contextPianoName) .. "\".",
+            "Shoulder Adjustment", wx.wxOK + wx.wxICON_INFORMATION)
+        return
     end
 
     while true do
-        local lowerEntries, upperEntries = scanShoulderFolders()
-        if #lowerEntries == 0 or #upperEntries == 0 then
-            wx.wxMessageBox(
-                "Need at least one Lower run and one Upper run with a Shoulder Length estimate to use this tool.",
-                "Shoulder Length Tool", wx.wxOK + wx.wxICON_INFORMATION)
+        local myInfo = ProbeScripts.ReadShoulderInfo(contextPianoName)
+        local sibInfo = ProbeScripts.ReadShoulderInfo(siblingName)
+        if not myInfo or not myInfo.value or not sibInfo or not sibInfo.value then
+            wx.wxMessageBox(string.format(
+                "No matching sibling with a shoulder length estimate found.\n\n%s: %s\n%s: %s\n\n" ..
+                "Probe the other half first, then use Apply Style > Shoulder Adjustment again.",
+                contextPianoName, (myInfo and myInfo.value) and "OK" or "missing estimate",
+                siblingName, (sibInfo and sibInfo.value) and "OK" or "missing estimate"),
+                "Shoulder Adjustment", wx.wxOK + wx.wxICON_INFORMATION)
             return
         end
 
-        local lowerOptions, upperOptions = {}, {}
-        for _, e in ipairs(lowerEntries) do table.insert(lowerOptions, e.folder) end
-        for _, e in ipairs(upperEntries) do table.insert(upperOptions, e.folder) end
+        local lowerInfo = (mySection == "Lower") and myInfo or sibInfo
+        local upperInfo = (mySection == "Upper") and myInfo or sibInfo
+        local diff = lowerInfo.value - upperInfo.value
+        local avgValue = (lowerInfo.value + upperInfo.value) / 2
 
-        -- Suggest a pairing by matching same-named _Upper/_Lower folders. If we
-        -- were given the piano just used in Apply Style, prefer its exact
-        -- sibling; otherwise fall back to the newest Lower run's sibling, and
-        -- finally to just the newest Lower/Upper if no exact sibling exists.
-        local defaultLowerIdx, defaultUpperIdx = 0, 0
-
-        if contextPianoName then
-            for i, e in ipairs(lowerEntries) do
-                if e.folder == contextPianoName then defaultLowerIdx = i - 1 break end
-            end
-            for i, e in ipairs(upperEntries) do
-                if e.folder == contextPianoName then defaultUpperIdx = i - 1 break end
-            end
-        end
-
-        local wantSibling = siblingFolderName(contextPianoName or lowerEntries[1].folder)
-        if wantSibling then
-            for i, e in ipairs(lowerEntries) do
-                if e.folder == wantSibling then defaultLowerIdx = i - 1 break end
-            end
-            for i, e in ipairs(upperEntries) do
-                if e.folder == wantSibling then defaultUpperIdx = i - 1 break end
-            end
-        end
-
-        local suggestedLower, suggestedUpper = lowerEntries[defaultLowerIdx + 1], upperEntries[defaultUpperIdx + 1]
-        local suggestedDiff = suggestedLower.value - suggestedUpper.value
+        -- Default "which half was cut" to whichever one Final Shaping has
+        -- already run on, if only one of them has.
+        local defaultCutHalf = 0
+        if upperInfo.shaped and not lowerInfo.shaped then defaultCutHalf = 1 end
 
         local fields = {
             {type = "instructions", text = string.format(
-                "Suggested pair (matched by name):\n" ..
-                "  %s: %.4f\"%s\n  %s: %.4f\"%s\n  Difference: %.4f\" (limit %.3f\")\n\n" ..
-                "Change either selection below for a different pair. The exact\n" ..
-                "numbers for whatever you pick are shown again before anything is sent.",
-                suggestedLower.folder, suggestedLower.value, suggestedLower.shaped and "  [CUT]" or "",
-                suggestedUpper.folder, suggestedUpper.value, suggestedUpper.shaped and "  [CUT]" or "",
-                math.abs(suggestedDiff), SHOULDER_LENGTH_LIMIT)},
-            {type = "choice", key = "lowerSelection", label = "Lower Run",
-             options = lowerOptions, default = defaultLowerIdx, persist = false},
-            {type = "choice", key = "upperSelection", label = "Upper Run",
-             options = upperOptions, default = defaultUpperIdx, persist = false},
+                "Shoulder length difference: %.4f\" (guideline limit %.3f\")",
+                math.abs(diff), SHOULDER_LENGTH_LIMIT)},
+            {type = "section", label = lowerInfo.folder, children = {
+                {type = "instructions", text = string.format(
+                    "Shoulder: %.4f\"%s", lowerInfo.value, lowerInfo.shaped and "   [CUT]" or "")},
+            }},
+            {type = "section", label = upperInfo.folder, children = {
+                {type = "instructions", text = string.format(
+                    "Shoulder: %.4f\"%s", upperInfo.value, upperInfo.shaped and "   [CUT]" or "")},
+            }},
             {type = "separator"},
             {type = "radio", key = "resolution", label = "Resolution",
-             options = {"Average the two", "Skew Lower to match Upper", "Skew Upper to match Lower", "Custom value"},
+             options = {
+                 "Average the two",
+                 string.format("Match already-cut half (up to %.3f\" adjustment)", SHOULDER_LENGTH_LIMIT),
+                 "Custom value",
+             },
              columns = 1, default = 0, persist = false},
-            {type = "number", key = "customValue", label = "Custom value (in) -- used only if \"Custom value\" is selected",
-             default = suggestedLower.value, persist = false},
-            {type = "separator"},
-            {type = "radio", key = "action", label = "Action",
-             options = {"Regenerate Lower with the resolved value", "Regenerate Upper with the resolved value", "Done"},
-             columns = 1, default = 2, persist = false},
+            {type = "radio", key = "cutHalf", label = "Which half was already cut? -- used only for \"Match already-cut half\"",
+             options = {"Lower", "Upper"}, columns = 2, default = defaultCutHalf, persist = false},
+            {type = "number", key = "customValue", label = "Custom value (in) -- used only for \"Custom value\"",
+             default = avgValue, persist = false},
         }
 
-        local params = ProbeScripts.ShowDialog(inst, "Shoulder Length Tool", fields, "ShoulderLengthTool", {width = 560})
-        if not params then return end  -- Cancel closes the tool entirely
-
-        if params.action == 2 then
-            return  -- Done
-        end
-
-        local selLower = lowerEntries[(params.lowerSelection or 0) + 1]
-        local selUpper = upperEntries[(params.upperSelection or 0) + 1]
-        local diff = selLower.value - selUpper.value
+        local params = ProbeScripts.ShowDialog(inst, "Shoulder Adjustment", fields, "ShoulderLengthTool",
+            {width = 560, buttonLabels = {ok = "Regenerate Lower", alt = "Regenerate Upper", cancel = "Done"}})
+        if not params then return end  -- Done, or dialog closed
 
         local resolvedValue
         if params.resolution == 1 then
-            resolvedValue = selUpper.value   -- skew Lower to match Upper
+            -- Match the already-cut half, but never push the uncut half's
+            -- target further than the tolerance limit from what was actually
+            -- measured on it.
+            local cutIsLower = (params.cutHalf == 0)
+            local cutValue = cutIsLower and lowerInfo.value or upperInfo.value
+            local uncutValue = cutIsLower and upperInfo.value or lowerInfo.value
+            resolvedValue = math.max(uncutValue - SHOULDER_LENGTH_LIMIT,
+                             math.min(uncutValue + SHOULDER_LENGTH_LIMIT, cutValue))
         elseif params.resolution == 2 then
-            resolvedValue = selLower.value   -- skew Upper to match Lower
-        elseif params.resolution == 3 then
             resolvedValue = params.customValue
         else
-            resolvedValue = (selLower.value + selUpper.value) / 2   -- average
+            resolvedValue = avgValue
         end
 
-        local toleranceMsg
-        if math.abs(diff) > SHOULDER_LENGTH_LIMIT then
-            toleranceMsg = string.format("Difference %.4f\" EXCEEDS the %.3f\" tolerance.", math.abs(diff), SHOULDER_LENGTH_LIMIT)
-        else
-            toleranceMsg = string.format("Difference %.4f\" is within the %.3f\" tolerance.", math.abs(diff), SHOULDER_LENGTH_LIMIT)
-        end
-
-        local target, targetLabel
-        if params.action == 0 then
-            target, targetLabel = selLower, "Lower"
-        else
-            target, targetLabel = selUpper, "Upper"
-        end
+        local target = (params.dialogButton == "alt") and upperInfo or lowerInfo
+        local targetLabel = (params.dialogButton == "alt") and "Upper" or "Lower"
 
         local cutWarning = target.shaped and
             "\n\nWARNING: this half is already marked as cut (Final Shaping has run). Regenerating\nwill NOT match the physical part unless you intend to re-cut it." or ""
 
         local confirmMsg = string.format(
-            "%s measured: %.4f\"\n%s measured: %.4f\"\n%s%s\n\n" ..
-            "Regenerate %s (%s) using %.4f\"?",
-            selLower.folder, selLower.value, selUpper.folder, selUpper.value, toleranceMsg, cutWarning,
-            targetLabel, target.folder, resolvedValue)
+            "%s measured: %.4f\"\n%s measured: %.4f\"\n\nRegenerate %s (%s) using %.4f\"?%s",
+            lowerInfo.folder, lowerInfo.value, upperInfo.folder, upperInfo.value,
+            targetLabel, target.folder, resolvedValue, cutWarning)
 
         local confirmResult = wx.wxMessageBox(confirmMsg, "Confirm Regeneration", wx.wxYES_NO + wx.wxICON_QUESTION)
         if confirmResult == wx.wxYES then
             local csvNetwork = target.csvPath:gsub("C:\\Mach4Hobby", "\\\\BLPCNC\\Mach4Hobby"):gsub("\\", "\\\\")
             local triggerPath = SHOULDER_LOGS_DIR .. "\\PROBE_COMPLETE_" .. target.folder .. ".txt"
-            local triggerData = string.format('{"csv_path": "%s", "piano_id": "%s", "shoulder_override": %.6f}',
-                csvNetwork, target.folder, resolvedValue)
+
+            local extraStyleJSON = ""
+            if styleOverride and target.folder == contextPianoName then
+                extraStyleJSON = string.format(', "chamfer_style": "%s", "edge_chamfer": %.6f, "lip_fillet": %.6f',
+                    styleOverride.chamfer_style, styleOverride.edge_chamfer, styleOverride.lip_fillet)
+            end
+
+            local triggerData = string.format('{"csv_path": "%s", "piano_id": "%s", "shoulder_override": %.6f%s}',
+                csvNetwork, target.folder, resolvedValue, extraStyleJSON)
+
             local f = io.open(triggerPath, "w")
             if f then
                 f:write(triggerData)
@@ -4144,7 +4128,7 @@ function ProbeScripts.ProbeKeys(inst)
                     string.format(
                         "Shoulder length differs from %s by %.4f\" (this half %.4f\", other half %.4f\"),\n" ..
                         "at or over the %.3f\" guideline.\n\n" ..
-                        "Consider running the Shoulder Length Tool from Style Selection (Apply Style)\n" ..
+                        "Consider using the \"Shoulder Adjustment\" button in Apply Style (Style Selection)\n" ..
                         "to review and optionally reconcile the two halves.",
                         siblingInfo.folder, shoulderDiff, shoulderLengthEst, siblingInfo.value, SHOULDER_LENGTH_LIMIT),
                     "Shoulder Length Suggestion", wx.wxOK + wx.wxICON_INFORMATION)
@@ -5391,13 +5375,10 @@ function ProbeScripts.ApplyStyle(inst)
              "Heavy  — Chamfer 0.0175\"  |  Lip Fillet 0.110\"",
          },
          columns = 1, default = 1},
-        {type = "separator"},
-        {type = "checkbox", key = "runShoulderCheck", label = "Also reconcile shoulder length with paired Upper/Lower half",
-         default = 1, persist = true,
-         tooltip = "Looks for a same-named _Upper/_Lower sibling of the selected probe data and offers to correct shoulder length drift between the two halves"},
     }
 
-    local params = ProbeScripts.ShowDialog(inst, "Apply Style", fields, "ApplyStyle", {width = 520})
+    local params = ProbeScripts.ShowDialog(inst, "Apply Style", fields, "ApplyStyle",
+        {width = 520, buttonLabels = {ok = "OK", cancel = "Cancel", alt = "Shoulder Adjustment"}})
     if not params then return end
 
     local selectedIdx  = (params.pianoSelection or 0) + 1
@@ -5409,7 +5390,20 @@ function ProbeScripts.ApplyStyle(inst)
     local chamferStyle  = edgeTypeNames[(params.edgeType or 0) + 1] or "chamfer"
     local styleLabels   = {"Light", "Medium", "Heavy"}
     local styleLabel    = styleLabels[(params.finishStyle or 1) + 1] or "Medium"
-    local styleFields   = {chamfer_style = chamferStyle, edge_chamfer = preset.edge_chamfer, lip_fillet = preset.lip_fillet}
+
+    -- "OK" applies the style now, on its own. "Shoulder Adjustment" instead
+    -- carries these same style choices into the Shoulder Adjustment screen,
+    -- where they're merged into this piano's own regenerate trigger (never
+    -- its sibling's) so one Fusion regeneration picks up both -- instead of
+    -- firing two separate regenerations back to back.
+    if params.dialogButton == "alt" then
+        ProbeScripts.ShoulderLengthTool(inst, pianoName, {
+            chamfer_style = chamferStyle,
+            edge_chamfer  = preset.edge_chamfer,
+            lip_fillet    = preset.lip_fillet,
+        })
+        return
+    end
 
     local csvPathNetwork = csvPathLocal:gsub("C:\\Mach4Hobby", "\\\\BLPCNC\\Mach4Hobby")
     local triggerPath    = logsDir .. "\\PROBE_COMPLETE_" .. pianoName .. ".txt"
@@ -5444,16 +5438,6 @@ function ProbeScripts.ApplyStyle(inst)
     else
         wx.wxMessageBox("Failed to send style trigger to Fusion 360.\n\nCheck that the Logs folder is accessible.",
             "Trigger Error", wx.wxOK + wx.wxICON_ERROR)
-    end
-
-    -- Optional section: manual shoulder-length reconciliation between this
-    -- piano's Upper and Lower halves. Upper/Lower are probed independently in
-    -- separate fixtures and can drift apart. Gated by the checkbox above so an
-    -- operator can run style-only when there's no sibling half to reconcile
-    -- against; when it does run, it's pre-aimed at this piano's same-named
-    -- sibling, and triggers are still only ever sent one at a time.
-    if params.runShoulderCheck then
-        ProbeScripts.ShoulderLengthTool(inst, pianoName)
     end
 end
 

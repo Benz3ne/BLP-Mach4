@@ -3864,7 +3864,12 @@ function ShowDialogScreen(inst)
             local innerSizer = wx.wxBoxSizer(wx.wxVERTICAL)
             
             for _, child in ipairs(field.children) do
-                if child.type == "number" then
+                if child.type == "instructions" then
+                    local text = wx.wxStaticText(inner, wx.wxID_ANY, child.text)
+                    if child.tooltip then text:SetToolTip(child.tooltip) end
+                    innerSizer:Add(text, 0, wx.wxALL, 5)
+
+                elseif child.type == "number" then
                     local row = wx.wxBoxSizer(wx.wxHORIZONTAL)
                     local label = wx.wxStaticText(inner, wx.wxID_ANY, child.label)
                     label:SetMinSize(wx.wxSize(120, -1))
@@ -3931,12 +3936,24 @@ function ShowDialogScreen(inst)
     sizer:Add(HLine(panel), 0, wx.wxEXPAND + wx.wxALL, 10)
     local buttonSizer = wx.wxBoxSizer(wx.wxHORIZONTAL)
     
+    local ALT_MODAL_RESULT = 2  -- distinct from wxID_OK/wxID_CANCEL, used only for the optional third button
+
     local okButton = wx.wxButton(panel, wx.wxID_OK, request.okLabel or "OK")
     okButton:SetDefault()
     local cancelButton = wx.wxButton(panel, wx.wxID_CANCEL, request.cancelLabel or "Cancel")
-    
+
     buttonSizer:Add(okButton, 0, wx.wxALL, 5)
     buttonSizer:Add(cancelButton, 0, wx.wxALL, 5)
+
+    local altButton = nil
+    if request.altLabel and request.altLabel ~= "" then
+        altButton = wx.wxButton(panel, wx.wxID_ANY, request.altLabel)
+        altButton:Connect(wx.wxEVT_COMMAND_BUTTON_CLICKED, function(event)
+            dialog:EndModal(ALT_MODAL_RESULT)
+        end)
+        buttonSizer:Add(altButton, 0, wx.wxALL, 5)
+    end
+
     sizer:Add(buttonSizer, 0, wx.wxALIGN_CENTER + wx.wxALL, 10)
     
     panel:SetSizer(sizer)
@@ -3949,9 +3966,12 @@ function ShowDialogScreen(inst)
     
     -- Show and collect results
     local result = nil
-    if dialog:ShowModal() == wx.wxID_OK then
+    local modalResult = dialog:ShowModal()
+    local buttonPressed = "cancel"
+    if modalResult == wx.wxID_OK or modalResult == ALT_MODAL_RESULT then
+        buttonPressed = (modalResult == ALT_MODAL_RESULT) and "alt" or "ok"
         result = {}
-        
+
         -- Collect all values
         for _, field in ipairs(fields) do
             if controls[field.key] and field.key then
@@ -4017,6 +4037,7 @@ function ShowDialogScreen(inst)
     if respFile then
         if result then
             respFile:write("success=true\n")
+            respFile:write(string.format("dialogButton=%s\n", buttonPressed))
             for k, v in pairs(result) do
                 respFile:write(string.format("%s=%s\n", k, tostring(v)))
             end
