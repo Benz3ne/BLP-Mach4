@@ -2863,6 +2863,19 @@ end
 
 local SHOULDER_LOGS_DIR = "C:\\Mach4Hobby\\Profiles\\BLP\\Logs"
 
+-- Computes the same-named opposite-section sibling folder name, e.g.
+-- "HalletDavis_39365_Upper" -> "HalletDavis_39365_Lower". Returns nil if the
+-- folder name doesn't end with exactly "_Upper" or "_Lower".
+local function siblingFolderName(folderName)
+    local base, section = folderName:match("^(.-)_(Upper)$")
+    if not base then
+        base, section = folderName:match("^(.-)_(Lower)$")
+    end
+    if not base then return nil end
+    local otherSection = (section == "Upper") and "Lower" or "Upper"
+    return base .. "_" .. otherSection
+end
+
 -- Reads a piano folder's own report for its make/serial/section, persisted
 -- shoulder length estimate, CSV path, and whether it has already been cut.
 function ProbeScripts.ReadShoulderInfo(folderName)
@@ -2886,22 +2899,13 @@ function ProbeScripts.ReadShoulderInfo(folderName)
     }
 end
 
--- Finds the most recent run of the OTHER section for the same make/serial.
--- Used only for the informational delta check in ProbeKeys and to pre-select
--- ShoulderLengthTool's suggested pairing -- no correction logic here.
+-- Finds the same-named opposite-section sibling, e.g. "Steinway_123456_Upper"
+-- pairs with "Steinway_123456_Lower". Used for the informational delta check
+-- in ProbeKeys and to pre-select ShoulderLengthTool's suggested pairing -- no
+-- correction logic here.
 function ProbeScripts.FindShoulderSibling(make, serial, mySection)
     local otherSection = (mySection == "Upper") and "Lower" or "Upper"
-    local handle = io.popen('dir "' .. SHOULDER_LOGS_DIR .. '" /b /ad /o-d 2>nul')
-    local folders = handle:read("*a")
-    handle:close()
-
-    for folderName in folders:gmatch("[^\r\n]+") do
-        local info = ProbeScripts.ReadShoulderInfo(folderName)
-        if info and info.section == otherSection and info.make == make and info.serial == tostring(serial) then
-            return info  -- folders listed newest-first (/o-d), so the first match is the most recent
-        end
-    end
-    return nil
+    return ProbeScripts.ReadShoulderInfo(string.format("%s_%s_%s", make, serial, otherSection))
 end
 
 -- Manual, on-demand tool for reconciling shoulder length between a piano's
@@ -2913,12 +2917,16 @@ end
 -- parameters against each other. ProbeKeys only ever points here with an
 -- informational suggestion -- it doesn't send any correction itself.
 --
--- Presents a Lower/Upper pair (suggested by matching make/serial, newest run
--- first), a resolution mode (average, skew one to the other, or a custom
+-- Presents a Lower/Upper pair (suggested by matching same-named _Upper/_Lower
+-- folders), a resolution mode (average, skew one to the other, or a custom
 -- value), and an action (regenerate Lower, regenerate Upper, or Done). Loops
 -- back after each regenerate so the operator can do the other half too,
 -- entirely at their own pace, until they pick Done.
-function ProbeScripts.ShoulderLengthTool(inst)
+--
+-- contextPianoName (optional): the piano folder just used in Apply Style --
+-- when given, it and its same-named sibling are pre-selected in preference to
+-- the newest-run fallback.
+function ProbeScripts.ShoulderLengthTool(inst, contextPianoName)
     local SHOULDER_LENGTH_LIMIT = 0.015
 
     local function scanShoulderFolders()
@@ -2950,22 +2958,37 @@ function ProbeScripts.ShoulderLengthTool(inst)
         for _, e in ipairs(lowerEntries) do table.insert(lowerOptions, e.folder) end
         for _, e in ipairs(upperEntries) do table.insert(upperOptions, e.folder) end
 
-        -- Suggest a pairing: most recent Lower, and the most recent Upper sharing
-        -- its make/serial (falling back to the single most recent Upper otherwise).
+        -- Suggest a pairing by matching same-named _Upper/_Lower folders. If we
+        -- were given the piano just used in Apply Style, prefer its exact
+        -- sibling; otherwise fall back to the newest Lower run's sibling, and
+        -- finally to just the newest Lower/Upper if no exact sibling exists.
         local defaultLowerIdx, defaultUpperIdx = 0, 0
-        for i, e in ipairs(upperEntries) do
-            if e.make == lowerEntries[1].make and e.serial == lowerEntries[1].serial then
-                defaultUpperIdx = i - 1
-                break
+
+        if contextPianoName then
+            for i, e in ipairs(lowerEntries) do
+                if e.folder == contextPianoName then defaultLowerIdx = i - 1 break end
+            end
+            for i, e in ipairs(upperEntries) do
+                if e.folder == contextPianoName then defaultUpperIdx = i - 1 break end
             end
         end
 
-        local suggestedLower, suggestedUpper = lowerEntries[1], upperEntries[defaultUpperIdx + 1]
+        local wantSibling = siblingFolderName(contextPianoName or lowerEntries[1].folder)
+        if wantSibling then
+            for i, e in ipairs(lowerEntries) do
+                if e.folder == wantSibling then defaultLowerIdx = i - 1 break end
+            end
+            for i, e in ipairs(upperEntries) do
+                if e.folder == wantSibling then defaultUpperIdx = i - 1 break end
+            end
+        end
+
+        local suggestedLower, suggestedUpper = lowerEntries[defaultLowerIdx + 1], upperEntries[defaultUpperIdx + 1]
         local suggestedDiff = suggestedLower.value - suggestedUpper.value
 
         local fields = {
             {type = "instructions", text = string.format(
-                "Suggested pair (newest, matched by make/serial):\n" ..
+                "Suggested pair (matched by name):\n" ..
                 "  %s: %.4f\"%s\n  %s: %.4f\"%s\n  Difference: %.4f\" (limit %.3f\")\n\n" ..
                 "Change either selection below for a different pair. The exact\n" ..
                 "numbers for whatever you pick are shown again before anything is sent.",
@@ -5368,6 +5391,10 @@ function ProbeScripts.ApplyStyle(inst)
              "Heavy  — Chamfer 0.0175\"  |  Lip Fillet 0.110\"",
          },
          columns = 1, default = 1},
+        {type = "separator"},
+        {type = "checkbox", key = "runShoulderCheck", label = "Also reconcile shoulder length with paired Upper/Lower half",
+         default = 1, persist = true,
+         tooltip = "Looks for a same-named _Upper/_Lower sibling of the selected probe data and offers to correct shoulder length drift between the two halves"},
     }
 
     local params = ProbeScripts.ShowDialog(inst, "Apply Style", fields, "ApplyStyle", {width = 520})
@@ -5419,12 +5446,15 @@ function ProbeScripts.ApplyStyle(inst)
             "Trigger Error", wx.wxOK + wx.wxICON_ERROR)
     end
 
-    -- Additional section: manual shoulder-length reconciliation between this
+    -- Optional section: manual shoulder-length reconciliation between this
     -- piano's Upper and Lower halves. Upper/Lower are probed independently in
-    -- separate fixtures and can drift apart -- this used to be an automatic
-    -- check right here and in ProbeKeys; it's now entirely operator-driven so
-    -- triggers are only ever sent one at a time, deliberately.
-    ProbeScripts.ShoulderLengthTool(inst)
+    -- separate fixtures and can drift apart. Gated by the checkbox above so an
+    -- operator can run style-only when there's no sibling half to reconcile
+    -- against; when it does run, it's pre-aimed at this piano's same-named
+    -- sibling, and triggers are still only ever sent one at a time.
+    if params.runShoulderCheck then
+        ProbeScripts.ShoulderLengthTool(inst, pianoName)
+    end
 end
 
 
