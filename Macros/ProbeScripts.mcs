@@ -3697,6 +3697,11 @@ function ProbeScripts.ProbeKeys(inst)
 
     writeReport(string.format("===== ProbeKeys %s - %s S/N %s =====", keyHalfName, params.make, params.serial))
     writeReport(string.format("Fixture ID: %d", fixtureID))
+    -- How far the prior G55 origin was from true bore center, before this
+    -- run re-zeroed it. Small values across runs confirm the bore correction
+    -- is realigning consistently; a large one (fixture bumped, G55 not what
+    -- was expected, etc.) still gets fully corrected here, it's just visible.
+    writeReport(string.format("Left bore center: X%.4f Y%.4f", leftBoreCenterX, leftBoreCenterY))
     writeReport(string.format("Bore alignment angle: %.4f degrees", angleDegrees))
     writeReport(string.format("Probe Drop Depth: %.4f", PROBE_DROP_DEPTH))
     writeReport(string.format("Linearity Threshold: %.4f", LINEARITY_THRESHOLD))
@@ -5020,8 +5025,11 @@ function ProbeScripts.FinalKeytopShaping(inst)
     local Z_VALIDATION_TOLERANCE = 0.005  -- accounts for glue line thickness
     local KEY_PROBE_Y = 0  -- same Y used for Z-height probing in ProbeKeys/InitialKeytopTrim
     local Z_VALIDATION_KEY_INTERVAL = 6  -- keys 1, 7, 13, 19, 25 -- same sampling as InitialKeytopTrim
+    -- Probed furthest +X key first, working back toward -X -- the machine is
+    -- still out near the right bore (high X) from the G68 alignment step just
+    -- above, so this avoids an extra full-width traverse before starting.
     local keyProbeXPositions = {}
-    for keyIndex = 1, 25, Z_VALIDATION_KEY_INTERVAL do
+    for keyIndex = 25, 1, -Z_VALIDATION_KEY_INTERVAL do
         table.insert(keyProbeXPositions, FIRST_KEY_X + (keyIndex - 1) * KEY_SPACING)
     end
 
