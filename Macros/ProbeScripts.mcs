@@ -3968,7 +3968,9 @@ function ProbeScripts.ProbeKeys(inst)
 
     mc.mcCntlSetLastError(inst, string.format("ProbeKeys %s half completed successfully", keyHalfName))
     writeReport(string.format("===== ProbeKeys %s Half Completed Successfully =====", keyHalfName))
-    reportFile:close()
+    -- NOTE: reportFile stays open here -- placement validation and the shoulder
+    -- length estimate below still need to write to it. It's closed at the very
+    -- end of this function instead.
 
     -- ========== PLACEMENT VALIDATION ==========
 
@@ -4246,6 +4248,7 @@ function ProbeScripts.ProbeKeys(inst)
         end
     end
 
+    reportFile:close()
     return true
 end
 
