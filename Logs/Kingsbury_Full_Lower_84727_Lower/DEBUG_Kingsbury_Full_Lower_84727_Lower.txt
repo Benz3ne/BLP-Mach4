@@ -121,3 +121,7 @@
 14:54:02 - File moved successfully
 14:54:03 - === PROCESSING COMPLETE: SUCCESS ===
 14:54:03 - Output file: \\BLPCNC\Mach4Hobby\Profiles\BLP\Logs\Kingsbury_Full_Lower_84727_Lower\Kingsbury_Full_Lower_84727_Lower.tap
+14:58:26 - === STARTING PROCESSING: Kingsbury_Full_Lower_84727_Lower ===
+14:58:26 - [PROGRESS] Starting - Received trigger for Kingsbury_Full_Lower_84727_Lower
+14:58:26 - ERROR: No active document
+14:58:26 - === PROCESSING COMPLETE: FAILED ===

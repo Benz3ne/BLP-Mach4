@@ -1,0 +1,4 @@
+14:58:25 - === STARTING PROCESSING: Hallet Davis_39365_Lower ===
+14:58:25 - [PROGRESS] Starting - Received trigger for Hallet Davis_39365_Lower
+14:58:25 - ERROR: No active document
+14:58:25 - === PROCESSING COMPLETE: FAILED ===

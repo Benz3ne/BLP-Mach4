@@ -243,7 +243,7 @@ XToolChange=8.94762
 YToolChange=107.413
 ZToolChange=-5.44704
 [Tool13]
-Length=2.95797
+Length=2.95923
 LengthWear=0
 Diameter=0
 DiameterWear=0
@@ -273,7 +273,7 @@ XToolChange=16.048
 YToolChange=107.386
 ZToolChange=-5.53212
 [Tool15]
-Length=3.15104
+Length=3.15675
 LengthWear=0
 Diameter=0
 DiameterWear=0
@@ -288,7 +288,7 @@ XToolChange=19.5848
 YToolChange=107.365
 ZToolChange=-5.5746
 [Tool16]
-Length=2.56506
+Length=2.56639
 LengthWear=0
 Diameter=0
 DiameterWear=0
@@ -333,7 +333,7 @@ YToolChange=107.323
 ZToolChange=-5.635
 AutoProbe=1
 [Tool19]
-Length=3.05285
+Length=3.05647
 LengthWear=0
 Diameter=0
 DiameterWear=0

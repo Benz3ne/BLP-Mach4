@@ -50,3 +50,7 @@
 13:54:48 - File moved successfully
 13:54:48 - === PROCESSING COMPLETE: SUCCESS ===
 13:54:48 - Output file: \\BLPCNC\Mach4Hobby\Profiles\BLP\Logs\HalletDavis_39365_Upper\HalletDavis_39365_Upper.tap
+14:58:26 - === STARTING PROCESSING: HalletDavis_39365_Upper ===
+14:58:26 - [PROGRESS] Starting - Received trigger for HalletDavis_39365_Upper
+14:58:26 - ERROR: No active document
+14:58:26 - === PROCESSING COMPLETE: FAILED ===
