@@ -5128,6 +5128,17 @@ function ProbeScripts.FinalKeytopShaping(inst)
             else
                 writeReport(string.format("Z validation OK (avg diff %+.4f, max %+.4f, min %+.4f, tolerance +/-%.3f)",
                     avgDiff, maxDiff, minDiff, Z_VALIDATION_TOLERANCE))
+
+                wx.wxMessageBox(string.format(
+                    "Keytop material Z passed validation.\n\n" ..
+                    "Expected (KeyHeightZ %.4f + %.2f material): %.4f\"\n\n" ..
+                    "Average measured: %.4f\"  (diff %+.4f\")\n" ..
+                    "Max: %.4f\"  (diff %+.4f\")\n" ..
+                    "Min: %.4f\"  (diff %+.4f\")\n\n" ..
+                    "Tolerance is +/-%.3f\".",
+                    keyHeightZ, KEYTOP_MATERIAL_THICKNESS, expectedZ,
+                    expectedZ + avgDiff, avgDiff, maxZ, maxDiff, minZ, minDiff, Z_VALIDATION_TOLERANCE),
+                    "Z Height Validation Passed", wx.wxOK + wx.wxICON_INFORMATION)
             end
         end
     end
