@@ -5108,45 +5108,49 @@ function ProbeScripts.FinalKeytopShaping(inst)
             writeReport(string.format("Z validation summary: avg diff=%+.4f  max diff=%+.4f (Z=%.4f)  min diff=%+.4f (Z=%.4f)",
                 avgDiff, maxDiff, maxZ, minDiff, minZ))
 
-            if math.abs(avgDiff) > Z_VALIDATION_TOLERANCE then
-                writeReport(string.format("Z VALIDATION OUT OF TOLERANCE: avg diff=%+.4f (tolerance +/-%.3f)",
-                    avgDiff, Z_VALIDATION_TOLERANCE))
+            local inTolerance = math.abs(avgDiff) <= Z_VALIDATION_TOLERANCE
 
-                local msg = string.format(
-                    "Keytop material Z is out of tolerance.\n\n" ..
-                    "Expected (KeyHeightZ %.4f + %.2f material): %.4f\"\n\n" ..
-                    "Average measured: %.4f\"  (diff %+.4f\")\n" ..
-                    "Max: %.4f\"  (diff %+.4f\")\n" ..
-                    "Min: %.4f\"  (diff %+.4f\")\n\n" ..
-                    "Tolerance is +/-%.3f\".\n\n" ..
-                    "Shift the datum by the average difference before continuing?",
-                    keyHeightZ, KEYTOP_MATERIAL_THICKNESS, expectedZ,
-                    expectedZ + avgDiff, avgDiff, maxZ, maxDiff, minZ, minDiff, Z_VALIDATION_TOLERANCE)
-
-                local result = wx.wxMessageBox(msg, "Z Height Out of Tolerance", wx.wxYES_NO + wx.wxICON_WARNING)
-                if result == wx.wxYES then
-                    -- Shift the whole Z work offset by the average diff so the average keytop
-                    -- surface reads as expectedZ, without needing to be physically at that point.
-                    local currentZ = mc.mcAxisGetPos(inst, mc.Z_AXIS)
-                    mc.mcAxisSetPos(inst, mc.Z_AXIS, currentZ - avgDiff)
-                    writeReport(string.format("Datum shifted by %+.4f\" (average) per user confirmation", -avgDiff))
-                else
-                    writeReport("User declined datum shift -- continuing with original datum")
-                end
-            else
+            if inTolerance then
                 writeReport(string.format("Z validation OK (avg diff %+.4f, max %+.4f, min %+.4f, tolerance +/-%.3f)",
                     avgDiff, maxDiff, minDiff, Z_VALIDATION_TOLERANCE))
+            else
+                writeReport(string.format("Z VALIDATION OUT OF TOLERANCE: avg diff=%+.4f (tolerance +/-%.3f)",
+                    avgDiff, Z_VALIDATION_TOLERANCE))
+            end
 
-                wx.wxMessageBox(string.format(
-                    "Keytop material Z passed validation.\n\n" ..
+            -- Always offer the datum shift as an editable field -- even when
+            -- in tolerance, so the operator can see the exact number and
+            -- override it rather than just getting a pass/fail acknowledgement.
+            local zFields = {
+                {type = "instructions", text = string.format(
+                    "%s\n\n" ..
                     "Expected (KeyHeightZ %.4f + %.2f material): %.4f\"\n\n" ..
                     "Average measured: %.4f\"  (diff %+.4f\")\n" ..
                     "Max: %.4f\"  (diff %+.4f\")\n" ..
                     "Min: %.4f\"  (diff %+.4f\")\n\n" ..
                     "Tolerance is +/-%.3f\".",
+                    inTolerance and "Keytop material Z passed validation." or "Keytop material Z is out of tolerance.",
                     keyHeightZ, KEYTOP_MATERIAL_THICKNESS, expectedZ,
-                    expectedZ + avgDiff, avgDiff, maxZ, maxDiff, minZ, minDiff, Z_VALIDATION_TOLERANCE),
-                    "Z Height Validation Passed", wx.wxOK + wx.wxICON_INFORMATION)
+                    expectedZ + avgDiff, avgDiff, maxZ, maxDiff, minZ, minDiff, Z_VALIDATION_TOLERANCE)},
+                {type = "number", key = "datumShift", label = "Datum Shift (in)",
+                 default = avgDiff, persist = false,
+                 tooltip = "Amount to shift the Z work offset by -- defaults to the measured average difference; edit before applying if needed"},
+            }
+
+            local zParams = ProbeScripts.ShowDialog(inst,
+                inTolerance and "Z Height Validation Passed" or "Z Height Out of Tolerance",
+                zFields, "FinalKeytopShapingZValidation",
+                {width = 480, buttonLabels = {ok = "Apply Shift", cancel = "Skip"}})
+
+            if zParams and zParams.datumShift and zParams.datumShift ~= 0 then
+                -- Shift the whole Z work offset so the average keytop surface reads as
+                -- expectedZ (or whatever the operator edited the shift to), without
+                -- needing to be physically at that point.
+                local currentZ = mc.mcAxisGetPos(inst, mc.Z_AXIS)
+                mc.mcAxisSetPos(inst, mc.Z_AXIS, currentZ - zParams.datumShift)
+                writeReport(string.format("Datum shifted by %+.4f\" per user confirmation", -zParams.datumShift))
+            else
+                writeReport("User skipped datum shift -- continuing with original datum")
             end
         end
     end
