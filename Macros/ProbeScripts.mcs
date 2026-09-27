@@ -3554,6 +3554,27 @@ function ProbeScripts.ProbeKeys(inst)
     -- Calculate and move to center
     local leftBoreCenterX = (doubleResults["+X"] + doubleResults["-X"]) / 2
     local leftBoreCenterY = (doubleResults["+Y"] + doubleResults["-Y"]) / 2
+
+    -- G55 should only drift a tiny amount run to run -- this is the deviation
+    -- between the prior G55 origin and where the bore actually is. Anything
+    -- past 0.05" usually means the fixture moved more than expected, the
+    -- wrong work offset was active, or the wrong bore was found -- worth
+    -- catching before continuing the rest of this probing sequence on it.
+    local BORE_CENTER_TOLERANCE = 0.05
+    if math.abs(leftBoreCenterX) > BORE_CENTER_TOLERANCE or math.abs(leftBoreCenterY) > BORE_CENTER_TOLERANCE then
+        local result = wx.wxMessageBox(string.format(
+            "Left bore center is offset from the prior G55 origin more than expected:\n\n" ..
+            "  X%.4f\"  Y%.4f\"  (tolerance +/-%.2f\")\n\n" ..
+            "This usually means the fixture moved more than expected, the wrong\n" ..
+            "work offset was active, or the wrong bore was found.\n\n" ..
+            "Continue and re-zero G55 at this bore center anyway?",
+            leftBoreCenterX, leftBoreCenterY, BORE_CENTER_TOLERANCE),
+            "Bore Center Offset", wx.wxYES_NO + wx.wxICON_WARNING)
+        if result ~= wx.wxYES then
+            return false
+        end
+    end
+
     mc.mcCntlGcodeExecuteWait(inst, string.format("G90 G1 X%.4f Y%.4f F200", leftBoreCenterX, leftBoreCenterY))
 
     -- Single tap calibration for +X, -X, +Y, -Y, -Z
@@ -4514,6 +4535,26 @@ function ProbeScripts.InitialKeytopTrim(inst)
     -- Calculate and move to center
     local leftBoreCenterX = (doubleResults["+X"] + doubleResults["-X"]) / 2
     local leftBoreCenterY = (doubleResults["+Y"] + doubleResults["-Y"]) / 2
+
+    -- G55 should only drift a tiny amount run to run -- this is the deviation
+    -- between the prior G55 origin and where the bore actually is. Anything
+    -- past 0.05" usually means the fixture moved more than expected, the
+    -- wrong work offset was active, or the wrong bore was found.
+    local BORE_CENTER_TOLERANCE = 0.05
+    if math.abs(leftBoreCenterX) > BORE_CENTER_TOLERANCE or math.abs(leftBoreCenterY) > BORE_CENTER_TOLERANCE then
+        local result = wx.wxMessageBox(string.format(
+            "Left bore center is offset from the prior G55 origin more than expected:\n\n" ..
+            "  X%.4f\"  Y%.4f\"  (tolerance +/-%.2f\")\n\n" ..
+            "This usually means the fixture moved more than expected, the wrong\n" ..
+            "work offset was active, or the wrong bore was found.\n\n" ..
+            "Continue and re-zero G55 at this bore center anyway?",
+            leftBoreCenterX, leftBoreCenterY, BORE_CENTER_TOLERANCE),
+            "Bore Center Offset", wx.wxYES_NO + wx.wxICON_WARNING)
+        if result ~= wx.wxYES then
+            return false
+        end
+    end
+
     mc.mcCntlGcodeExecuteWait(inst, string.format("G90 G1 X%.4f Y%.4f F200", leftBoreCenterX, leftBoreCenterY))
 
     -- Single tap calibration for -Z (only direction we need for key probing)
@@ -4915,6 +4956,26 @@ function ProbeScripts.FinalKeytopShaping(inst)
     -- Calculate and move to center
     local leftBoreCenterX = (doubleResults["+X"] + doubleResults["-X"]) / 2
     local leftBoreCenterY = (doubleResults["+Y"] + doubleResults["-Y"]) / 2
+
+    -- G55 should only drift a tiny amount run to run -- this is the deviation
+    -- between the prior G55 origin and where the bore actually is. Anything
+    -- past 0.05" usually means the fixture moved more than expected, the
+    -- wrong work offset was active, or the wrong bore was found.
+    local BORE_CENTER_TOLERANCE = 0.05
+    if math.abs(leftBoreCenterX) > BORE_CENTER_TOLERANCE or math.abs(leftBoreCenterY) > BORE_CENTER_TOLERANCE then
+        local result = wx.wxMessageBox(string.format(
+            "Left bore center is offset from the prior G55 origin more than expected:\n\n" ..
+            "  X%.4f\"  Y%.4f\"  (tolerance +/-%.2f\")\n\n" ..
+            "This usually means the fixture moved more than expected, the wrong\n" ..
+            "work offset was active, or the wrong bore was found.\n\n" ..
+            "Continue and re-zero G55 at this bore center anyway?",
+            leftBoreCenterX, leftBoreCenterY, BORE_CENTER_TOLERANCE),
+            "Bore Center Offset", wx.wxYES_NO + wx.wxICON_WARNING)
+        if result ~= wx.wxYES then
+            return false
+        end
+    end
+
     mc.mcCntlGcodeExecuteWait(inst, string.format("G90 G1 X%.4f Y%.4f F200", leftBoreCenterX, leftBoreCenterY))
 
     -- Single tap calibration for -Z only
