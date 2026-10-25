@@ -2886,6 +2886,38 @@ local function sectionOf(folderName)
     return nil
 end
 
+-- ========== SHARED FIXTURE ORIGIN LOGGING ==========
+-- One running history, across every macro that probes the bores, of where
+-- the work origin (X0 Y0 Z0) actually landed in machine coordinates, keyed by
+-- fixture ID. Tracked over time this shows whether a physical fixture has
+-- shifted position on the table between runs, independent of anything probed
+-- relative to it that run.
+local FIXTURE_ORIGIN_LOG = "C:\\Mach4Hobby\\Profiles\\BLP\\Logs\\FixtureOriginLog.csv"
+
+function ProbeScripts.LogFixtureOrigin(inst, operation, fixtureID, originMachineX, originMachineY, originMachineZ)
+    local isNewFile = true
+    local probe = io.open(FIXTURE_ORIGIN_LOG, "r")
+    if probe then
+        isNewFile = false
+        probe:close()
+    end
+
+    local f = io.open(FIXTURE_ORIGIN_LOG, "a")
+    if not f then return end
+
+    if isNewFile then
+        f:write("Timestamp,Operation,FixtureID,OriginMachineX,OriginMachineY,OriginMachineZ\n")
+    end
+
+    f:write(string.format("%s,%s,%s,%.4f,%.4f,%s\n",
+        os.date("%Y-%m-%d %H:%M:%S"),
+        operation,
+        fixtureID and tostring(fixtureID) or "",
+        originMachineX, originMachineY,
+        originMachineZ and string.format("%.4f", originMachineZ) or ""))
+    f:close()
+end
+
 -- Reads a piano folder's own report for its make/serial/section, persisted
 -- shoulder length estimate, CSV path, and whether it has already been cut.
 function ProbeScripts.ReadShoulderInfo(folderName)
@@ -3247,12 +3279,18 @@ function ProbeScripts.ProbeKeys(inst)
     local pianoName = nil
     local csvPath = nil
     local reportFile = nil
+    local reportMessages = {}
 
-    -- Helper function to write to report
+    -- Helper function to write to report (buffers until the file is opened,
+    -- since several things worth logging -- fixture ID, bore alignment, the
+    -- new bore separation split below -- happen before the piano folder/
+    -- report path is known)
     local function writeReport(message)
+        local timestamp = os.date("%Y-%m-%d %H:%M:%S")
+        local formattedMsg = string.format("[%s] %s\n", timestamp, message)
+        table.insert(reportMessages, formattedMsg)
         if reportFile then
-            local timestamp = os.date("%Y-%m-%d %H:%M:%S")
-            reportFile:write(string.format("[%s] %s\n", timestamp, message))
+            reportFile:write(formattedMsg)
             reportFile:flush()
         end
     end
@@ -3634,6 +3672,27 @@ function ProbeScripts.ProbeKeys(inst)
         angleDegrees = angleRadians * 180 / math.pi
     end
 
+    -- The two bores should be BORE_SEPARATION apart. X was zeroed at the left
+    -- bore, so any discrepancy from nominal would otherwise land entirely on
+    -- the right bore. Split it evenly instead -- shift the origin by half the
+    -- error so each bore is off from its own nominal position by the same
+    -- amount, and the fixture's center always lands at its nominal X.
+    local separationError = xDifference - BORE_SEPARATION
+    local halfSeparationError = separationError / 2
+    local currentXWork = mc.mcAxisGetPos(inst, mc.X_AXIS)
+    mc.mcAxisSetPos(inst, mc.X_AXIS, currentXWork - halfSeparationError)
+    writeReport(string.format("Bore separation: %.4f\" (nominal %.1f\", error %+.4f\") -- X origin split by %+.4f\"",
+        xDifference, BORE_SEPARATION, separationError, -halfSeparationError))
+
+    -- Log where this origin actually landed in machine coordinates (before
+    -- G68 rotation, while machine-to-work is still a plain offset on every
+    -- axis). Z's offset hasn't changed since its datum was set earlier, so
+    -- this is valid for Z too even though we're not physically there now.
+    local originMachineX = mc.mcAxisGetMachinePos(inst, mc.X_AXIS) - mc.mcAxisGetPos(inst, mc.X_AXIS)
+    local originMachineY = mc.mcAxisGetMachinePos(inst, mc.Y_AXIS) - mc.mcAxisGetPos(inst, mc.Y_AXIS)
+    local originMachineZ = mc.mcAxisGetMachinePos(inst, mc.Z_AXIS) - mc.mcAxisGetPos(inst, mc.Z_AXIS)
+    ProbeScripts.LogFixtureOrigin(inst, "ProbeKeys", fixtureID, originMachineX, originMachineY, originMachineZ)
+
     mc.mcCntlGcodeExecuteWait(inst, string.format("G68 X0 Y0 R%.4f", angleDegrees))
     mc.mcCntlSetLastError(inst, string.format("G68 rotation: %.4f degrees", angleDegrees))
 
@@ -3694,6 +3753,12 @@ function ProbeScripts.ProbeKeys(inst)
     csvPath = string.format("%s\\%s.csv", pianoFolder, pianoName)
     local reportPath = string.format("%s\\%s_Report.txt", pianoFolder, pianoName)
     reportFile = io.open(reportPath, "w")
+    if reportFile then
+        for _, msg in ipairs(reportMessages) do
+            reportFile:write(msg)
+        end
+        reportFile:flush()
+    end
 
     writeReport(string.format("===== ProbeKeys %s - %s S/N %s =====", keyHalfName, params.make, params.serial))
     writeReport(string.format("Fixture ID: %d", fixtureID))
@@ -4562,8 +4627,29 @@ function ProbeScripts.InitialKeytopTrim(inst)
         angleDegrees = angleRadians * 180 / math.pi
     end
 
+    -- The two bores should be BORE_SEPARATION apart. X was zeroed at the left
+    -- bore, so any discrepancy from nominal would otherwise land entirely on
+    -- the right bore. Split it evenly instead -- shift the origin by half the
+    -- error so each bore is off from its own nominal position by the same
+    -- amount, and the fixture's center always lands at its nominal X.
+    local separationError = xDifference - BORE_SEPARATION
+    local halfSeparationError = separationError / 2
+    local currentXWork = mc.mcAxisGetPos(inst, mc.X_AXIS)
+    mc.mcAxisSetPos(inst, mc.X_AXIS, currentXWork - halfSeparationError)
+
+    -- Log where this origin actually landed in machine coordinates (before
+    -- G68 rotation, while machine-to-work is still a plain offset on every
+    -- axis). Z's offset hasn't changed since its datum was set earlier, so
+    -- this is valid for Z too even though we're not physically there now.
+    -- No fixture ID here -- InitialKeytopTrim doesn't probe the ID holes.
+    local originMachineX = mc.mcAxisGetMachinePos(inst, mc.X_AXIS) - mc.mcAxisGetPos(inst, mc.X_AXIS)
+    local originMachineY = mc.mcAxisGetMachinePos(inst, mc.Y_AXIS) - mc.mcAxisGetPos(inst, mc.Y_AXIS)
+    local originMachineZ = mc.mcAxisGetMachinePos(inst, mc.Z_AXIS) - mc.mcAxisGetPos(inst, mc.Z_AXIS)
+    ProbeScripts.LogFixtureOrigin(inst, "InitialKeytopTrim", nil, originMachineX, originMachineY, originMachineZ)
+
     mc.mcCntlGcodeExecuteWait(inst, string.format("G68 X0 Y0 R%.4f", angleDegrees))
-    mc.mcCntlSetLastError(inst, string.format("G68 rotation: %.4f degrees", angleDegrees))
+    mc.mcCntlSetLastError(inst, string.format("G68 rotation: %.4f degrees  |  bore separation %.4f\" (error %+.4f\", split %+.4f\")",
+        angleDegrees, xDifference, separationError, -halfSeparationError))
 
     -- ========== SAMPLE KEY Z HEIGHT PROBING ==========
 
@@ -5004,6 +5090,27 @@ function ProbeScripts.FinalKeytopShaping(inst)
 
     writeReport(string.format("Right bore position relative to left: X%.4f Y%.4f", xDifference, yDifference))
     writeReport(string.format("Bore alignment angle: %.4f degrees", angleDegrees))
+
+    -- The two bores should be BORE_SEPARATION apart. X was zeroed at the left
+    -- bore, so any discrepancy from nominal would otherwise land entirely on
+    -- the right bore. Split it evenly instead -- shift the origin by half the
+    -- error so each bore is off from its own nominal position by the same
+    -- amount, and the fixture's center always lands at its nominal X.
+    local separationError = xDifference - BORE_SEPARATION
+    local halfSeparationError = separationError / 2
+    local currentXWork = mc.mcAxisGetPos(inst, mc.X_AXIS)
+    mc.mcAxisSetPos(inst, mc.X_AXIS, currentXWork - halfSeparationError)
+    writeReport(string.format("Bore separation: %.4f\" (nominal %.1f\", error %+.4f\") -- X origin split by %+.4f\"",
+        xDifference, BORE_SEPARATION, separationError, -halfSeparationError))
+
+    -- Log where this origin actually landed in machine coordinates (before
+    -- G68 rotation, while machine-to-work is still a plain offset on every
+    -- axis). Z's offset hasn't changed since its datum was set earlier, so
+    -- this is valid for Z too even though we're not physically there now.
+    local originMachineX = mc.mcAxisGetMachinePos(inst, mc.X_AXIS) - mc.mcAxisGetPos(inst, mc.X_AXIS)
+    local originMachineY = mc.mcAxisGetMachinePos(inst, mc.Y_AXIS) - mc.mcAxisGetPos(inst, mc.Y_AXIS)
+    local originMachineZ = mc.mcAxisGetMachinePos(inst, mc.Z_AXIS) - mc.mcAxisGetPos(inst, mc.Z_AXIS)
+    ProbeScripts.LogFixtureOrigin(inst, "FinalKeytopShaping", fixtureID, originMachineX, originMachineY, originMachineZ)
 
     mc.mcCntlGcodeExecuteWait(inst, string.format("G68 X0 Y0 R%.4f", angleDegrees))
     writeReport(string.format("G68 rotation applied: %.4f degrees centered at 0,0", angleDegrees))
