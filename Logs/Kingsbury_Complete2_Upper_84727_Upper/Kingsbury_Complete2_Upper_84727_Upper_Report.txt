@@ -49,3 +49,77 @@
 [2026-09-21 17:35:11] Probed 5 accessible shoulders
 [2026-09-21 17:35:16] G68 rotation cleared
 [2026-09-21 17:35:16] ===== ProbeKeys Upper Half Completed Successfully =====
+[2026-10-17 15:14:32] ===== Final Keytop Shaping Started =====
+[2026-10-17 15:15:03] Single-tap calibration offset:
+[2026-10-17 15:15:03]   -Z: -0.026850
+[2026-10-17 15:15:03] Left bore center: X0.0010 Y-0.0010
+[2026-10-17 15:15:08] Surface Z datum set at: 0.0000
+[2026-10-17 15:15:12] ID hole 1: Z=0.0029 (calibrated), bit=0
+[2026-10-17 15:15:14] ID hole 2: Z=-0.0915 (calibrated), bit=1
+[2026-10-17 15:15:17] ID hole 3: Z=0.0137 (calibrated), bit=0
+[2026-10-17 15:15:20] ID hole 4: Z=-0.0780 (calibrated), bit=1
+[2026-10-17 15:15:23] ID hole 5: Z=0.0260 (calibrated), bit=0
+[2026-10-17 15:15:25] ID hole 6: Z=-0.0650 (calibrated), bit=1
+[2026-10-17 15:15:28] ID hole 7: Z=0.0397 (calibrated), bit=0
+[2026-10-17 15:15:31] ID hole 8: Z=0.0464 (calibrated), bit=0
+[2026-10-17 15:15:33] ID hole 9: Z=0.0535 (calibrated), bit=0
+[2026-10-17 15:15:36] ID hole 10: Z=-0.0383 (calibrated), bit=0
+[2026-10-17 15:15:36] WARNING: Check bits invalid! Bit 9=0 (expected 0), Bit 10=0 (expected 1)
+[2026-10-17 15:15:36] Fixture ID detected: 42 (binary: 00101010)
+[2026-10-17 15:16:04] Right bore center (in datum coords): X46.0399 Y0.0022
+[2026-10-17 15:16:04] Right bore position relative to left: X46.0399 Y0.0022
+[2026-10-17 15:16:04] Bore alignment angle: 0.0027 degrees
+[2026-10-17 15:16:04] G68 rotation applied: 0.0027 degrees centered at 0,0
+[2026-10-17 15:16:04] Validating keytop material Z against Kingsbury_Complete2_Upper_84727_Upper: KeyHeightZ=0.4212 + 0.07 material = expected 0.4912 (tolerance +/-0.005)
+[2026-10-17 15:16:11]   Point 1 (X42.55 Y0.00): measured Z=0.5111  diff=+0.0199
+[2026-10-17 15:16:17]   Point 2 (X32.35 Y0.00): measured Z=0.5129  diff=+0.0217
+[2026-10-17 15:16:24]   Point 3 (X22.15 Y0.00): measured Z=0.5079  diff=+0.0167
+[2026-10-17 15:16:30]   Point 4 (X11.95 Y0.00): measured Z=0.5063  diff=+0.0151
+[2026-10-17 15:16:37]   Point 5 (X1.75 Y0.00): measured Z=0.4761  diff=-0.0151
+[2026-10-17 15:16:37] Z validation summary: avg diff=+0.0117  max diff=+0.0217 (Z=0.5129)  min diff=-0.0151 (Z=0.4761)
+[2026-10-17 15:16:37] Z VALIDATION OUT OF TOLERANCE: avg diff=+0.0117 (tolerance +/-0.005)
+[2026-10-17 15:16:45] Datum shifted by -0.0117" per user confirmation
+[2026-10-17 15:16:45] User selected file: C:\Mach4Hobby\Profiles\BLP\Logs\Kingsbury_Complete2_Upper_84727_Upper\Kingsbury_Complete2_Upper_84727_Upper.tap
+[2026-10-17 15:16:47] ===== Final Shaping Started =====
+[2026-10-17 15:16:47] Fixture ID: 42
+[2026-10-17 15:16:47] Section: Upper
+[2026-10-17 15:16:47] G-code file: C:\Mach4Hobby\Profiles\BLP\Logs\Kingsbury_Complete2_Upper_84727_Upper\Kingsbury_Complete2_Upper_84727_Upper.tap
+[2026-10-17 15:16:47] Queued (with blow-off + park): C:\Mach4Hobby\Profiles\BLP\Temp\FinalShapingWithBlowOff.tap
+[2026-10-17 15:16:47] Deferred load marker created: C:\Mach4Hobby\Profiles\BLP\Temp\DeferredGCode.txt
+[2026-10-25 10:07:53] ===== Final Keytop Shaping Started =====
+[2026-10-25 10:08:24] Single-tap calibration offset:
+[2026-10-25 10:08:24]   -Z: -0.026614
+[2026-10-25 10:08:24] Left bore center: X0.0000 Y-0.0002
+[2026-10-25 10:08:29] Surface Z datum set at: 0.0000
+[2026-10-25 10:08:33] ID hole 1: Z=0.0017 (calibrated), bit=0
+[2026-10-25 10:08:36] ID hole 2: Z=-0.0931 (calibrated), bit=1
+[2026-10-25 10:08:38] ID hole 3: Z=0.0113 (calibrated), bit=0
+[2026-10-25 10:08:41] ID hole 4: Z=-0.0810 (calibrated), bit=1
+[2026-10-25 10:08:44] ID hole 5: Z=0.0221 (calibrated), bit=0
+[2026-10-25 10:08:47] ID hole 6: Z=-0.0695 (calibrated), bit=1
+[2026-10-25 10:08:49] ID hole 7: Z=0.0344 (calibrated), bit=0
+[2026-10-25 10:08:52] ID hole 8: Z=0.0404 (calibrated), bit=0
+[2026-10-25 10:08:54] ID hole 9: Z=0.0466 (calibrated), bit=0
+[2026-10-25 10:08:57] ID hole 10: Z=-0.0459 (calibrated), bit=0
+[2026-10-25 10:08:57] WARNING: Check bits invalid! Bit 9=0 (expected 0), Bit 10=0 (expected 1)
+[2026-10-25 10:08:57] Fixture ID detected: 42 (binary: 00101010)
+[2026-10-25 10:09:25] Right bore center (in datum coords): X46.0383 Y-0.0029
+[2026-10-25 10:09:25] Right bore position relative to left: X46.0383 Y-0.0029
+[2026-10-25 10:09:25] Bore alignment angle: -0.0035 degrees
+[2026-10-25 10:09:26] G68 rotation applied: -0.0035 degrees centered at 0,0
+[2026-10-25 10:09:26] Validating keytop material Z against Kingsbury_Complete2_Upper_84727_Upper: KeyHeightZ=0.4212 + 0.07 material = expected 0.4912 (tolerance +/-0.005)
+[2026-10-25 10:09:32]   Point 1 (X42.55 Y0.00): measured Z=0.5039  diff=+0.0127
+[2026-10-25 10:09:38]   Point 2 (X32.35 Y0.00): measured Z=0.4955  diff=+0.0043
+[2026-10-25 10:09:45]   Point 3 (X22.15 Y0.00): measured Z=0.4953  diff=+0.0041
+[2026-10-25 10:09:52]   Point 4 (X11.95 Y0.00): measured Z=0.4999  diff=+0.0087
+[2026-10-25 10:09:58]   Point 5 (X1.75 Y0.00): measured Z=0.4778  diff=-0.0134
+[2026-10-25 10:09:58] Z validation summary: avg diff=+0.0033  max diff=+0.0127 (Z=0.5039)  min diff=-0.0134 (Z=0.4778)
+[2026-10-25 10:09:58] Z validation OK (avg diff +0.0033, max +0.0127, min -0.0134, tolerance +/-0.005)
+[2026-10-25 10:10:43] Datum shifted by -0.0015" per user confirmation
+[2026-10-25 10:10:43] User selected file: C:\Mach4Hobby\Profiles\BLP\Logs\Kingsbury_Complete2_Upper_84727_Upper\Kingsbury_Upper Corrected_Zminus0.015.tap
+[2026-10-25 10:10:44] ===== Final Shaping Started =====
+[2026-10-25 10:10:44] Fixture ID: 42
+[2026-10-25 10:10:44] Section: Upper
+[2026-10-25 10:10:44] G-code file: C:\Mach4Hobby\Profiles\BLP\Logs\Kingsbury_Complete2_Upper_84727_Upper\Kingsbury_Upper Corrected_Zminus0.015.tap
+[2026-10-25 10:10:44] Queued (with blow-off + park): C:\Mach4Hobby\Profiles\BLP\Temp\FinalShapingWithBlowOff.tap
+[2026-10-25 10:10:44] Deferred load marker created: C:\Mach4Hobby\Profiles\BLP\Temp\DeferredGCode.txt

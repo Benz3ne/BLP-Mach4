@@ -526,3 +526,19 @@
   End Mach:   (12.0852, 14.7236, -4.9931)
   PROBE TRIGGERED - Collision detected
 
+[2026-10-25 13:00:16] ProtectedMove Collision:
+  Type: inc, Feed: 100.0
+  Start Work: (16.6343, -28.6985, 0.2500)
+  Start Mach: (25.7363, 10.6605, -5.0174)
+  End Work:   (16.6343, -28.6985, -0.0626)
+  End Mach:   (25.7363, 10.6605, -5.3300)
+  PROBE TRIGGERED - Collision detected
+
+[2026-10-25 13:00:17] ProtectedMove Collision:
+  Type: inc, Feed: 50.0
+  Start Work: (16.6343, -28.6985, 0.2500)
+  Start Mach: (25.7363, 10.6605, -5.0174)
+  End Work:   (16.6343, -28.6985, -0.0393)
+  End Mach:   (25.7363, 10.6605, -5.3067)
+  PROBE TRIGGERED - Collision detected
+
